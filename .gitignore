@@ -1,0 +1,33 @@
+# Local reference files and third-party binaries.
+Resource/
+
+# IDE/editor state.
+.claude/
+.idea/
+.vscode/
+.vs/
+*.iml
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS noise.
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment and local config.
+.env
+.env.*
+
+# Logs and runtime diagnostics.
+*.log
+
+
+# Build output directories.
+build/
+
+# Go cache/test output and local server binaries.
+.gocache/
+*.test
