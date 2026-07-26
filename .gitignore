@@ -28,6 +28,9 @@ Desktop.ini
 # Build output directories.
 build/
 
+# Local brainstorming and design-companion state.
+.superpowers/
+
 # Go cache/test output and local server binaries.
 .gocache/
 *.test
