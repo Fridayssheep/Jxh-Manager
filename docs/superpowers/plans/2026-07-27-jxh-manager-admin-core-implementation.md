@@ -12,6 +12,14 @@
 
 ---
 
+## 实施状态（2026-07-28）
+
+- Tasks 1-13 已全部落地，且后续管理资源阶段已把同一安全边界扩展到 OpenAPI 全部 57 个 operation；路由与 `x-status` 由 `internal/adminapi/management_test.go` 自动核对。
+- 认证、账号/会话、审计、幂等、系统操作和运营资源的真实 MySQL 持久化测试已随 `internal/storage` 完整套件通过；迁移与恢复链由 `internal/database` 完整套件通过。
+- 安全审查修复已经合入：审计写入前递归脱敏（`e215eea`）、有效会话状态与稳定账号分页（`06197b7`）、提交后认证状态一致（`9ac2f94`）、认证故障和改密限速隔离（`e566549`）、SSE 持续授权校验（`cf2a765`）、按发布时间清理 replay（`82e4136`）、系统操作终态恢复（`5bb2e00`），以及 quote 非 2xx 正文不进入错误和普通日志（`d2c3330`）。
+- 最终门禁通过：`go test -race -count=1 ./...`、`go build ./...`、三个命令二进制构建、`go vet ./...`、`go mod tidy -diff`、`docker compose config --quiet`、`git diff --check`。
+- 真实 NapCat 重启、QQ 入群审批/发送、WPS 和 quote 上游成功路径仍需部署环境凭据与服务配合；本地完成证据覆盖状态机、幂等、失败/unknown、恢复和 fake gateway 行为，不声称已执行外部副作用。
+
 ## Contract Decisions
 
 - 所有 Admin 响应都由 middleware 设置 `X-Request-ID`；错误体使用 OpenAPI `error.code/message/request_id/fields/retryable`，并补齐 404、405、413、415 和 500 的同构错误。
@@ -50,7 +58,7 @@
 - Create: `Resource/Jxh-Go/internal/adminapi/protocol.go`
 - Create: `Resource/Jxh-Go/internal/adminapi/protocol_test.go`
 
-- [ ] **Step 1: Write failing permission and protocol tests**
+- [x] **Step 1: Write failing permission and protocol tests**
 
 ```go
 func TestPermissionsMatchRoleMatrix(t *testing.T) {
@@ -66,17 +74,17 @@ func TestParseIfMatchRequiresQuotedPositiveVersion(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/auth ./internal/adminapi -run 'Test(Permissions|ParseIfMatch)' -count=1`
 
 Expected: packages or symbols are missing.
 
-- [ ] **Step 3: Implement exact enums and parsers**
+- [x] **Step 3: Implement exact enums and parsers**
 
 Define all OpenAPI permission strings, `RoleSuperAdmin`, `RoleMaintainer`, `RoleObserver`, immutable permission sets, `Principal.Has`, and `Field[T] struct { Set bool; Value T }` for explicit JSON patch presence. Add strict quoted `If-Match`, `limit` default 50/range 1..100, Idempotency-Key pattern `[A-Za-z0-9._:-]{8,128}`, UTC RFC3339 parsing and opaque string ID validation. Never parse QQ/group/flag identifiers into API-visible numbers.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/auth internal/adminapi; go test ./internal/auth ./internal/adminapi; go vet ./internal/auth ./internal/adminapi; git diff --check`
 
@@ -90,7 +98,7 @@ Commit: `feat: 增加管理端身份与权限模型`
 - Modify: `Resource/Jxh-Go/go.mod`
 - Modify: `Resource/Jxh-Go/go.sum`
 
-- [ ] **Step 1: Write failing PHC tests**
+- [x] **Step 1: Write failing PHC tests**
 
 ```go
 func TestPasswordHasherRoundTripAndUpgrade(t *testing.T) {
@@ -108,17 +116,17 @@ func TestPasswordHasherRejectsHostilePHCParameters(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/auth -run TestPasswordHasher -count=1`
 
 Expected: `NewPasswordHasher` is missing.
 
-- [ ] **Step 3: Implement bounded PHC parsing and verification**
+- [x] **Step 3: Implement bounded PHC parsing and verification**
 
 Use the fixed parameters from Contract Decisions. Reject malformed base64, unknown algorithm/version, salt outside 16..32 bytes, key outside 16..64 bytes, memory above 256 MiB, iterations above 10 and parallelism above 8 before allocating. Compare derived keys with `subtle.ConstantTimeCompare`; password length enforcement remains service-level OpenAPI validation.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/auth/password.go internal/auth/password_test.go; go test -race ./internal/auth; go mod tidy; go mod tidy -diff; go vet ./internal/auth; git diff --check`
 
@@ -135,7 +143,7 @@ Commit: `feat: 实现 Argon2id 密码哈希与参数升级`
 - Create: `Resource/Jxh-Go/internal/audit/types.go`
 - Create: `Resource/Jxh-Go/internal/idempotency/types.go`
 
-- [ ] **Step 1: Write failing transaction and conditional-update tests**
+- [x] **Step 1: Write failing transaction and conditional-update tests**
 
 ```go
 func TestUpdateUserProtectsLastEnabledSuperAdmin(t *testing.T) {
@@ -153,17 +161,17 @@ func TestReserveIdempotencyKeyRejectsDifferentRequestHash(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run unit fakes first: `go test ./internal/storage -run 'Test(UpdateUser|ReserveIdempotency)' -count=1`
 
-Expected: store methods are missing. MySQL-tag tests remain skipped unless `JXH_MYSQL_INTEGRATION=1`.
+Expected: store methods are missing. Real MySQL tests remain skipped unless `JXH_MYSQL_INTEGRATION_DSN` is set.
 
-- [ ] **Step 3: Implement aggregate-specific Store methods**
+- [x] **Step 3: Implement aggregate-specific Store methods**
 
 Use `SELECT ... FOR UPDATE` or one conditional transaction to protect the last enabled super admin. Username is normalized lowercase before insert and remains immutable. Every successful mutation writes its audit row in the same transaction. Session queries never select token or CSRF digests into API DTOs. Idempotency reservation uses the database unique key and reads the winning row after duplicate-key races.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/storage internal/auth/store.go internal/audit internal/idempotency; go test -race ./internal/storage ./internal/auth ./internal/audit ./internal/idempotency; go test ./...; go vet ./...; git diff --check`
 
@@ -178,7 +186,7 @@ Commit: `feat: 增加账号会话审计与幂等持久化`
 - Create: `Resource/Jxh-Go/internal/auth/service.go`
 - Create: `Resource/Jxh-Go/internal/auth/service_test.go`
 
-- [ ] **Step 1: Write failing login/session tests**
+- [x] **Step 1: Write failing login/session tests**
 
 ```go
 func TestLoginUsesUniformCredentialsErrorAndRotatesSession(t *testing.T) {
@@ -196,17 +204,17 @@ func TestAuthenticateEnforcesIdleAndAbsoluteExpiry(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/auth -run 'Test(Login|Authenticate)' -count=1`
 
 Expected: service methods are missing.
 
-- [ ] **Step 3: Implement session and limiter behavior**
+- [x] **Step 3: Implement session and limiter behavior**
 
 Always execute one Argon2 verification using a fixed dummy PHC hash for unknown/disabled users. Count failures in bounded username-HMAC and IP buckets; cap the map and remove expired buckets. Generate independent random session/CSRF tokens, persist only domain-separated HMAC digests, enforce absolute and idle deadlines, and touch `last_seen_at` at most once per minute using a conditional update. Rotation revokes the prior session in the same transaction.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/auth; go test -race ./internal/auth; go test ./...; go vet ./...; git diff --check`
 
@@ -219,7 +227,7 @@ Commit: `feat: 实现登录限速与服务端会话`
 - Create: `Resource/Jxh-Go/cmd/admin-bootstrap/run.go`
 - Create: `Resource/Jxh-Go/cmd/admin-bootstrap/run_test.go`
 
-- [ ] **Step 1: Write failing non-interactive safety tests**
+- [x] **Step 1: Write failing non-interactive safety tests**
 
 ```go
 func TestRunCreatesOnlyTheFirstSuperAdmin(t *testing.T) {
@@ -231,17 +239,17 @@ func TestRunCreatesOnlyTheFirstSuperAdmin(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./cmd/admin-bootstrap -count=1`
 
 Expected: package/run function is missing.
 
-- [ ] **Step 3: Implement one-time bootstrap**
+- [x] **Step 3: Implement one-time bootstrap**
 
 Read the password from a terminal without echo when interactive or from stdin only when explicitly passed `-password-stdin`; never accept a password flag or log it. Require zero existing admin users in the transaction, create one enabled super admin at version 1, and emit only the new user ID/username.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w cmd/admin-bootstrap; go test ./cmd/admin-bootstrap; go build ./cmd/admin-bootstrap; go vet ./cmd/admin-bootstrap; git diff --check`
 
@@ -258,7 +266,7 @@ Commit: `feat: 增加首个超级管理员引导命令`
 - Create: `Resource/Jxh-Go/internal/idempotency/service.go`
 - Create: `Resource/Jxh-Go/internal/idempotency/service_test.go`
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 ```go
 func TestObserverAuditRedactionRemovesSecurityValues(t *testing.T) {
@@ -274,17 +282,17 @@ func TestResetPasswordUsesRevisionAndRevokesAllSessions(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/auth ./internal/audit ./internal/idempotency -run 'Test(Observer|ResetPassword)' -count=1`
 
 Expected: services are missing.
 
-- [ ] **Step 3: Implement exact application rules**
+- [x] **Step 3: Implement exact application rules**
 
 Create/list/get/update users; list/revoke sessions; reset passwords; enforce role permission before Store calls; hash canonical JSON request bodies with HMAC for idempotency; replay only completed safe DTOs; mark interrupted external outcomes unknown. Audit redactor recursively replaces denylisted keys and values with `[redacted]`, truncates safe strings to schema limits, and always removes password, token, digest, secret, key, authorization, cookie, verification message and upstream raw fields.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/auth internal/audit internal/idempotency; go test -race ./internal/auth ./internal/audit ./internal/idempotency; go vet ./...; git diff --check`
 
@@ -301,7 +309,7 @@ Commit: `feat: 实现管理员账号会话与审计服务`
 - Create: `Resource/Jxh-Go/internal/adminapi/errors.go`
 - Create: `Resource/Jxh-Go/internal/adminapi/middleware_test.go`
 
-- [ ] **Step 1: Write failing HTTP boundary tests**
+- [x] **Step 1: Write failing HTTP boundary tests**
 
 ```go
 func TestMutatingRouteRejectsUntrustedOriginAndCSRF(t *testing.T) {
@@ -321,17 +329,17 @@ func TestOversizedBodyUsesErrorEnvelope(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/adminapi -run 'Test(Mutating|Oversized)' -count=1`
 
 Expected: HTTP server is missing.
 
-- [ ] **Step 3: Implement middleware in fixed order**
+- [x] **Step 3: Implement middleware in fixed order**
 
 Order: recover -> request ID -> security/cache headers -> body limit/content type -> client IP -> authentication -> Origin -> CSRF -> permission -> handler. Generate request IDs from 16 random bytes and never trust inbound IDs. Parse exact configured Origin with scheme/host/normalized port and reject missing, `null`, userinfo, path/query/fragment on browser mutations. Set HTTP server timeouts from `AdminConfig`; panic responses and logs contain request ID but not panic values or request bodies.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/adminapi; go test -race ./internal/adminapi; go test ./...; go vet ./...; git diff --check`
 
@@ -345,7 +353,7 @@ Commit: `feat: 增加管理端 HTTP 安全边界`
 - Create: `Resource/Jxh-Go/internal/adminapi/auth_handlers_test.go`
 - Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
 
-- [ ] **Step 1: Write failing contract tests for four routes**
+- [x] **Step 1: Write failing contract tests for four routes**
 
 ```go
 func TestLoginSetsStrictCookieWithoutReturningToken(t *testing.T) {
@@ -358,17 +366,17 @@ func TestLoginSetsStrictCookieWithoutReturningToken(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/adminapi -run 'Test(Login|CurrentAdmin|Logout|ChangePassword)' -count=1`
 
 Expected: routes return 404.
 
-- [ ] **Step 3: Implement exact OpenAPI responses**
+- [x] **Step 3: Implement exact OpenAPI responses**
 
 Register login/me/logout/change-password. Decode one JSON object with unknown fields rejected and no trailing value. Login errors never reveal existence/disabled status. Logout is idempotent for the current authenticated session but still requires CSRF. Change-password uses the idempotency rotation chain; a retry with the replaced old Cookie and identical request reissues the same deterministic new Cookie/AuthContext, while a different request hash returns 409.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/adminapi; go test -race ./internal/adminapi; go test ./...; go vet ./...; git diff --check`
 
@@ -383,7 +391,7 @@ Commit: `feat: 接入管理端认证接口`
 - Create: `Resource/Jxh-Go/internal/adminapi/sessions_handlers_test.go`
 - Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
 
-- [ ] **Step 1: Write failing role, revision and idempotency table tests**
+- [x] **Step 1: Write failing role, revision and idempotency table tests**
 
 ```go
 func TestUpdateUserRequiresSuperAdminAndIfMatch(t *testing.T) {
@@ -395,17 +403,17 @@ func TestUpdateUserRequiresSuperAdminAndIfMatch(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/adminapi -run 'Test(UpdateUser|CreateUser|ListUsers|ResetPassword|RevokeSession)' -count=1`
 
 Expected: routes return 404.
 
-- [ ] **Step 3: Implement eight operations**
+- [x] **Step 3: Implement eight operations**
 
 Implement `/users` GET/POST, `/users/{user_id}` GET/PATCH, password reset, user session revoke, `/sessions` GET and session revoke. Use stable `(created_at,id)` or `(last_seen_at,id)` cursor ordering bound to the normalized filters. Return 428 only for missing/invalid If-Match and 409 for a valid stale version. Self-revocation clears the caller Cookie and publishes `auth.session_revoked`; resetting the caller's own password returns success but leaves no authenticated session.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/adminapi; go test -race ./internal/adminapi; go test ./...; go vet ./...; git diff --check`
 
@@ -418,7 +426,7 @@ Commit: `feat: 接入管理员账号与会话接口`
 - Create: `Resource/Jxh-Go/internal/adminapi/audit_handlers_test.go`
 - Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
 
-- [ ] **Step 1: Write failing filter and redaction tests**
+- [x] **Step 1: Write failing filter and redaction tests**
 
 ```go
 func TestObserverGetsRedactedAuditDetail(t *testing.T) {
@@ -430,17 +438,17 @@ func TestObserverGetsRedactedAuditDetail(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/adminapi -run TestObserverGetsRedactedAuditDetail -count=1`
 
 Expected: route returns 404.
 
-- [ ] **Step 3: Implement list/detail mapping**
+- [x] **Step 3: Implement list/detail mapping**
 
 Validate all enums and `from <= to`, cap action/target filters, and order by `(occurred_at DESC, audit_log_id DESC)`. Apply redaction at read time using the current role in addition to write-time denylist sanitization. Set `Cache-Control: no-store`; never audit audit-read operations themselves to avoid recursive unbounded writes.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/adminapi; go test -race ./internal/adminapi ./internal/audit; go vet ./...; git diff --check`
 
@@ -455,7 +463,7 @@ Commit: `feat: 接入管理审计查询接口`
 - Create: `Resource/Jxh-Go/internal/adminapi/events_handler_test.go`
 - Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
 
-- [ ] **Step 1: Write failing replay/reset/backpressure tests**
+- [x] **Step 1: Write failing replay/reset/backpressure tests**
 
 ```go
 func TestSubscribeResetsExpiredCursorThenContinues(t *testing.T) {
@@ -468,17 +476,17 @@ func TestSubscribeResetsExpiredCursorThenContinues(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/events ./internal/adminapi -run 'Test(Subscribe|SSE)' -count=1`
 
 Expected: hub/SSE handler is missing.
 
-- [ ] **Step 3: Implement immutable event envelopes and streaming**
+- [x] **Step 3: Implement immutable event envelopes and streaming**
 
 Generate opaque event IDs from the injected ID source, copy payload values before publication, enforce topic permissions, replay retained events in order, then join live delivery without a gap under one hub lock. SSE writes `id`, `event`, `retry: 3000`, compact JSON `data`, flushes every frame, sends `: heartbeat` every 15 seconds, and closes on context/session revoke/slow subscriber. Never include application text, applicant message, command arguments or upstream errors.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/events internal/adminapi; go test -race ./internal/events ./internal/adminapi; go vet ./...; git diff --check`
 
@@ -494,7 +502,7 @@ Commit: `feat: 增加可重放的管理事件中心`
 - Create: `Resource/Jxh-Go/internal/adminapi/system_handlers_test.go`
 - Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
 
-- [ ] **Step 1: Write failing unavailable/unknown restart tests**
+- [x] **Step 1: Write failing unavailable/unknown restart tests**
 
 ```go
 func TestRestartReturnsUnavailableBeforeSideEffect(t *testing.T) {
@@ -511,17 +519,17 @@ func TestAcceptedRestartPersistsUnknownOnDisconnect(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/system ./internal/adminapi -run 'Test(Restart|SystemHealth)' -count=1`
 
 Expected: system service/handlers are missing.
 
-- [ ] **Step 3: Implement health mapping and restart state machine**
+- [x] **Step 3: Implement health mapping and restart state machine**
 
 Map every health component independently to OpenAPI `DependencyHealth`; never probe synchronously in the GET handler. Restart validates exact confirmation, reserves idempotency, writes accepted operation and requested audit before launching one bounded worker. Gateway unavailable before invocation returns 503 without accepted state; disconnect/timeout after invocation records unknown; confirmed SDK success records succeeded; sanitized error codes only. Every transition publishes `system.health_changed` and a final audit record.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run: `gofmt -w internal/system internal/storage/system.go internal/adminapi; go test -race ./internal/system ./internal/adminapi; go test ./...; go vet ./...; git diff --check`
 
@@ -537,7 +545,7 @@ Commit: `feat: 实现管理端健康与 NapCat 重启接口`
 - Modify: `docs/api/jxh-manager-openapi.yaml`
 - Modify: `docs/superpowers/plans/2026-07-27-jxh-manager-openapi-coverage.md`
 
-- [ ] **Step 1: Write failing lifecycle and contract coverage tests**
+- [x] **Step 1: Write failing lifecycle and contract coverage tests**
 
 ```go
 func TestAppShutsAdminServerBeforeDatabase(t *testing.T) {
@@ -553,23 +561,23 @@ func TestImplementedAdminCoreOperationsHaveRoutes(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/app ./internal/adminapi -run 'Test(AppShuts|ImplementedAdminCore)' -count=1`
 
 Expected: Admin server is not wired and operations remain planned.
 
-- [ ] **Step 3: Compose services and update only proven operations**
+- [x] **Step 3: Compose services and update only proven operations**
 
 Construct stores/services/router once in `app.New`, start Admin HTTP only when secure config is valid, update its health component, and close listener/subscriptions before DB. Mark exactly these 17 operation IDs implemented: `loginAdmin`, `getCurrentAdmin`, `logoutAdmin`, `changeOwnPassword`, both audit operations, six user/session-scoped operations, two standalone session operations, `getSystemHealth`, `restartNapCat`, `subscribeAdminEvents`. Preserve all other `planned` statuses.
 
-- [ ] **Step 4: Run full verification**
+- [x] **Step 4: Run full verification**
 
 Run: `go test -race ./...; go build ./...; go vet ./...; go mod tidy -diff; git diff --check; docker compose config --quiet`
 
-When MySQL is available, also run tagged integration tests for last-super-admin locking, unique username/QQ, session revocation, idempotency races, audit pagination and restart operation persistence. Record unavailable Docker/QQ integration honestly.
+When MySQL is available, also run the environment-gated integration tests for last-super-admin locking, unique username/QQ, session revocation, idempotency races, audit pagination and restart operation persistence. Record unavailable Docker/QQ integration honestly.
 
-- [ ] **Step 5: Commit integration and contract evidence**
+- [x] **Step 5: Commit integration and contract evidence**
 
 Commit bot wiring: `refactor: 将管理 HTTP 服务接入应用生命周期`
 
@@ -581,4 +589,4 @@ Commit contract/docs separately: `docs: 标记基础管理接口为已实现`
 - Three roles are exhaustively tested against every permission; all mutations prove CSRF, audit and revision/idempotency behavior where contracted.
 - No API/log/audit/test failure output contains password, raw session/CSRF token, digest, static secret, DSN, OneBot token or raw upstream payload.
 - SSE replay/reset/heartbeat/session revoke and server shutdown pass under `-race` without leaked goroutines.
-- MySQL-tag evidence exists for transaction and uniqueness rules; isolated NapCat restart integration remains explicitly external until a real test environment is available.
+- Real MySQL evidence exists for transaction and uniqueness rules; isolated NapCat restart integration remains explicitly external until a real test environment is available.

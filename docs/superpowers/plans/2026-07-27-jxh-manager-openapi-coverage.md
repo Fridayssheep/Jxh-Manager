@@ -5,6 +5,7 @@
 - 初始基线：`c581408`
 - 初始状态：57 个 operation 均未实现，OpenAPI 均为 `x-status: planned`
 - 当前状态（2026-07-28）：57 个 operation 均已实现，OpenAPI 均为 `x-status: implemented`
+- 当前 Bot 证据提交：`d2c3330`
 - 自动校验：`Resource/Jxh-Go/internal/adminapi/management_test.go` 会核对 57 个 operation 的 method/path、唯一 operationId、状态和实际注册路由。
 
 只有同时具备路由、鉴权/权限、输入校验、应用服务、持久化或外部副作用、契约测试六类证据的 operation 才能标记为 `implemented`。仅复用旧 QQ 命令或旧 Store 方法记为 `partial`，不能修改 OpenAPI 状态。
@@ -87,3 +88,10 @@
 - 所有错误使用统一 `error.code/message/request_id/fields/retryable`，不泄露静态密钥或上游原文。
 - 所有 operation 有成功、认证失败、权限失败和关键边界的 handler 测试；数据库和外部副作用另有集成或 fake 测试。
 - 只有上述证据全部存在，才把对应 OpenAPI `x-status` 从 `planned` 改为 `implemented`。
+
+## 2026-07-28 验收快照
+
+- 真实 MySQL：`go test -race -count=1 ./internal/database` 与 `go test -race -count=1 ./internal/storage` 全部通过；测试后两类临时 schema 残留数均为 0。
+- 全仓门禁：`go test -race -count=1 ./...`、`go build ./...`、`go build ./cmd/bot ./cmd/migrate ./cmd/admin-bootstrap`、`go vet ./...`、`go mod tidy -diff`、`docker compose config --quiet`、`git diff --check` 全部退出 0。
+- 部署证据：Docker 镜像内 migration 目录及 SQL 对运行用户只读，Compose 强制迁移成功后启动 Bot；OpenAPI 57/57 operation 的状态、路径和路由注册由测试自动一致性校验。
+- 外部边界：真实 QQ/NapCat、WPS、AI 与 quote 服务未在本地执行带业务副作用的成功联调；相关 operation 的完成证据来自持久化状态机、幂等/恢复测试、契约测试与 fake gateway，部署验收仍应补充真实环境 smoke test。
