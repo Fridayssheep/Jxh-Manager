@@ -50,7 +50,7 @@ paths:
       summary: 登录管理端
       operationId: loginAdmin
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security: []
       requestBody:
         required: true
@@ -84,7 +84,7 @@ paths:
       summary: 获取当前身份
       operationId: getCurrentAdmin
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 当前用户、会话、权限和 CSRF Token
@@ -103,7 +103,7 @@ paths:
       summary: 退出当前会话
       operationId: logoutAdmin
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -127,7 +127,7 @@ paths:
       summary: 查询管理操作审计
       operationId: listAuditLogs
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: actor_user_id
           in: query
@@ -189,7 +189,7 @@ paths:
       description: 响应按当前操作者权限脱敏，永不返回密码、Token、密钥或完整申请验证消息。
       operationId: getAuditLog
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 脱敏后的审计详情
@@ -210,7 +210,7 @@ paths:
       description: 仅超级管理员可以调用。
       operationId: listAdminUsers
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: query
           in: query
@@ -247,7 +247,7 @@ paths:
       description: 仅超级管理员可以调用。
       operationId: createAdminUser
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -281,7 +281,7 @@ paths:
       description: 仅超级管理员可以调用。
       operationId: getAdminUser
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 管理账号详情
@@ -301,7 +301,7 @@ paths:
       description: 仅超级管理员可以调用；不能禁用或降级最后一个有效超级管理员。
       operationId: updateAdminUser
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -341,7 +341,7 @@ paths:
       description: 仅超级管理员可以调用。成功后目标账号的全部会话被撤销。
       operationId: resetAdminUserPassword
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -382,7 +382,7 @@ paths:
       description: 仅超级管理员可以调用。
       operationId: revokeAdminUserSessions
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -410,7 +410,7 @@ paths:
       description: 仅超级管理员可以调用；不返回 Cookie 或会话令牌摘要。
       operationId: listAdminSessions
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: user_id
           in: query
@@ -448,7 +448,7 @@ paths:
       description: 仅超级管理员可以调用。
       operationId: revokeAdminSession
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -475,7 +475,7 @@ paths:
       summary: 获取管理端和依赖健康快照
       operationId: getSystemHealth
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 分依赖的健康、配置和新鲜度信息
@@ -494,7 +494,7 @@ paths:
       description: 仅超级管理员可以调用。接口只返回受理状态，后续结果通过 SSE 或系统健康查询获得。
       operationId: restartNapCat
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -530,7 +530,7 @@ paths:
       description: 使用 Cookie 会话的 SSE 流。服务端每 15 秒发送注释心跳；事件只用于失效通知，客户端收到后重新读取资源。
       operationId: subscribeAdminEvents
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: topic
           in: query
@@ -583,7 +583,7 @@ paths:
       description: 成功后撤销其他会话，并轮换当前 Session Cookie 和 CSRF Token。
       operationId: changeOwnPassword
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -624,7 +624,7 @@ paths:
       summary: 获取管理总览
       operationId: getOverview
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: range
           in: query
@@ -655,7 +655,7 @@ paths:
       summary: 查询群目录
       operationId: listGroups
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: query
           in: query
@@ -701,7 +701,7 @@ paths:
       summary: 立即同步群目录
       operationId: syncGroups
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -730,7 +730,7 @@ paths:
       summary: 获取群详情
       operationId: getGroup
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 群快照和能力摘要
@@ -750,7 +750,7 @@ paths:
       summary: 获取全局功能设置
       operationId: getGlobalSettings
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 完整全局设置文档
@@ -767,7 +767,7 @@ paths:
       summary: 更新全局功能设置
       operationId: updateGlobalSettings
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -804,7 +804,7 @@ paths:
       summary: 获取群级有效设置和覆盖
       operationId: getGroupSettings
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 群级有效设置、覆盖和版本
@@ -823,7 +823,7 @@ paths:
       summary: 更新群级设置覆盖
       operationId: updateGroupSettings
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -859,7 +859,7 @@ paths:
       summary: 清除群级全部设置覆盖
       operationId: deleteGroupSettings
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -886,7 +886,7 @@ paths:
       summary: 获取群自动批准策略
       operationId: getJoinRequestPolicy
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 当前群自动批准策略
@@ -906,7 +906,7 @@ paths:
       description: 仅超级管理员可以调用。系统只自动批准，绝不自动拒绝。
       operationId: updateJoinRequestPolicy
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -943,7 +943,7 @@ paths:
       summary: 查询入群申请
       operationId: listJoinRequests
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: group_id
           in: query
@@ -1030,7 +1030,7 @@ paths:
       description: 一次最多 20 条。任一申请在占用前冲突时，不调用 NapCat；外部调用开始后允许部分成功。
       operationId: bulkDecideJoinRequests
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1069,7 +1069,7 @@ paths:
       summary: 获取入群申请详情
       operationId: getJoinRequest
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 完整申请、验证消息和 AI 解析结果，不含原始 NapCat JSON
@@ -1091,7 +1091,7 @@ paths:
       summary: 查询申请决策历史
       operationId: listJoinRequestDecisions
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
@@ -1115,7 +1115,7 @@ paths:
       summary: 批准或拒绝单条申请
       operationId: decideJoinRequest
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1163,7 +1163,7 @@ paths:
       summary: 查询自定义命令
       operationId: listCommands
       x-stage: phase_3
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: query
           in: query
@@ -1215,7 +1215,7 @@ paths:
       summary: 创建自定义命令草稿
       operationId: createCommand
       x-stage: phase_3
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1247,7 +1247,7 @@ paths:
       description: 仅解析参数和渲染动作预览，不调用 NapCat，不写执行记录。
       operationId: validateCommandDraft
       x-stage: phase_3
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1278,7 +1278,7 @@ paths:
       summary: 获取自定义命令
       operationId: getCommand
       x-stage: phase_3
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 自定义命令定义
@@ -1297,7 +1297,7 @@ paths:
       summary: 更新或启停自定义命令
       operationId: updateCommand
       x-stage: phase_3
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1334,7 +1334,7 @@ paths:
       description: 归档为软删除，命令名和历史记录继续保留。
       operationId: archiveCommand
       x-stage: phase_3
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1362,7 +1362,7 @@ paths:
       description: 无副作用，不调用 NapCat。
       operationId: validateStoredCommand
       x-stage: phase_3
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1395,7 +1395,7 @@ paths:
       summary: 查询命令执行记录
       operationId: listCommandRuns
       x-stage: phase_3
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: result
           in: query
@@ -1434,7 +1434,7 @@ paths:
       summary: 查询定时任务
       operationId: listScheduledJobs
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: group_id
           in: query
@@ -1472,7 +1472,7 @@ paths:
       summary: 创建定时任务
       operationId: createScheduledJob
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1505,7 +1505,7 @@ paths:
       summary: 获取定时任务
       operationId: getScheduledJob
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 定时任务详情
@@ -1524,7 +1524,7 @@ paths:
       summary: 编辑、暂停或恢复定时任务
       operationId: updateScheduledJob
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1560,7 +1560,7 @@ paths:
       summary: 归档定时任务
       operationId: archiveScheduledJob
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1588,7 +1588,7 @@ paths:
       description: 立即发送一次，但不修改正式任务的 last_run_at 或 next_run_at。
       operationId: testSendScheduledJob
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1630,7 +1630,7 @@ paths:
       summary: 查询定时任务执行历史
       operationId: listScheduledJobRuns
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: kind
           in: query
@@ -1674,7 +1674,7 @@ paths:
       summary: 获取知识库同步和索引状态
       operationId: getKnowledgeStatus
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 不包含 WPS SID 或敏感分享链接的状态快照
@@ -1693,7 +1693,7 @@ paths:
       description: 立即返回操作，完成结果通过 SSE 或重新读取 knowledge status 获取。
       operationId: reloadKnowledge
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
@@ -1720,7 +1720,7 @@ paths:
       summary: 搜索只读知识词条
       operationId: listKnowledgeEntries
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: query
           in: query
@@ -1775,7 +1775,7 @@ paths:
       summary: 获取完整只读知识词条
       operationId: getKnowledgeEntry
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       responses:
         '200':
           description: 完整词条
@@ -1795,7 +1795,7 @@ paths:
       summary: 查询知识库解析冲突
       operationId: listKnowledgeConflicts
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - name: query
           in: query
@@ -1828,7 +1828,7 @@ paths:
       summary: 获取统计汇总
       operationId: getAnalyticsSummary
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - $ref: '#/components/parameters/AnalyticsFrom'
         - $ref: '#/components/parameters/AnalyticsTo'
@@ -1855,7 +1855,7 @@ paths:
       summary: 获取统计时间序列
       operationId: getAnalyticsTimeseries
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - $ref: '#/components/parameters/AnalyticsFrom'
         - $ref: '#/components/parameters/AnalyticsTo'
@@ -1899,7 +1899,7 @@ paths:
       summary: 获取统计排行
       operationId: getAnalyticsRankings
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - $ref: '#/components/parameters/AnalyticsFrom'
         - $ref: '#/components/parameters/AnalyticsTo'
@@ -1944,7 +1944,7 @@ paths:
       summary: 流式导出统计数据
       operationId: exportAnalytics
       x-stage: phase_2
-      x-status: planned
+      x-status: implemented
       parameters:
         - $ref: '#/components/parameters/AnalyticsFrom'
         - $ref: '#/components/parameters/AnalyticsTo'
