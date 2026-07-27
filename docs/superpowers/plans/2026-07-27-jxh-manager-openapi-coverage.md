@@ -5,7 +5,7 @@
 - 初始基线：`c581408`
 - 初始状态：57 个 operation 均未实现，OpenAPI 均为 `x-status: planned`
 - 当前状态（2026-07-28）：57 个 operation 均已实现，OpenAPI 均为 `x-status: implemented`
-- 当前 Bot 证据提交：`d2c3330`
+- 当前 Bot 证据提交：`444a513`
 - 自动校验：`Resource/Jxh-Go/internal/adminapi/management_test.go` 会核对 57 个 operation 的 method/path、唯一 operationId、状态和实际注册路由。
 
 只有同时具备路由、鉴权/权限、输入校验、应用服务、持久化或外部副作用、契约测试六类证据的 operation 才能标记为 `implemented`。仅复用旧 QQ 命令或旧 Store 方法记为 `partial`，不能修改 OpenAPI 状态。
@@ -72,7 +72,7 @@
 
 ## 实现证据索引
 
-- 路由与协议：`internal/adminapi` 注册完整的 57 条路由，统一执行会话认证、RBAC、CSRF、Origin、请求体限制、错误格式和请求 ID；各 handler 测试覆盖成功、未认证、无权限与关键输入边界。
+- 路由与协议：`internal/adminapi` 注册完整的 57 条路由，统一执行会话认证、RBAC、CSRF、Origin、请求体与非阻塞并发限制、错误格式和请求 ID；各 handler 测试覆盖成功、未认证、无权限与关键输入边界。
 - 认证与审计：`internal/auth`、`internal/audit` 和 `internal/storage/manager_auth.go` 实现账号、会话、密码变更、管理员管理、审计、稳定游标和持久化幂等；真实 MySQL 测试覆盖并发与事务回滚。
 - 核心资源：`internal/groups`、`internal/settings`、`internal/overview`、`internal/system` 及 `manager_core_*.go` 实现群目录、全局/群设置、总览和系统健康/重启；设置热更新不进入消息热路径查询数据库。
 - 运营资源：`internal/joinrequests`、`internal/scheduledjobs`、`internal/customcommand`、`internal/telemetry`、`internal/analytics` 及 `manager_operations.go` 实现审批状态机、定时任务、受控命令、批量遥测、统计与流式导出。
