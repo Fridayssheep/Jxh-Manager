@@ -1,0 +1,4882 @@
+openapi: 3.1.0
+info:
+  title: Jxh Manager Admin API
+  version: 1.0.0
+  description: |-
+    Jxh Manager 管理面板与 Jxh-Go 同进程管理端之间的 HTTP 契约。
+    所有资源 ID、QQ、群号和外部申请标识均使用字符串编码。
+    尚未完成的接口通过 x-stage 和 x-status 标记，不表示当前服务已经实现。
+  license:
+    name: Private
+    identifier: LicenseRef-Private
+servers:
+  - url: /api/admin/v1
+    description: 相对当前管理端 Origin 的 API 基础路径
+tags:
+  - name: Auth
+    description: 登录、当前身份和密码
+  - name: Overview
+    description: 管理总览
+  - name: Groups
+    description: NapCat 群目录
+  - name: Settings
+    description: 全局与群级功能设置
+  - name: Join Requests
+    description: 入群申请、决策和自动批准策略
+  - name: Commands
+    description: 受控自定义命令
+  - name: Scheduled Jobs
+    description: 定时任务和执行记录
+  - name: Knowledge
+    description: WPS 知识库状态和只读词条
+  - name: Analytics
+    description: 业务与运营统计
+  - name: Audit
+    description: 管理操作审计
+  - name: Users
+    description: 本地管理账号
+  - name: Sessions
+    description: 服务端会话
+  - name: System
+    description: 依赖状态和高风险系统动作
+  - name: Events
+    description: SSE 资源变化通知
+security:
+  - cookieAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录管理端
+      operationId: loginAdmin
+      x-stage: phase_1
+      x-status: planned
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功，同时设置 jxh_admin_session Cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly、Secure、SameSite=Strict 的服务端会话 Cookie
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthContext'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: 获取当前身份
+      operationId: getCurrentAdmin
+      x-stage: phase_1
+      x-status: planned
+      responses:
+        '200':
+          description: 当前用户、会话、权限和 CSRF Token
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthContext'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 退出当前会话
+      operationId: logoutAdmin
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      responses:
+        '204':
+          description: 会话已经撤销，Cookie 已清除
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: 清除 jxh_admin_session Cookie
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: 查询管理操作审计
+      operationId: listAuditLogs
+      x-stage: phase_1
+      x-status: planned
+      parameters:
+        - name: actor_user_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Identifier'
+        - name: actor_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/AuditActorType'
+        - name: action
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: target_type
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: target_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Identifier'
+        - name: result
+          in: query
+          schema:
+            $ref: '#/components/schemas/AuditResult'
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 按时间倒序排列的脱敏审计记录游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /audit-logs/{audit_log_id}:
+    parameters:
+      - $ref: '#/components/parameters/AuditLogId'
+    get:
+      tags: [Audit]
+      summary: 获取管理操作审计详情
+      description: 响应按当前操作者权限脱敏，永不返回密码、Token、密钥或完整申请验证消息。
+      operationId: getAuditLog
+      x-stage: phase_1
+      x-status: planned
+      responses:
+        '200':
+          description: 脱敏后的审计详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users:
+    get:
+      tags: [Users]
+      summary: 查询管理账号
+      description: 仅超级管理员可以调用。
+      operationId: listAdminUsers
+      x-stage: phase_1
+      x-status: planned
+      parameters:
+        - name: query
+          in: query
+          description: 匹配用户名、显示名称或完整 QQ
+          schema:
+            type: string
+            maxLength: 100
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/AdminRole'
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 管理账号游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Users]
+      summary: 创建管理账号
+      description: 仅超级管理员可以调用。
+      operationId: createAdminUser
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreateRequest'
+      responses:
+        '201':
+          description: 已创建的账号，不返回密码
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /users/{user_id}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [Users]
+      summary: 获取管理账号
+      description: 仅超级管理员可以调用。
+      operationId: getAdminUser
+      x-stage: phase_1
+      x-status: planned
+      responses:
+        '200':
+          description: 管理账号详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Users]
+      summary: 修改管理账号
+      description: 仅超级管理员可以调用；不能禁用或降级最后一个有效超级管理员。
+      operationId: updateAdminUser
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserPatchRequest'
+      responses:
+        '200':
+          description: 更新后的账号
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /users/{user_id}/password-reset:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Users]
+      summary: 重置管理账号密码
+      description: 仅超级管理员可以调用。成功后目标账号的全部会话被撤销。
+      operationId: resetAdminUserPassword
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: 密码已重置且会话已撤销
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /users/{user_id}/sessions/revoke:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Sessions]
+      summary: 撤销指定账号的全部会话
+      description: 仅超级管理员可以调用。
+      operationId: revokeAdminUserSessions
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 会话撤销结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionRevokeResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /sessions:
+    get:
+      tags: [Sessions]
+      summary: 查询管理端会话
+      description: 仅超级管理员可以调用；不返回 Cookie 或会话令牌摘要。
+      operationId: listAdminSessions
+      x-stage: phase_1
+      x-status: planned
+      parameters:
+        - name: user_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Identifier'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SessionStatus'
+        - name: current
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 会话游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSessionList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /sessions/{session_id}/revoke:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      summary: 撤销指定管理端会话
+      description: 仅超级管理员可以调用。
+      operationId: revokeAdminSession
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 会话撤销结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionRevokeResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /system/health:
+    get:
+      tags: [System]
+      summary: 获取管理端和依赖健康快照
+      operationId: getSystemHealth
+      x-stage: phase_1
+      x-status: planned
+      responses:
+        '200':
+          description: 分依赖的健康、配置和新鲜度信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemHealth'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /system/napcat/restart:
+    post:
+      tags: [System]
+      summary: 请求重启 NapCat
+      description: 仅超级管理员可以调用。接口只返回受理状态，后续结果通过 SSE 或系统健康查询获得。
+      operationId: restartNapCat
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NapCatRestartRequest'
+      responses:
+        '202':
+          description: 重启请求已经受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemOperation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /events:
+    get:
+      tags: [Events]
+      summary: 订阅管理资源变化事件
+      description: 使用 Cookie 会话的 SSE 流。服务端每 15 秒发送注释心跳；事件只用于失效通知，客户端收到后重新读取资源。
+      operationId: subscribeAdminEvents
+      x-stage: phase_1
+      x-status: planned
+      parameters:
+        - name: topic
+          in: query
+          description: 可重复传入一个或多个主题；省略时订阅当前用户有权读取的全部主题
+          style: form
+          explode: true
+          schema:
+            type: array
+            uniqueItems: true
+            items:
+              $ref: '#/components/schemas/EventTopic'
+        - name: Last-Event-ID
+          in: header
+          description: 最近成功处理的 SSE 事件 ID
+          schema:
+            $ref: '#/components/schemas/Identifier'
+      responses:
+        '200':
+          description: Server-Sent Events 流
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-cache
+            X-Accel-Buffering:
+              schema:
+                type: string
+                const: 'no'
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |-
+                id: evt_01J4ZP8Y5M5E6A
+                event: join_request.updated
+                retry: 3000
+                data: {"event_id":"evt_01J4ZP8Y5M5E6A","event":"join_request.updated","occurred_at":"2026-07-27T08:31:01Z","resource":{"type":"join_request","id":"jr_01J4ZP7","version":6},"reason":"decision_confirmed"}
+              x-sse-data-schema:
+                $ref: '#/components/schemas/AdminEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: 修改当前用户密码
+      description: 成功后撤销其他会话，并轮换当前 Session Cookie 和 CSRF Token。
+      operationId: changeOwnPassword
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: 密码修改成功并返回轮换后的认证上下文
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthContext'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /overview:
+    get:
+      tags: [Overview]
+      summary: 获取管理总览
+      operationId: getOverview
+      x-stage: phase_1
+      x-status: planned
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d]
+            default: 7d
+        - name: group_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Identifier'
+      responses:
+        '200':
+          description: 总览指标、待处理事项、依赖摘要和趋势
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Overview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /groups:
+    get:
+      tags: [Groups]
+      summary: 查询群目录
+      operationId: listGroups
+      x-stage: phase_1
+      x-status: planned
+      parameters:
+        - name: query
+          in: query
+          description: 匹配群名或完整群号
+          schema:
+            type: string
+            maxLength: 100
+        - name: bot_role
+          in: query
+          schema:
+            $ref: '#/components/schemas/GroupRole'
+        - name: snapshot_state
+          in: query
+          schema:
+            type: string
+            enum: [fresh, stale]
+        - name: feature_key
+          in: query
+          schema:
+            $ref: '#/components/schemas/FeatureKey'
+        - name: feature_enabled
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 群目录游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /groups/sync:
+    post:
+      tags: [Groups]
+      summary: 立即同步群目录
+      operationId: syncGroups
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 群目录同步完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupSyncResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /groups/{group_id}:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      tags: [Groups]
+      summary: 获取群详情
+      operationId: getGroup
+      x-stage: phase_1
+      x-status: planned
+      responses:
+        '200':
+          description: 群快照和能力摘要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /settings:
+    get:
+      tags: [Settings]
+      summary: 获取全局功能设置
+      operationId: getGlobalSettings
+      x-stage: phase_1
+      x-status: planned
+      responses:
+        '200':
+          description: 完整全局设置文档
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      tags: [Settings]
+      summary: 更新全局功能设置
+      operationId: updateGlobalSettings
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GlobalSettingsPatch'
+      responses:
+        '200':
+          description: 更新后的全局设置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /groups/{group_id}/settings:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      tags: [Settings]
+      summary: 获取群级有效设置和覆盖
+      operationId: getGroupSettings
+      x-stage: phase_1
+      x-status: planned
+      responses:
+        '200':
+          description: 群级有效设置、覆盖和版本
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupSettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Settings]
+      summary: 更新群级设置覆盖
+      operationId: updateGroupSettings
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupSettingsPatch'
+      responses:
+        '200':
+          description: 更新后的群级设置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+    delete:
+      tags: [Settings]
+      summary: 清除群级全部设置覆盖
+      operationId: deleteGroupSettings
+      x-stage: phase_1
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: 已清除全部覆盖
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /groups/{group_id}/join-request-policy:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      tags: [Join Requests]
+      summary: 获取群自动批准策略
+      operationId: getJoinRequestPolicy
+      x-stage: phase_2
+      x-status: planned
+      responses:
+        '200':
+          description: 当前群自动批准策略
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequestPolicy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Join Requests]
+      summary: 修改群自动批准策略
+      description: 仅超级管理员可以调用。系统只自动批准，绝不自动拒绝。
+      operationId: updateJoinRequestPolicy
+      x-stage: phase_2
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequestPolicyPatch'
+      responses:
+        '200':
+          description: 更新后的策略
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequestPolicy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /join-requests:
+    get:
+      tags: [Join Requests]
+      summary: 查询入群申请
+      operationId: listJoinRequests
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - name: group_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Identifier'
+        - name: decision_status
+          in: query
+          description: 可重复传入多个决策状态
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/JoinDecisionStatus'
+        - name: observed_status
+          in: query
+          schema:
+            type: string
+            enum: [pending, checked]
+        - name: ai_parse_status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AIParseStatus'
+        - name: sub_type
+          in: query
+          schema:
+            type: string
+            enum: [add, invite]
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum: [event, system]
+        - name: decision_source
+          in: query
+          schema:
+            type: string
+            enum: [manual, automatic, external]
+        - name: requested_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: requested_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: overdue
+          in: query
+          schema:
+            type: boolean
+        - name: query
+          in: query
+          description: 匹配 QQ、学号或姓名
+          schema:
+            type: string
+            maxLength: 100
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [requested_at_desc, requested_at_asc]
+            default: requested_at_desc
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 入群申请游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequestList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /join-requests/bulk-decisions:
+    post:
+      tags: [Join Requests]
+      summary: 同群批量处理申请
+      description: 一次最多 20 条。任一申请在占用前冲突时，不调用 NapCat；外部调用开始后允许部分成功。
+      operationId: bulkDecideJoinRequests
+      x-stage: phase_2
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkJoinDecisionRequest'
+      responses:
+        '200':
+          description: 批量决策逐条结果，允许 confirmed、failed 和 unknown 混合
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkJoinDecisionResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /join-requests/{request_id}:
+    parameters:
+      - $ref: '#/components/parameters/JoinRequestId'
+    get:
+      tags: [Join Requests]
+      summary: 获取入群申请详情
+      operationId: getJoinRequest
+      x-stage: phase_2
+      x-status: planned
+      responses:
+        '200':
+          description: 完整申请、验证消息和 AI 解析结果，不含原始 NapCat JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /join-requests/{request_id}/decisions:
+    parameters:
+      - $ref: '#/components/parameters/JoinRequestId'
+    get:
+      tags: [Join Requests]
+      summary: 查询申请决策历史
+      operationId: listJoinRequestDecisions
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 追加式决策记录游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinDecisionList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Join Requests]
+      summary: 批准或拒绝单条申请
+      operationId: decideJoinRequest
+      x-stage: phase_2
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinDecisionRequest'
+      responses:
+        '200':
+          description: NapCat 已明确确认决策
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinDecisionResult'
+        '202':
+          description: 外部结果不明确，申请进入 unknown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinDecisionResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /commands:
+    get:
+      tags: [Commands]
+      summary: 查询自定义命令
+      operationId: listCommands
+      x-stage: phase_3
+      x-status: planned
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/CommandStatus'
+        - name: scope_type
+          in: query
+          schema:
+            type: string
+            enum: [global, groups]
+        - name: group_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Identifier'
+        - name: action_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/CommandActionType'
+        - name: trigger_permission
+          in: query
+          schema:
+            $ref: '#/components/schemas/CommandTriggerPermission'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 自定义命令游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Commands]
+      summary: 创建自定义命令草稿
+      operationId: createCommand
+      x-stage: phase_3
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandCreateRequest'
+      responses:
+        '201':
+          description: 已创建的禁用草稿
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Command'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /commands/validate:
+    post:
+      tags: [Commands]
+      summary: 验证未保存命令定义
+      description: 仅解析参数和渲染动作预览，不调用 NapCat，不写执行记录。
+      operationId: validateCommandDraft
+      x-stage: phase_3
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandDraftValidationRequest'
+      responses:
+        '200':
+          description: 定义和样例输入验证结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandValidationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /commands/{command_id}:
+    parameters:
+      - $ref: '#/components/parameters/CommandId'
+    get:
+      tags: [Commands]
+      summary: 获取自定义命令
+      operationId: getCommand
+      x-stage: phase_3
+      x-status: planned
+      responses:
+        '200':
+          description: 自定义命令定义
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Command'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Commands]
+      summary: 更新或启停自定义命令
+      operationId: updateCommand
+      x-stage: phase_3
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandPatchRequest'
+      responses:
+        '200':
+          description: 更新后的命令
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Command'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+    delete:
+      tags: [Commands]
+      summary: 归档自定义命令
+      description: 归档为软删除，命令名和历史记录继续保留。
+      operationId: archiveCommand
+      x-stage: phase_3
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: 命令已经归档
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /commands/{command_id}/validate:
+    parameters:
+      - $ref: '#/components/parameters/CommandId'
+    post:
+      tags: [Commands]
+      summary: 使用样例输入验证现有命令
+      description: 无副作用，不调用 NapCat。
+      operationId: validateStoredCommand
+      x-stage: phase_3
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandValidationSample'
+      responses:
+        '200':
+          description: 参数解析和动作预览
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandValidationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /commands/{command_id}/runs:
+    parameters:
+      - $ref: '#/components/parameters/CommandId'
+    get:
+      tags: [Commands]
+      summary: 查询命令执行记录
+      operationId: listCommandRuns
+      x-stage: phase_3
+      x-status: planned
+      parameters:
+        - name: result
+          in: query
+          schema:
+            $ref: '#/components/schemas/CommandRunResult'
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 脱敏命令执行记录游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandRunList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /scheduled-jobs:
+    get:
+      tags: [Scheduled Jobs]
+      summary: 查询定时任务
+      operationId: listScheduledJobs
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - name: group_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Identifier'
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ScheduledJobType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ScheduledJobStatus'
+        - name: run_result
+          in: query
+          schema:
+            $ref: '#/components/schemas/RunResult'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 定时任务游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledJobList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Scheduled Jobs]
+      summary: 创建定时任务
+      operationId: createScheduledJob
+      x-stage: phase_2
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduledJobCreateRequest'
+      responses:
+        '201':
+          description: 已创建的定时任务
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledJob'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /scheduled-jobs/{job_id}:
+    parameters:
+      - $ref: '#/components/parameters/ScheduledJobId'
+    get:
+      tags: [Scheduled Jobs]
+      summary: 获取定时任务
+      operationId: getScheduledJob
+      x-stage: phase_2
+      x-status: planned
+      responses:
+        '200':
+          description: 定时任务详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledJob'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Scheduled Jobs]
+      summary: 编辑、暂停或恢复定时任务
+      operationId: updateScheduledJob
+      x-stage: phase_2
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduledJobPatchRequest'
+      responses:
+        '200':
+          description: 更新后的任务
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledJob'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+    delete:
+      tags: [Scheduled Jobs]
+      summary: 归档定时任务
+      operationId: archiveScheduledJob
+      x-stage: phase_2
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: 任务已经归档
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /scheduled-jobs/{job_id}/test-send:
+    parameters:
+      - $ref: '#/components/parameters/ScheduledJobId'
+    post:
+      tags: [Scheduled Jobs]
+      summary: 测试发送定时任务
+      description: 立即发送一次，但不修改正式任务的 last_run_at 或 next_run_at。
+      operationId: testSendScheduledJob
+      x-stage: phase_2
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 已明确完成的测试发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledJobRun'
+        '202':
+          description: 发送结果未知
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledJobRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /scheduled-jobs/{job_id}/runs:
+    parameters:
+      - $ref: '#/components/parameters/ScheduledJobId'
+    get:
+      tags: [Scheduled Jobs]
+      summary: 查询定时任务执行历史
+      operationId: listScheduledJobRuns
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [scheduled, test]
+        - name: result
+          in: query
+          schema:
+            $ref: '#/components/schemas/RunResult'
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 执行记录游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledJobRunList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /knowledge/status:
+    get:
+      tags: [Knowledge]
+      summary: 获取知识库同步和索引状态
+      operationId: getKnowledgeStatus
+      x-stage: phase_2
+      x-status: planned
+      responses:
+        '200':
+          description: 不包含 WPS SID 或敏感分享链接的状态快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /knowledge/reload:
+    post:
+      tags: [Knowledge]
+      summary: 启动手动知识库重载
+      description: 立即返回操作，完成结果通过 SSE 或重新读取 knowledge status 获取。
+      operationId: reloadKnowledge
+      x-stage: phase_2
+      x-status: planned
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: 重载已经启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeReloadOperation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /knowledge/entries:
+    get:
+      tags: [Knowledge]
+      summary: 搜索只读知识词条
+      operationId: listKnowledgeEntries
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: category
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: entry_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/KnowledgeEntryType'
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+        - name: exact_reply
+          in: query
+          schema:
+            type: boolean
+        - name: ai_enabled
+          in: query
+          schema:
+            type: boolean
+        - name: has_conflict
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 知识词条游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeEntryList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /knowledge/entries/{entry_id}:
+    parameters:
+      - $ref: '#/components/parameters/KnowledgeEntryId'
+    get:
+      tags: [Knowledge]
+      summary: 获取完整只读知识词条
+      operationId: getKnowledgeEntry
+      x-stage: phase_2
+      x-status: planned
+      responses:
+        '200':
+          description: 完整词条
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /knowledge/conflicts:
+    get:
+      tags: [Knowledge]
+      summary: 查询知识库解析冲突
+      operationId: listKnowledgeConflicts
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: conflict_type
+          in: query
+          schema:
+            type: string
+            enum: [source_key, keyword, alias]
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 冲突游标页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeConflictList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /analytics/summary:
+    get:
+      tags: [Analytics]
+      summary: 获取统计汇总
+      operationId: getAnalyticsSummary
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+        - $ref: '#/components/parameters/AnalyticsGroupIds'
+        - $ref: '#/components/parameters/AnalyticsFeatureKey'
+        - $ref: '#/components/parameters/AnalyticsResult'
+        - $ref: '#/components/parameters/AnalyticsTimezone'
+      responses:
+        '200':
+          description: 指标值、前周期比较和数据新鲜度
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /analytics/timeseries:
+    get:
+      tags: [Analytics]
+      summary: 获取统计时间序列
+      operationId: getAnalyticsTimeseries
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+        - $ref: '#/components/parameters/AnalyticsGroupIds'
+        - $ref: '#/components/parameters/AnalyticsFeatureKey'
+        - $ref: '#/components/parameters/AnalyticsResult'
+        - $ref: '#/components/parameters/AnalyticsTimezone'
+        - name: granularity
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [hour, day]
+        - name: metric
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 10
+            items:
+              $ref: '#/components/schemas/AnalyticsMetricKey'
+      responses:
+        '200':
+          description: 按粒度聚合的一个或多个指标序列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsTimeseries'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /analytics/rankings:
+    get:
+      tags: [Analytics]
+      summary: 获取统计排行
+      operationId: getAnalyticsRankings
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+        - $ref: '#/components/parameters/AnalyticsGroupIds'
+        - $ref: '#/components/parameters/AnalyticsFeatureKey'
+        - $ref: '#/components/parameters/AnalyticsResult'
+        - $ref: '#/components/parameters/AnalyticsTimezone'
+        - name: dimension
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [group, command, knowledge_entry]
+        - name: metric
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/AnalyticsMetricKey'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 稳定 key、展示名称、值和排名
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsRankings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /analytics/export:
+    get:
+      tags: [Analytics]
+      summary: 流式导出统计数据
+      operationId: exportAnalytics
+      x-stage: phase_2
+      x-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+        - $ref: '#/components/parameters/AnalyticsGroupIds'
+        - $ref: '#/components/parameters/AnalyticsFeatureKey'
+        - $ref: '#/components/parameters/AnalyticsResult'
+        - $ref: '#/components/parameters/AnalyticsTimezone'
+        - name: dataset
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [summary, timeseries, rankings, join_requests, scheduled_job_runs]
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, xlsx]
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [hour, day]
+        - name: metric
+          in: query
+          schema:
+            $ref: '#/components/schemas/AnalyticsMetricKey'
+        - name: dimension
+          in: query
+          schema:
+            type: string
+            enum: [group, command, knowledge_entry]
+      responses:
+        '200':
+          description: CSV 或 XLSX 文件流
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: attachment 文件名
+            X-Export-Row-Count:
+              schema:
+                type: integer
+                minimum: 0
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: jxh_admin_session
+      description: HttpOnly 服务端会话 Cookie；响应体不会返回其值。
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: 登录或 /auth/me 返回、仅由前端保存在内存中的 CSRF Token。
+  headers:
+    RequestId:
+      description: 用于关联 API、审计和上游调用日志的请求 ID
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    RetryAfter:
+      description: 建议重试等待秒数
+      schema:
+        type: integer
+        minimum: 1
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      description: 由服务端签发且绑定当前筛选和排序条件的不透明游标
+      schema:
+        type: string
+        maxLength: 2048
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: 资源 version 的带双引号十进制表示，例如 "7"
+      schema:
+        type: string
+        pattern: '^"[0-9]+"$'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 同一操作者和 operation 下用于副作用去重的客户端生成键
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+    GroupId:
+      name: group_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    JoinRequestId:
+      name: request_id
+      in: path
+      required: true
+      description: NapCat 申请 flag 的字符串表示
+      schema:
+        $ref: '#/components/schemas/JoinRequestIdentifier'
+    CommandId:
+      name: command_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    ScheduledJobId:
+      name: job_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    KnowledgeEntryId:
+      name: entry_id
+      in: path
+      required: true
+      description: source key 的 URL-safe 不透明编码
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    AuditLogId:
+      name: audit_log_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Identifier'
+    AnalyticsFrom:
+      name: from
+      in: query
+      description: 聚合起点；省略时由服务端按接口默认时间范围计算
+      schema:
+        type: string
+        format: date-time
+    AnalyticsTo:
+      name: to
+      in: query
+      description: 聚合终点，不得早于 from
+      schema:
+        type: string
+        format: date-time
+    AnalyticsGroupIds:
+      name: group_id
+      in: query
+      description: 可重复传入多个群号
+      style: form
+      explode: true
+      schema:
+        type: array
+        maxItems: 100
+        uniqueItems: true
+        items:
+          $ref: '#/components/schemas/Identifier'
+    AnalyticsFeatureKey:
+      name: feature_key
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        uniqueItems: true
+        items:
+          $ref: '#/components/schemas/FeatureKey'
+    AnalyticsResult:
+      name: result
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          enum: [success, failed, denied, unknown, fallback, skipped]
+    AnalyticsTimezone:
+      name: timezone
+      in: query
+      description: IANA 时区名
+      schema:
+        type: string
+        maxLength: 64
+        default: Asia/Shanghai
+  responses:
+    BadRequest:
+      description: 请求语法、字段或筛选条件无效
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: validation_failed
+              message: 请求字段校验失败
+              request_id: req_01J4ZP8Y
+              fields:
+                name: [格式不正确]
+              retryable: false
+    Unauthorized:
+      description: 未登录、会话过期或会话已撤销
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: unauthenticated
+              message: 请重新登录
+              request_id: req_01J4ZP8Y
+              fields: {}
+              retryable: false
+    Forbidden:
+      description: CSRF 校验失败或当前角色无权执行操作
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: permission_denied
+              message: 当前账号无权执行此操作
+              request_id: req_01J4ZP8Y
+              fields: {}
+              retryable: false
+    NotFound:
+      description: 资源不存在或当前用户不可见
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: resource_not_found
+              message: 资源不存在
+              request_id: req_01J4ZP8Y
+              fields: {}
+              retryable: false
+    Conflict:
+      description: 资源版本、幂等键、唯一约束或业务状态冲突
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            resourceVersionConflict:
+              value:
+                error:
+                  code: resource_version_conflict
+                  message: 资源已经被其他操作更新
+                  request_id: req_01J4ZP8Y
+                  fields: {}
+                  retryable: false
+            idempotencyKeyReused:
+              value:
+                error:
+                  code: idempotency_key_reused
+                  message: 幂等键已用于不同参数
+                  request_id: req_01J4ZP8Y
+                  fields: {}
+                  retryable: false
+    PreconditionRequired:
+      description: 修改已有资源时缺少 If-Match
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: precondition_required
+              message: 请求必须携带 If-Match
+              request_id: req_01J4ZP8Y
+              fields: {}
+              retryable: false
+    TooManyRequests:
+      description: 请求频率过高
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: rate_limited
+              message: 请求过于频繁，请稍后重试
+              request_id: req_01J4ZP8Y
+              fields: {}
+              retryable: true
+    BadGateway:
+      description: 上游返回明确失败
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: upstream_failure
+              message: 上游服务未能完成操作
+              request_id: req_01J4ZP8Y
+              fields: {}
+              retryable: true
+    ServiceUnavailable:
+      description: 必需依赖当前不可用，业务动作尚未开始
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: dependency_unavailable
+              message: NapCat 当前不可用
+              request_id: req_01J4ZP8Y
+              fields: {}
+              retryable: true
+  schemas:
+    Identifier:
+      type: string
+      minLength: 1
+      maxLength: 256
+      description: 不透明字符串标识；客户端不得推断前缀、长度或编码含义。
+    JoinRequestIdentifier:
+      type: string
+      minLength: 1
+      maxLength: 512
+      description: NapCat 原始申请 flag；服务端不得截断、哈希、重编码或生成平行标识。
+    Timestamp:
+      type: string
+      format: date-time
+      description: UTC RFC 3339 时间点
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, request_id, fields, retryable]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 稳定机器错误码；客户端必须为未知值提供通用降级显示。
+        message:
+          type: string
+          maxLength: 500
+        request_id:
+          $ref: '#/components/schemas/Identifier'
+        fields:
+          type: object
+          description: 字段路径到一条或多条安全校验消息的映射
+          additionalProperties:
+            type: array
+            items:
+              type: string
+              maxLength: 300
+        retryable:
+          type: boolean
+    AdminRole:
+      type: string
+      enum: [super_admin, maintainer, observer]
+    Permission:
+      type: string
+      enum:
+        - overview:read
+        - groups:read
+        - groups:sync
+        - settings:read
+        - settings:write
+        - join_requests:read
+        - join_requests:decide
+        - join_policies:write
+        - commands:read
+        - commands:write
+        - scheduled_jobs:read
+        - scheduled_jobs:write
+        - knowledge:read
+        - knowledge:reload
+        - analytics:read
+        - analytics:export
+        - audit:read
+        - users:manage
+        - sessions:manage
+        - system:read
+        - napcat:restart
+        - events:read
+    Username:
+      type: string
+      minLength: 3
+      maxLength: 32
+      pattern: '^[a-z][a-z0-9_.-]{2,31}$'
+    Password:
+      type: string
+      minLength: 12
+      maxLength: 128
+      format: password
+      writeOnly: true
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        password:
+          $ref: '#/components/schemas/Password'
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          $ref: '#/components/schemas/Password'
+        new_password:
+          $ref: '#/components/schemas/Password'
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - username
+        - display_name
+        - role
+        - qq_user_id
+        - enabled
+        - last_login_at
+        - created_at
+        - updated_at
+        - version
+      properties:
+        user_id:
+          $ref: '#/components/schemas/Identifier'
+        username:
+          $ref: '#/components/schemas/Username'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        role:
+          $ref: '#/components/schemas/AdminRole'
+        qq_user_id:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 32
+          description: 可选且全局唯一的 QQ 维护身份绑定
+        enabled:
+          type: boolean
+        last_login_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        version:
+          type: integer
+          minimum: 1
+    SessionStatus:
+      type: string
+      enum: [active, expired, revoked]
+    AdminSession:
+      type: object
+      additionalProperties: false
+      required:
+        - session_id
+        - user_id
+        - status
+        - current
+        - ip_address
+        - user_agent
+        - created_at
+        - last_seen_at
+        - expires_at
+        - revoked_at
+      properties:
+        session_id:
+          $ref: '#/components/schemas/Identifier'
+        user_id:
+          $ref: '#/components/schemas/Identifier'
+        status:
+          $ref: '#/components/schemas/SessionStatus'
+        current:
+          type: boolean
+        ip_address:
+          type: string
+          maxLength: 64
+        user_agent:
+          type: string
+          maxLength: 300
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        last_seen_at:
+          $ref: '#/components/schemas/Timestamp'
+        expires_at:
+          $ref: '#/components/schemas/Timestamp'
+        revoked_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+    AuthContext:
+      type: object
+      additionalProperties: false
+      required: [user, session, permissions, csrf_token]
+      properties:
+        user:
+          $ref: '#/components/schemas/AdminUser'
+        session:
+          $ref: '#/components/schemas/AdminSession'
+        permissions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Permission'
+        csrf_token:
+          type: string
+          minLength: 32
+          maxLength: 256
+          description: 仅在前端内存保存；会话轮换时同步轮换。
+    DashboardMetricKey:
+      type: string
+      enum:
+        - pending_join_requests
+        - automatic_approvals_today
+        - command_runs_today
+        - active_groups
+        - enabled_scheduled_jobs
+        - healthy_dependencies
+    DashboardMetric:
+      type: object
+      additionalProperties: false
+      required: [key, label, available, value, change_percent]
+      properties:
+        key:
+          $ref: '#/components/schemas/DashboardMetricKey'
+        label:
+          type: string
+          maxLength: 64
+        available:
+          type: boolean
+        value:
+          type: [number, 'null']
+        change_percent:
+          type: [number, 'null']
+          description: 相对上一等长周期的百分比变化
+    PendingItem:
+      type: object
+      additionalProperties: false
+      required: [key, label, count, severity]
+      properties:
+        key:
+          type: string
+          enum: [join_requests, failed_jobs, knowledge_conflicts, degraded_dependencies]
+        label:
+          type: string
+          maxLength: 64
+        count:
+          type: integer
+          minimum: 0
+        severity:
+          type: string
+          enum: [info, warning, critical]
+    DependencySummary:
+      type: object
+      additionalProperties: false
+      required: [key, status, last_success_at]
+      properties:
+        key:
+          $ref: '#/components/schemas/DependencyKey'
+        status:
+          $ref: '#/components/schemas/DependencyStatus'
+        last_success_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+    OverviewTrendPoint:
+      type: object
+      additionalProperties: false
+      required: [bucket_start, values]
+      properties:
+        bucket_start:
+          $ref: '#/components/schemas/Timestamp'
+        values:
+          type: object
+          additionalProperties:
+            type: number
+    Overview:
+      type: object
+      additionalProperties: false
+      required: [generated_at, range, group_id, metrics, pending_items, dependencies, trend]
+      properties:
+        generated_at:
+          $ref: '#/components/schemas/Timestamp'
+        range:
+          type: string
+          enum: [7d, 30d]
+        group_id:
+          type: [string, 'null']
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardMetric'
+        pending_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingItem'
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencySummary'
+        trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverviewTrendPoint'
+    GroupRole:
+      type: string
+      enum: [owner, admin, member, unknown]
+    FeatureKey:
+      type: string
+      enum: [keyword_reply, ai_qa, quote, link_cleaner, welcome, custom_commands]
+    GroupReference:
+      type: object
+      additionalProperties: false
+      required: [group_id, name]
+      properties:
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        name:
+          type: string
+          maxLength: 100
+    GroupFeatureState:
+      type: object
+      additionalProperties: false
+      required: [key, enabled, source]
+      properties:
+        key:
+          $ref: '#/components/schemas/FeatureKey'
+        enabled:
+          type: boolean
+        source:
+          type: string
+          enum: [global, group_override]
+    Group:
+      type: object
+      additionalProperties: false
+      required:
+        - group_id
+        - name
+        - member_count
+        - max_member_count
+        - bot_role
+        - snapshot_state
+        - last_synced_at
+        - features
+      properties:
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        name:
+          type: string
+          maxLength: 100
+        member_count:
+          type: integer
+          minimum: 0
+        max_member_count:
+          type: integer
+          minimum: 0
+        bot_role:
+          $ref: '#/components/schemas/GroupRole'
+        snapshot_state:
+          type: string
+          enum: [fresh, stale]
+        last_synced_at:
+          $ref: '#/components/schemas/Timestamp'
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupFeatureState'
+    GroupList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Group'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    GroupSyncResult:
+      type: object
+      additionalProperties: false
+      required: [synced_at, added_count, updated_count, removed_count, total_count]
+      properties:
+        synced_at:
+          $ref: '#/components/schemas/Timestamp'
+        added_count:
+          type: integer
+          minimum: 0
+        updated_count:
+          type: integer
+          minimum: 0
+        removed_count:
+          type: integer
+          minimum: 0
+        total_count:
+          type: integer
+          minimum: 0
+    BasicFeatureSettings:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    WelcomeFeatureSettings:
+      type: object
+      additionalProperties: false
+      required: [enabled, message_template]
+      properties:
+        enabled:
+          type: boolean
+        message_template:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: 仅允许服务端白名单中的模板变量。
+    FeatureSettings:
+      type: object
+      additionalProperties: false
+      required: [keyword_reply, ai_qa, quote, link_cleaner, welcome, custom_commands]
+      properties:
+        keyword_reply:
+          $ref: '#/components/schemas/BasicFeatureSettings'
+        ai_qa:
+          $ref: '#/components/schemas/BasicFeatureSettings'
+        quote:
+          $ref: '#/components/schemas/BasicFeatureSettings'
+        link_cleaner:
+          $ref: '#/components/schemas/BasicFeatureSettings'
+        welcome:
+          $ref: '#/components/schemas/WelcomeFeatureSettings'
+        custom_commands:
+          $ref: '#/components/schemas/BasicFeatureSettings'
+    BasicFeatureSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        enabled:
+          type: boolean
+    WelcomeFeatureSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        enabled:
+          type: boolean
+        message_template:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    FeatureSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        keyword_reply:
+          $ref: '#/components/schemas/BasicFeatureSettingsPatch'
+        ai_qa:
+          $ref: '#/components/schemas/BasicFeatureSettingsPatch'
+        quote:
+          $ref: '#/components/schemas/BasicFeatureSettingsPatch'
+        link_cleaner:
+          $ref: '#/components/schemas/BasicFeatureSettingsPatch'
+        welcome:
+          $ref: '#/components/schemas/WelcomeFeatureSettingsPatch'
+        custom_commands:
+          $ref: '#/components/schemas/BasicFeatureSettingsPatch'
+    GlobalSettings:
+      type: object
+      additionalProperties: false
+      required: [features, version, updated_at, updated_by]
+      properties:
+        features:
+          $ref: '#/components/schemas/FeatureSettings'
+        version:
+          type: integer
+          minimum: 1
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_by:
+          oneOf:
+            - $ref: '#/components/schemas/AuditActor'
+            - type: 'null'
+    GlobalSettingsPatch:
+      type: object
+      additionalProperties: false
+      required: [features]
+      properties:
+        features:
+          $ref: '#/components/schemas/FeatureSettingsPatch'
+    BasicFeatureOverride:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    WelcomeFeatureOverride:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        enabled:
+          type: boolean
+        message_template:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    GroupFeatureOverrides:
+      type: object
+      additionalProperties: false
+      properties:
+        keyword_reply:
+          $ref: '#/components/schemas/BasicFeatureOverride'
+        ai_qa:
+          $ref: '#/components/schemas/BasicFeatureOverride'
+        quote:
+          $ref: '#/components/schemas/BasicFeatureOverride'
+        link_cleaner:
+          $ref: '#/components/schemas/BasicFeatureOverride'
+        welcome:
+          $ref: '#/components/schemas/WelcomeFeatureOverride'
+        custom_commands:
+          $ref: '#/components/schemas/BasicFeatureOverride'
+    BasicFeatureOverridePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        enabled:
+          type: [boolean, 'null']
+          description: null 删除该字段覆盖并恢复继承。
+    WelcomeFeatureOverridePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        enabled:
+          type: [boolean, 'null']
+        message_template:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 2000
+          description: null 删除该字段覆盖并恢复继承。
+    GroupFeatureOverridesPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        keyword_reply:
+          oneOf:
+            - $ref: '#/components/schemas/BasicFeatureOverridePatch'
+            - type: 'null'
+        ai_qa:
+          oneOf:
+            - $ref: '#/components/schemas/BasicFeatureOverridePatch'
+            - type: 'null'
+        quote:
+          oneOf:
+            - $ref: '#/components/schemas/BasicFeatureOverridePatch'
+            - type: 'null'
+        link_cleaner:
+          oneOf:
+            - $ref: '#/components/schemas/BasicFeatureOverridePatch'
+            - type: 'null'
+        welcome:
+          oneOf:
+            - $ref: '#/components/schemas/WelcomeFeatureOverridePatch'
+            - type: 'null'
+        custom_commands:
+          oneOf:
+            - $ref: '#/components/schemas/BasicFeatureOverridePatch'
+            - type: 'null'
+    GroupSettings:
+      type: object
+      additionalProperties: false
+      required: [group_id, effective, overrides, global_version, version, updated_at, updated_by]
+      properties:
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        effective:
+          $ref: '#/components/schemas/FeatureSettings'
+        overrides:
+          $ref: '#/components/schemas/GroupFeatureOverrides'
+        global_version:
+          type: integer
+          minimum: 1
+        version:
+          type: integer
+          minimum: 0
+          description: 尚无群级覆盖时为 0。
+        updated_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        updated_by:
+          oneOf:
+            - $ref: '#/components/schemas/AuditActor'
+            - type: 'null'
+    GroupSettingsPatch:
+      type: object
+      additionalProperties: false
+      required: [features]
+      properties:
+        features:
+          $ref: '#/components/schemas/GroupFeatureOverridesPatch'
+    AuditActorType:
+      type: string
+      enum: [admin_user, qq_user, system]
+    AuditActor:
+      type: object
+      additionalProperties: false
+      required: [type, user_id, qq_user_id, display_name]
+      properties:
+        type:
+          $ref: '#/components/schemas/AuditActorType'
+        user_id:
+          type: [string, 'null']
+        qq_user_id:
+          type: [string, 'null']
+        display_name:
+          type: string
+          maxLength: 100
+    JoinPolicyField:
+      type: string
+      enum: [student_id, name, major]
+    JoinRequestPolicy:
+      type: object
+      additionalProperties: false
+      required:
+        - group_id
+        - enabled
+        - mode
+        - required_fields
+        - auto_reject
+        - version
+        - updated_at
+        - updated_by
+      properties:
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        enabled:
+          type: boolean
+          default: false
+        mode:
+          type: string
+          const: ai_fields_complete
+        required_fields:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/JoinPolicyField'
+        auto_reject:
+          type: boolean
+          const: false
+          description: 系统绝不根据该策略自动拒绝申请。
+        version:
+          type: integer
+          minimum: 1
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_by:
+          oneOf:
+            - $ref: '#/components/schemas/AuditActor'
+            - type: 'null'
+    JoinRequestPolicyPatch:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    JoinDecisionStatus:
+      type: string
+      enum: [pending, processing, approved, rejected, external_processed, unknown]
+    JoinDecisionAction:
+      type: string
+      enum: [approve, reject]
+    JoinDecisionSource:
+      type: string
+      enum: [manual, automatic, external]
+    JoinDecisionAttemptStatus:
+      type: string
+      enum: [started, confirmed, failed, unknown]
+    AIParseStatus:
+      type: string
+      enum: [pending, running, succeeded, failed, skipped]
+    AIApplicantFields:
+      type: object
+      additionalProperties: false
+      required: [student_id, name, major, valid, validation_errors]
+      properties:
+        student_id:
+          type: [string, 'null']
+          maxLength: 64
+        name:
+          type: [string, 'null']
+          maxLength: 100
+        major:
+          type: [string, 'null']
+          maxLength: 128
+        valid:
+          type: boolean
+        validation_errors:
+          type: array
+          items:
+            type: string
+            maxLength: 200
+    AIParseResult:
+      type: object
+      additionalProperties: false
+      required: [status, fields, error_code, completed_at]
+      properties:
+        status:
+          $ref: '#/components/schemas/AIParseStatus'
+        fields:
+          oneOf:
+            - $ref: '#/components/schemas/AIApplicantFields'
+            - type: 'null'
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+        completed_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+    JoinRequestSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - request_id
+        - group
+        - applicant_qq
+        - applicant_nickname
+        - verification_message
+        - sub_type
+        - source
+        - observed_status
+        - decision_status
+        - decision_source
+        - ai_parse
+        - requested_at
+        - overdue
+        - version
+        - last_decision_id
+      properties:
+        request_id:
+          $ref: '#/components/schemas/JoinRequestIdentifier'
+        group:
+          $ref: '#/components/schemas/GroupReference'
+        applicant_qq:
+          type: string
+          minLength: 1
+          maxLength: 32
+        applicant_nickname:
+          type: [string, 'null']
+          maxLength: 100
+        verification_message:
+          type: string
+          maxLength: 2000
+          description: 申请验证消息；不得复制到统计、SSE 或普通日志。
+        sub_type:
+          type: string
+          enum: [add, invite]
+        source:
+          type: string
+          enum: [event, system]
+        observed_status:
+          type: string
+          enum: [pending, checked]
+        decision_status:
+          $ref: '#/components/schemas/JoinDecisionStatus'
+        decision_source:
+          oneOf:
+            - $ref: '#/components/schemas/JoinDecisionSource'
+            - type: 'null'
+        ai_parse:
+          $ref: '#/components/schemas/AIParseResult'
+        requested_at:
+          $ref: '#/components/schemas/Timestamp'
+        overdue:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        last_decision_id:
+          type: [string, 'null']
+    JoinRequest:
+      allOf:
+        - $ref: '#/components/schemas/JoinRequestSummary'
+        - type: object
+          required: [comment, first_observed_at, last_observed_at]
+          properties:
+            comment:
+              type: [string, 'null']
+              maxLength: 500
+            first_observed_at:
+              $ref: '#/components/schemas/Timestamp'
+            last_observed_at:
+              $ref: '#/components/schemas/Timestamp'
+      unevaluatedProperties: false
+    JoinRequestList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JoinRequestSummary'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    JoinDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - decision_id
+        - request_id
+        - action
+        - source
+        - status
+        - actor
+        - reason
+        - rule_version
+        - field_snapshot
+        - started_at
+        - completed_at
+        - error_code
+        - trace_id
+      properties:
+        decision_id:
+          $ref: '#/components/schemas/Identifier'
+        request_id:
+          $ref: '#/components/schemas/JoinRequestIdentifier'
+        action:
+          $ref: '#/components/schemas/JoinDecisionAction'
+        source:
+          $ref: '#/components/schemas/JoinDecisionSource'
+        status:
+          $ref: '#/components/schemas/JoinDecisionAttemptStatus'
+        actor:
+          oneOf:
+            - $ref: '#/components/schemas/AuditActor'
+            - type: 'null'
+        reason:
+          type: [string, 'null']
+          maxLength: 500
+        rule_version:
+          type: [integer, 'null']
+          minimum: 1
+        field_snapshot:
+          oneOf:
+            - $ref: '#/components/schemas/AIApplicantFields'
+            - type: 'null'
+        started_at:
+          $ref: '#/components/schemas/Timestamp'
+        completed_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+        trace_id:
+          $ref: '#/components/schemas/Identifier'
+    JoinDecisionList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JoinDecision'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    JoinDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          $ref: '#/components/schemas/JoinDecisionAction'
+        reason:
+          type: string
+          maxLength: 500
+    JoinDecisionResult:
+      type: object
+      additionalProperties: false
+      required: [join_request, decision]
+      properties:
+        join_request:
+          $ref: '#/components/schemas/JoinRequest'
+        decision:
+          $ref: '#/components/schemas/JoinDecision'
+    BulkJoinDecisionItem:
+      type: object
+      additionalProperties: false
+      required: [request_id, version]
+      properties:
+        request_id:
+          $ref: '#/components/schemas/JoinRequestIdentifier'
+        version:
+          type: integer
+          minimum: 1
+    BulkJoinDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [group_id, action, items]
+      properties:
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        action:
+          $ref: '#/components/schemas/JoinDecisionAction'
+        reason:
+          type: string
+          maxLength: 500
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BulkJoinDecisionItem'
+    BulkJoinDecisionItemResult:
+      type: object
+      additionalProperties: false
+      required: [request_id, outcome, join_request, decision, error]
+      properties:
+        request_id:
+          $ref: '#/components/schemas/JoinRequestIdentifier'
+        outcome:
+          type: string
+          enum: [confirmed, failed, unknown]
+        join_request:
+          $ref: '#/components/schemas/JoinRequestSummary'
+        decision:
+          $ref: '#/components/schemas/JoinDecision'
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    BulkJoinDecisionResult:
+      type: object
+      additionalProperties: false
+      required: [group_id, action, items, confirmed_count, failed_count, unknown_count]
+      properties:
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        action:
+          $ref: '#/components/schemas/JoinDecisionAction'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkJoinDecisionItemResult'
+        confirmed_count:
+          type: integer
+          minimum: 0
+        failed_count:
+          type: integer
+          minimum: 0
+        unknown_count:
+          type: integer
+          minimum: 0
+    CommandName:
+      type: string
+      minLength: 2
+      maxLength: 33
+      pattern: '^/[a-z](?:[a-z0-9_-]{0,31})$'
+      description: 完整命令名，仅允许斜杠、小写 ASCII 字母、数字、下划线和连字符。
+    CommandStatus:
+      type: string
+      enum: [draft, active, disabled, archived]
+    CommandTriggerPermission:
+      type: string
+      enum: [everyone, group_admin, maintenance_allowlist]
+    CommandActionType:
+      type: string
+      enum: [reply_text, mention, mute_member, send_group_text]
+    CommandParameterType:
+      type: string
+      enum: [text, integer, duration, member, fixed_option]
+    CommandParameterName:
+      type: string
+      minLength: 1
+      maxLength: 32
+      pattern: '^[a-z][a-z0-9_]{0,31}$'
+    FixedOption:
+      type: object
+      additionalProperties: false
+      required: [value, label]
+      properties:
+        value:
+          type: string
+          minLength: 1
+          maxLength: 32
+          pattern: '^[a-z0-9][a-z0-9_-]{0,31}$'
+        label:
+          type: string
+          minLength: 1
+          maxLength: 100
+    TextCommandParameter:
+      type: object
+      additionalProperties: false
+      required: [name, display_name, type, required, min_length, max_length]
+      properties:
+        name:
+          $ref: '#/components/schemas/CommandParameterName'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        type:
+          type: string
+          const: text
+        required:
+          type: boolean
+        min_length:
+          type: integer
+          minimum: 0
+          maximum: 500
+        max_length:
+          type: integer
+          minimum: 1
+          maximum: 500
+    IntegerCommandParameter:
+      type: object
+      additionalProperties: false
+      required: [name, display_name, type, required, minimum, maximum]
+      properties:
+        name:
+          $ref: '#/components/schemas/CommandParameterName'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        type:
+          type: string
+          const: integer
+        required:
+          type: boolean
+        minimum:
+          type: integer
+          minimum: -1000000000
+        maximum:
+          type: integer
+          maximum: 1000000000
+    DurationCommandParameter:
+      type: object
+      additionalProperties: false
+      required: [name, display_name, type, required, minimum_seconds, maximum_seconds]
+      properties:
+        name:
+          $ref: '#/components/schemas/CommandParameterName'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        type:
+          type: string
+          const: duration
+        required:
+          type: boolean
+        minimum_seconds:
+          type: integer
+          minimum: 1
+          maximum: 2592000
+        maximum_seconds:
+          type: integer
+          minimum: 1
+          maximum: 2592000
+    MemberCommandParameter:
+      type: object
+      additionalProperties: false
+      required: [name, display_name, type, required, allow_triggerer]
+      properties:
+        name:
+          $ref: '#/components/schemas/CommandParameterName'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        type:
+          type: string
+          const: member
+        required:
+          type: boolean
+        allow_triggerer:
+          type: boolean
+    FixedOptionCommandParameter:
+      type: object
+      additionalProperties: false
+      required: [name, display_name, type, required, options]
+      properties:
+        name:
+          $ref: '#/components/schemas/CommandParameterName'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        type:
+          type: string
+          const: fixed_option
+        required:
+          type: boolean
+        options:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/FixedOption'
+    CommandParameter:
+      oneOf:
+        - $ref: '#/components/schemas/TextCommandParameter'
+        - $ref: '#/components/schemas/IntegerCommandParameter'
+        - $ref: '#/components/schemas/DurationCommandParameter'
+        - $ref: '#/components/schemas/MemberCommandParameter'
+        - $ref: '#/components/schemas/FixedOptionCommandParameter'
+      discriminator:
+        propertyName: type
+        mapping:
+          text: '#/components/schemas/TextCommandParameter'
+          integer: '#/components/schemas/IntegerCommandParameter'
+          duration: '#/components/schemas/DurationCommandParameter'
+          member: '#/components/schemas/MemberCommandParameter'
+          fixed_option: '#/components/schemas/FixedOptionCommandParameter'
+    ReplyTextAction:
+      type: object
+      additionalProperties: false
+      required: [type, template]
+      properties:
+        type:
+          type: string
+          const: reply_text
+        template:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    MentionAction:
+      type: object
+      additionalProperties: false
+      required: [type, target, member_parameter]
+      properties:
+        type:
+          type: string
+          const: mention
+        target:
+          type: string
+          enum: [triggerer, parameter]
+        member_parameter:
+          type: [string, 'null']
+          maxLength: 32
+          description: target=parameter 时必须引用一个 member 参数，否则必须为 null。
+    FixedDurationSource:
+      type: object
+      additionalProperties: false
+      required: [type, seconds]
+      properties:
+        type:
+          type: string
+          const: fixed
+        seconds:
+          type: integer
+          minimum: 1
+          maximum: 2592000
+    ParameterDurationSource:
+      type: object
+      additionalProperties: false
+      required: [type, parameter]
+      properties:
+        type:
+          type: string
+          const: parameter
+        parameter:
+          $ref: '#/components/schemas/CommandParameterName'
+    DurationSource:
+      oneOf:
+        - $ref: '#/components/schemas/FixedDurationSource'
+        - $ref: '#/components/schemas/ParameterDurationSource'
+      discriminator:
+        propertyName: type
+    MuteMemberAction:
+      type: object
+      additionalProperties: false
+      required: [type, member_parameter, duration]
+      properties:
+        type:
+          type: string
+          const: mute_member
+        member_parameter:
+          $ref: '#/components/schemas/CommandParameterName'
+        duration:
+          $ref: '#/components/schemas/DurationSource'
+    SendGroupTextAction:
+      type: object
+      additionalProperties: false
+      required: [type, target_group_ids, template]
+      properties:
+        type:
+          type: string
+          const: send_group_text
+        target_group_ids:
+          type: array
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
+          description: 保存时固定选择；不得由运行时自由文本参数生成。
+          items:
+            $ref: '#/components/schemas/Identifier'
+        template:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    CommandAction:
+      oneOf:
+        - $ref: '#/components/schemas/ReplyTextAction'
+        - $ref: '#/components/schemas/MentionAction'
+        - $ref: '#/components/schemas/MuteMemberAction'
+        - $ref: '#/components/schemas/SendGroupTextAction'
+      discriminator:
+        propertyName: type
+        mapping:
+          reply_text: '#/components/schemas/ReplyTextAction'
+          mention: '#/components/schemas/MentionAction'
+          mute_member: '#/components/schemas/MuteMemberAction'
+          send_group_text: '#/components/schemas/SendGroupTextAction'
+    CommandScope:
+      type: object
+      additionalProperties: false
+      required: [type, group_ids]
+      properties:
+        type:
+          type: string
+          enum: [global, groups]
+        group_ids:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          description: type=groups 时至少一项；type=global 时必须为空数组。
+          items:
+            $ref: '#/components/schemas/Identifier'
+    CommandDefinitionInput:
+      type: object
+      additionalProperties: false
+      required: [name, display_name, description, scope, trigger_permission, parameters, actions]
+      properties:
+        name:
+          $ref: '#/components/schemas/CommandName'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        description:
+          type: string
+          maxLength: 500
+        scope:
+          $ref: '#/components/schemas/CommandScope'
+        trigger_permission:
+          $ref: '#/components/schemas/CommandTriggerPermission'
+        parameters:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CommandParameter'
+        actions:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CommandAction'
+    CommandCreateRequest:
+      $ref: '#/components/schemas/CommandDefinitionInput'
+    Command:
+      type: object
+      additionalProperties: false
+      required:
+        - command_id
+        - name
+        - display_name
+        - description
+        - scope
+        - trigger_permission
+        - parameters
+        - actions
+        - enabled
+        - status
+        - version
+        - created_at
+        - updated_at
+        - updated_by
+      properties:
+        command_id:
+          $ref: '#/components/schemas/Identifier'
+        name:
+          $ref: '#/components/schemas/CommandName'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        description:
+          type: string
+          maxLength: 500
+        scope:
+          $ref: '#/components/schemas/CommandScope'
+        trigger_permission:
+          $ref: '#/components/schemas/CommandTriggerPermission'
+        parameters:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CommandParameter'
+        actions:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CommandAction'
+        enabled:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/CommandStatus'
+        version:
+          type: integer
+          minimum: 1
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_by:
+          $ref: '#/components/schemas/AuditActor'
+      example:
+        command_id: cmd_01J4ZP8Y
+        name: /welcome
+        display_name: 欢迎成员
+        description: 在当前群回复欢迎文本
+        scope:
+          type: groups
+          group_ids: ['123456789']
+        trigger_permission: group_admin
+        parameters:
+          - name: member
+            display_name: 成员
+            type: member
+            required: true
+            allow_triggerer: false
+        actions:
+          - type: mention
+            target: parameter
+            member_parameter: member
+          - type: reply_text
+            template: 欢迎加入本群
+        enabled: false
+        status: draft
+        version: 1
+        created_at: '2026-07-27T08:30:00Z'
+        updated_at: '2026-07-27T08:30:00Z'
+        updated_by:
+          type: admin_user
+          user_id: usr_01J4ZP8Y
+          qq_user_id: null
+          display_name: 管理员
+    CommandPatchRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          $ref: '#/components/schemas/CommandName'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        description:
+          type: string
+          maxLength: 500
+        scope:
+          $ref: '#/components/schemas/CommandScope'
+        trigger_permission:
+          $ref: '#/components/schemas/CommandTriggerPermission'
+        parameters:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CommandParameter'
+        actions:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CommandAction'
+        enabled:
+          type: boolean
+    CommandList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Command'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    CommandValidationSample:
+      type: object
+      additionalProperties: false
+      required: [group_id, sender_qq, sender_role, message]
+      properties:
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        sender_qq:
+          type: string
+          minLength: 1
+          maxLength: 32
+        sender_role:
+          type: string
+          enum: [owner, admin, member]
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    CommandDraftValidationRequest:
+      type: object
+      additionalProperties: false
+      required: [definition, sample]
+      properties:
+        definition:
+          $ref: '#/components/schemas/CommandDefinitionInput'
+        sample:
+          $ref: '#/components/schemas/CommandValidationSample'
+    ValidationIssue:
+      type: object
+      additionalProperties: false
+      required: [path, code, message]
+      properties:
+        path:
+          type: string
+          maxLength: 200
+        code:
+          type: string
+          maxLength: 100
+        message:
+          type: string
+          maxLength: 300
+    ParsedCommandArgument:
+      type: object
+      additionalProperties: false
+      required: [name, type, display_value]
+      properties:
+        name:
+          $ref: '#/components/schemas/CommandParameterName'
+        type:
+          $ref: '#/components/schemas/CommandParameterType'
+        display_value:
+          type: string
+          maxLength: 500
+          description: 仅在无副作用验证响应中返回；不会写入执行记录。
+    RenderedActionPreview:
+      type: object
+      additionalProperties: false
+      required: [index, type, preview]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+        type:
+          $ref: '#/components/schemas/CommandActionType'
+        preview:
+          type: string
+          maxLength: 2500
+    CommandValidationResult:
+      type: object
+      additionalProperties: false
+      required: [valid, issues, warnings, parsed_arguments, rendered_actions]
+      properties:
+        valid:
+          type: boolean
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
+        parsed_arguments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParsedCommandArgument'
+        rendered_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RenderedActionPreview'
+    CommandRunResult:
+      type: string
+      enum: [success, denied, parse_error, failed, partial, unknown]
+    CommandActionStep:
+      type: object
+      additionalProperties: false
+      required: [index, type, result, duration_ms, error_code]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+        type:
+          $ref: '#/components/schemas/CommandActionType'
+        result:
+          type: string
+          enum: [success, failed, unknown, skipped]
+        duration_ms:
+          type: integer
+          minimum: 0
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+    CommandRun:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - command_id
+        - command_name
+        - group_id
+        - triggered_by_qq
+        - result
+        - action_steps
+        - duration_ms
+        - error_code
+        - occurred_at
+      properties:
+        run_id:
+          $ref: '#/components/schemas/Identifier'
+        command_id:
+          $ref: '#/components/schemas/Identifier'
+        command_name:
+          $ref: '#/components/schemas/CommandName'
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        triggered_by_qq:
+          type: string
+          minLength: 1
+          maxLength: 32
+        result:
+          $ref: '#/components/schemas/CommandRunResult'
+        action_steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommandActionStep'
+        duration_ms:
+          type: integer
+          minimum: 0
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+        occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+    CommandRunList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommandRun'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    ScheduledJobType:
+      type: string
+      enum: [daily, once]
+    ScheduledJobStatus:
+      type: string
+      enum: [active, paused, completed, archived]
+    RunResult:
+      type: string
+      enum: [success, failed, unknown, skipped]
+    DailySchedule:
+      type: object
+      additionalProperties: false
+      required: [type, local_time, timezone]
+      properties:
+        type:
+          type: string
+          const: daily
+        local_time:
+          type: string
+          format: time
+          description: 不带时区的每日触发时间
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+          default: Asia/Shanghai
+    OnceSchedule:
+      type: object
+      additionalProperties: false
+      required: [type, run_at]
+      properties:
+        type:
+          type: string
+          const: once
+        run_at:
+          $ref: '#/components/schemas/Timestamp'
+    ScheduledJobSchedule:
+      oneOf:
+        - $ref: '#/components/schemas/DailySchedule'
+        - $ref: '#/components/schemas/OnceSchedule'
+      discriminator:
+        propertyName: type
+        mapping:
+          daily: '#/components/schemas/DailySchedule'
+          once: '#/components/schemas/OnceSchedule'
+    ScheduledJobCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [name, group_id, message, schedule, enabled]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        schedule:
+          $ref: '#/components/schemas/ScheduledJobSchedule'
+        enabled:
+          type: boolean
+    ScheduledJobPatchRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        group_id:
+          $ref: '#/components/schemas/Identifier'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        schedule:
+          $ref: '#/components/schemas/ScheduledJobSchedule'
+        status:
+          type: string
+          enum: [active, paused]
+    ScheduledJob:
+      type: object
+      additionalProperties: false
+      required:
+        - job_id
+        - name
+        - group
+        - message
+        - type
+        - schedule
+        - status
+        - next_run_at
+        - last_run_at
+        - last_run_result
+        - version
+        - created_at
+        - updated_at
+        - updated_by
+      properties:
+        job_id:
+          $ref: '#/components/schemas/Identifier'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        group:
+          $ref: '#/components/schemas/GroupReference'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        type:
+          $ref: '#/components/schemas/ScheduledJobType'
+        schedule:
+          $ref: '#/components/schemas/ScheduledJobSchedule'
+        status:
+          $ref: '#/components/schemas/ScheduledJobStatus'
+        next_run_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        last_run_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        last_run_result:
+          oneOf:
+            - $ref: '#/components/schemas/RunResult'
+            - type: 'null'
+        version:
+          type: integer
+          minimum: 1
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_by:
+          $ref: '#/components/schemas/AuditActor'
+    ScheduledJobList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledJob'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    ScheduledJobRun:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - job_id
+        - kind
+        - result
+        - scheduled_for
+        - started_at
+        - completed_at
+        - duration_ms
+        - message_id
+        - error_code
+        - error_message
+        - triggered_by
+      properties:
+        run_id:
+          $ref: '#/components/schemas/Identifier'
+        job_id:
+          $ref: '#/components/schemas/Identifier'
+        kind:
+          type: string
+          enum: [scheduled, test]
+        result:
+          $ref: '#/components/schemas/RunResult'
+        scheduled_for:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        started_at:
+          $ref: '#/components/schemas/Timestamp'
+        completed_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        duration_ms:
+          type: integer
+          minimum: 0
+        message_id:
+          type: [string, 'null']
+          maxLength: 256
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+        error_message:
+          type: [string, 'null']
+          maxLength: 500
+          description: 已脱敏的可展示错误摘要
+        triggered_by:
+          oneOf:
+            - $ref: '#/components/schemas/AuditActor'
+            - type: 'null'
+    ScheduledJobRunList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledJobRun'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    KnowledgeState:
+      type: string
+      enum: [ready, reloading, degraded, unavailable, not_configured]
+    KnowledgeOperationStatus:
+      type: string
+      enum: [accepted, running, succeeded, failed]
+    KnowledgeReloadOperation:
+      type: object
+      additionalProperties: false
+      required: [operation_id, status, started_at, completed_at, error_code]
+      properties:
+        operation_id:
+          $ref: '#/components/schemas/Identifier'
+        status:
+          $ref: '#/components/schemas/KnowledgeOperationStatus'
+        started_at:
+          $ref: '#/components/schemas/Timestamp'
+        completed_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+    KnowledgeStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - source_configured
+        - active_index_version
+        - entry_count
+        - conflict_count
+        - last_attempt_at
+        - last_success_at
+        - last_error_code
+        - current_operation
+      properties:
+        state:
+          $ref: '#/components/schemas/KnowledgeState'
+        source_configured:
+          type: boolean
+          description: 仅表示 WPS 凭据和数据源是否配置，不返回其内容。
+        active_index_version:
+          type: [string, 'null']
+          maxLength: 128
+        entry_count:
+          type: integer
+          minimum: 0
+        conflict_count:
+          type: integer
+          minimum: 0
+        last_attempt_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        last_success_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        last_error_code:
+          type: [string, 'null']
+          maxLength: 100
+        current_operation:
+          oneOf:
+            - $ref: '#/components/schemas/KnowledgeReloadOperation'
+            - type: 'null'
+    KnowledgeEntryType:
+      type: string
+      enum: [exact_reply, ai_knowledge, hybrid]
+    KnowledgeEntrySummary:
+      type: object
+      additionalProperties: false
+      required:
+        - entry_id
+        - title
+        - category
+        - entry_type
+        - keywords
+        - aliases
+        - enabled
+        - exact_reply
+        - ai_enabled
+        - has_conflict
+        - source_updated_at
+        - indexed_at
+      properties:
+        entry_id:
+          $ref: '#/components/schemas/Identifier'
+        title:
+          type: string
+          maxLength: 200
+        category:
+          type: string
+          maxLength: 100
+        entry_type:
+          $ref: '#/components/schemas/KnowledgeEntryType'
+        keywords:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 100
+        aliases:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 100
+        enabled:
+          type: boolean
+        exact_reply:
+          type: boolean
+        ai_enabled:
+          type: boolean
+        has_conflict:
+          type: boolean
+        source_updated_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        indexed_at:
+          $ref: '#/components/schemas/Timestamp'
+    KnowledgeEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - entry_id
+        - source_key
+        - title
+        - category
+        - entry_type
+        - keywords
+        - aliases
+        - question
+        - answer
+        - enabled
+        - exact_reply
+        - ai_enabled
+        - has_conflict
+        - source_updated_at
+        - indexed_at
+      properties:
+        entry_id:
+          $ref: '#/components/schemas/Identifier'
+        source_key:
+          type: string
+          maxLength: 256
+        title:
+          type: string
+          maxLength: 200
+        category:
+          type: string
+          maxLength: 100
+        entry_type:
+          $ref: '#/components/schemas/KnowledgeEntryType'
+        keywords:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 100
+        aliases:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 100
+        question:
+          type: string
+          maxLength: 4000
+        answer:
+          type: string
+          maxLength: 20000
+        enabled:
+          type: boolean
+        exact_reply:
+          type: boolean
+        ai_enabled:
+          type: boolean
+        has_conflict:
+          type: boolean
+        source_updated_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        indexed_at:
+          $ref: '#/components/schemas/Timestamp'
+    KnowledgeEntryList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeEntrySummary'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    KnowledgeConflict:
+      type: object
+      additionalProperties: false
+      required: [conflict_id, type, key, entry_ids, detected_at]
+      properties:
+        conflict_id:
+          $ref: '#/components/schemas/Identifier'
+        type:
+          type: string
+          enum: [source_key, keyword, alias]
+        key:
+          type: string
+          maxLength: 256
+        entry_ids:
+          type: array
+          minItems: 2
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Identifier'
+        detected_at:
+          $ref: '#/components/schemas/Timestamp'
+    KnowledgeConflictList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeConflict'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    AnalyticsMetricKey:
+      type: string
+      enum:
+        - keyword_reply_count
+        - ai_request_count
+        - ai_success_rate
+        - ai_duration_ms
+        - join_request_count
+        - manual_approval_count
+        - automatic_approval_count
+        - scheduled_job_run_count
+        - group_message_count
+        - command_run_count
+        - active_user_count
+        - link_clean_count
+        - quote_success_count
+        - quote_fallback_count
+        - quote_failure_count
+    AnalyticsUnit:
+      type: string
+      enum: [count, percent, milliseconds]
+    AnalyticsWindow:
+      type: object
+      additionalProperties: false
+      required: [from, to, timezone]
+      properties:
+        from:
+          $ref: '#/components/schemas/Timestamp'
+        to:
+          $ref: '#/components/schemas/Timestamp'
+        timezone:
+          type: string
+          maxLength: 64
+    AnalyticsMetric:
+      type: object
+      additionalProperties: false
+      required: [key, label, unit, available, value, previous_value, change_percent]
+      properties:
+        key:
+          $ref: '#/components/schemas/AnalyticsMetricKey'
+        label:
+          type: string
+          maxLength: 100
+        unit:
+          $ref: '#/components/schemas/AnalyticsUnit'
+        available:
+          type: boolean
+        value:
+          type: [number, 'null']
+        previous_value:
+          type: [number, 'null']
+        change_percent:
+          type: [number, 'null']
+    AnalyticsSummary:
+      type: object
+      additionalProperties: false
+      required: [window, metrics, data_fresh_at]
+      properties:
+        window:
+          $ref: '#/components/schemas/AnalyticsWindow'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsMetric'
+        data_fresh_at:
+          $ref: '#/components/schemas/Timestamp'
+    AnalyticsPoint:
+      type: object
+      additionalProperties: false
+      required: [bucket_start, value]
+      properties:
+        bucket_start:
+          $ref: '#/components/schemas/Timestamp'
+        value:
+          type: [number, 'null']
+    AnalyticsSeries:
+      type: object
+      additionalProperties: false
+      required: [metric, label, unit, points]
+      properties:
+        metric:
+          $ref: '#/components/schemas/AnalyticsMetricKey'
+        label:
+          type: string
+          maxLength: 100
+        unit:
+          $ref: '#/components/schemas/AnalyticsUnit'
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsPoint'
+    AnalyticsTimeseries:
+      type: object
+      additionalProperties: false
+      required: [window, granularity, series, data_fresh_at]
+      properties:
+        window:
+          $ref: '#/components/schemas/AnalyticsWindow'
+        granularity:
+          type: string
+          enum: [hour, day]
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsSeries'
+        data_fresh_at:
+          $ref: '#/components/schemas/Timestamp'
+    AnalyticsRankingItem:
+      type: object
+      additionalProperties: false
+      required: [key, display_name, value, rank]
+      properties:
+        key:
+          $ref: '#/components/schemas/Identifier'
+        display_name:
+          type: string
+          maxLength: 200
+        value:
+          type: number
+        rank:
+          type: integer
+          minimum: 1
+    AnalyticsRankings:
+      type: object
+      additionalProperties: false
+      required: [window, dimension, metric, unit, items, data_fresh_at]
+      properties:
+        window:
+          $ref: '#/components/schemas/AnalyticsWindow'
+        dimension:
+          type: string
+          enum: [group, command, knowledge_entry]
+        metric:
+          $ref: '#/components/schemas/AnalyticsMetricKey'
+        unit:
+          $ref: '#/components/schemas/AnalyticsUnit'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsRankingItem'
+        data_fresh_at:
+          $ref: '#/components/schemas/Timestamp'
+    AuditResult:
+      type: string
+      enum: [success, failed, unknown]
+    AuditTarget:
+      type: object
+      additionalProperties: false
+      required: [type, id, display_name]
+      properties:
+        type:
+          type: string
+          maxLength: 64
+        id:
+          type: [string, 'null']
+          maxLength: 256
+        display_name:
+          type: [string, 'null']
+          maxLength: 200
+    AuditLogSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - audit_log_id
+        - occurred_at
+        - actor
+        - action
+        - target
+        - result
+        - error_code
+        - request_id
+      properties:
+        audit_log_id:
+          $ref: '#/components/schemas/Identifier'
+        occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        actor:
+          $ref: '#/components/schemas/AuditActor'
+        action:
+          type: string
+          minLength: 1
+          maxLength: 100
+        target:
+          $ref: '#/components/schemas/AuditTarget'
+        result:
+          $ref: '#/components/schemas/AuditResult'
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+        request_id:
+          $ref: '#/components/schemas/Identifier'
+    RedactedAuditValue:
+      type: object
+      description: 权限化脱敏后的 JSON 对象；敏感字段使用固定字符串 [redacted]，不保留原文或哈希。
+      additionalProperties: true
+    AuditLog:
+      type: object
+      additionalProperties: false
+      required:
+        - audit_log_id
+        - occurred_at
+        - actor
+        - action
+        - target
+        - result
+        - error_code
+        - request_id
+        - source
+        - ip_address
+        - user_agent
+        - before
+        - after
+        - metadata
+        - redacted
+      properties:
+        audit_log_id:
+          $ref: '#/components/schemas/Identifier'
+        occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        actor:
+          $ref: '#/components/schemas/AuditActor'
+        action:
+          type: string
+          minLength: 1
+          maxLength: 100
+        target:
+          $ref: '#/components/schemas/AuditTarget'
+        result:
+          $ref: '#/components/schemas/AuditResult'
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+        request_id:
+          $ref: '#/components/schemas/Identifier'
+        source:
+          type: string
+          enum: [web, qq, system]
+        ip_address:
+          type: [string, 'null']
+          maxLength: 64
+        user_agent:
+          type: [string, 'null']
+          maxLength: 300
+        before:
+          oneOf:
+            - $ref: '#/components/schemas/RedactedAuditValue'
+            - type: 'null'
+        after:
+          oneOf:
+            - $ref: '#/components/schemas/RedactedAuditValue'
+            - type: 'null'
+        metadata:
+          $ref: '#/components/schemas/RedactedAuditValue'
+        redacted:
+          type: boolean
+          description: 当前响应是否因权限或敏感字段策略发生过脱敏。
+    AuditLogList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogSummary'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    AdminUserCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [username, display_name, role, password]
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        role:
+          $ref: '#/components/schemas/AdminRole'
+        qq_user_id:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 32
+        password:
+          $ref: '#/components/schemas/Password'
+    AdminUserPatchRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        role:
+          $ref: '#/components/schemas/AdminRole'
+        qq_user_id:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 32
+          description: null 解除 QQ 维护身份绑定。
+        enabled:
+          type: boolean
+    AdminUserList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [new_password]
+      properties:
+        new_password:
+          $ref: '#/components/schemas/Password'
+    PasswordResetResult:
+      type: object
+      additionalProperties: false
+      required: [user, revoked_session_count, completed_at]
+      properties:
+        user:
+          $ref: '#/components/schemas/AdminUser'
+        revoked_session_count:
+          type: integer
+          minimum: 0
+        completed_at:
+          $ref: '#/components/schemas/Timestamp'
+    AdminSessionList:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminSession'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    SessionRevokeResult:
+      type: object
+      additionalProperties: false
+      required: [user_id, session_id, revoked_count, revoked_at]
+      properties:
+        user_id:
+          $ref: '#/components/schemas/Identifier'
+        session_id:
+          type: [string, 'null']
+          description: 按用户批量撤销时为 null。
+        revoked_count:
+          type: integer
+          minimum: 0
+        revoked_at:
+          $ref: '#/components/schemas/Timestamp'
+    DependencyKey:
+      type: string
+      enum: [mysql, napcat, wps, ai, quote, worker, scheduler, telemetry]
+    DependencyStatus:
+      type: string
+      enum: [healthy, degraded, unavailable, not_configured, unknown]
+    DependencyHealth:
+      type: object
+      additionalProperties: false
+      required:
+        - key
+        - status
+        - configured
+        - required
+        - latency_ms
+        - last_checked_at
+        - last_success_at
+        - last_error_at
+        - message
+      properties:
+        key:
+          $ref: '#/components/schemas/DependencyKey'
+        status:
+          $ref: '#/components/schemas/DependencyStatus'
+        configured:
+          type: boolean
+          description: 仅表示配置是否存在，不返回配置值。
+        required:
+          type: boolean
+        latency_ms:
+          type: [integer, 'null']
+          minimum: 0
+        last_checked_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        last_success_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        last_error_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        message:
+          type: [string, 'null']
+          maxLength: 300
+          description: 已脱敏的可展示状态摘要
+    SystemHealth:
+      type: object
+      additionalProperties: false
+      required: [generated_at, liveness, readiness, dependencies]
+      properties:
+        generated_at:
+          $ref: '#/components/schemas/Timestamp'
+        liveness:
+          type: string
+          enum: [healthy]
+        readiness:
+          type: string
+          enum: [healthy, degraded, unavailable]
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyHealth'
+    NapCatRestartRequest:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation:
+          type: string
+          const: restart
+        reason:
+          type: string
+          maxLength: 500
+    SystemOperationStatus:
+      type: string
+      enum: [accepted, running, succeeded, failed, unknown]
+    SystemOperation:
+      type: object
+      additionalProperties: false
+      required: [operation_id, type, status, requested_at, completed_at, error_code]
+      properties:
+        operation_id:
+          $ref: '#/components/schemas/Identifier'
+        type:
+          type: string
+          const: napcat_restart
+        status:
+          $ref: '#/components/schemas/SystemOperationStatus'
+        requested_at:
+          $ref: '#/components/schemas/Timestamp'
+        completed_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        error_code:
+          type: [string, 'null']
+          maxLength: 100
+    EventTopic:
+      type: string
+      enum: [overview, groups, settings, join_requests, commands, scheduled_jobs, knowledge, system, auth]
+    EventType:
+      type: string
+      enum:
+        - overview.updated
+        - group.updated
+        - settings.updated
+        - join_request.created
+        - join_request.updated
+        - command.updated
+        - command.run_completed
+        - scheduled_job.updated
+        - scheduled_job.run_completed
+        - knowledge.reload_completed
+        - system.health_changed
+        - stream.reset
+        - auth.session_revoked
+    EventResourceReference:
+      type: object
+      additionalProperties: false
+      required: [type, id, version]
+      properties:
+        type:
+          type: string
+          enum: [overview, group, settings, join_request, command, scheduled_job, knowledge, system, session]
+        id:
+          type: [string, 'null']
+        version:
+          type: [integer, 'null']
+          minimum: 0
+    AdminEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, event, occurred_at, resource, reason]
+      properties:
+        event_id:
+          $ref: '#/components/schemas/Identifier'
+        event:
+          $ref: '#/components/schemas/EventType'
+          description: 必须与当前 SSE 帧的 event 行一致。
+        occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        resource:
+          oneOf:
+            - $ref: '#/components/schemas/EventResourceReference'
+            - type: 'null'
+        reason:
+          type: string
+          maxLength: 100
