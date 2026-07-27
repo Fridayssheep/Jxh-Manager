@@ -16,13 +16,14 @@
 
 - Tasks 1-13 已全部落地，且后续管理资源阶段已把同一安全边界扩展到 OpenAPI 全部 57 个 operation；路由与 `x-status` 由 `internal/adminapi/management_test.go` 自动核对。
 - 认证、账号/会话、审计、幂等、系统操作和运营资源的真实 MySQL 持久化测试已随 `internal/storage` 完整套件通过；迁移与恢复链由 `internal/database` 完整套件通过。
-- 安全审查修复已经合入：审计写入前递归脱敏（`e215eea`）、有效会话状态与稳定账号分页（`06197b7`）、提交后认证状态一致（`9ac2f94`）、认证故障和改密限速隔离（`e566549`）、SSE 持续授权校验（`cf2a765`）、按发布时间清理 replay（`82e4136`）、系统操作终态恢复（`5bb2e00`），以及 quote 非 2xx 正文不进入错误和普通日志（`d2c3330`）。
+- 安全审查修复已经合入：审计写入前递归脱敏（`e215eea`）、有效会话状态与稳定账号分页（`06197b7`）、提交后认证状态一致（`9ac2f94`）、认证故障和改密限速隔离（`e566549`）、SSE 持续授权校验（`cf2a765`）、按发布时间清理 replay（`82e4136`）、系统操作终态恢复（`5bb2e00`）、quote 非 2xx 正文不进入错误和普通日志（`d2c3330`），以及 Admin HTTP 非阻塞并发上限（`444a513`）。
 - 最终门禁通过：`go test -race -count=1 ./...`、`go build ./...`、三个命令二进制构建、`go vet ./...`、`go mod tidy -diff`、`docker compose config --quiet`、`git diff --check`。
 - 真实 NapCat 重启、QQ 入群审批/发送、WPS 和 quote 上游成功路径仍需部署环境凭据与服务配合；本地完成证据覆盖状态机、幂等、失败/unknown、恢复和 fake gateway 行为，不声称已执行外部副作用。
 
 ## Contract Decisions
 
 - 所有 Admin 响应都由 middleware 设置 `X-Request-ID`；错误体使用 OpenAPI `error.code/message/request_id/fields/retryable`，并补齐 404、405、413、415 和 500 的同构错误。
+- Admin HTTP 默认最多同时处理 128 个请求，可通过配置覆盖；容量耗尽时不排队，立即返回带 `Retry-After` 的可重试 `503 server_busy`，避免管理流量阻塞 Bot 事件处理。
 - `system:read` 与 `events:read` 授予三个角色；SSE topic 再按资源读取权限过滤。`napcat:restart`、`users:manage`、`sessions:manage` 仅授予 `super_admin`。
 - Argon2id PHC 参数固定为 format version 1、memory 64 MiB、iterations 3、parallelism 2、salt 16 bytes、key 32 bytes；验证旧参数成功后在登录事务内升级。
 - 会话 token 和 CSRF token 各使用 32 个随机字节。浏览器只拿 base64url 原值；数据库保存 `HMAC-SHA256(session_secret, domain || token)`。Cookie Path 为 `/api/admin/v1`，不设置 Domain。

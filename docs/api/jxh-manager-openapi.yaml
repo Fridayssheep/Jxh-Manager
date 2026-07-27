@@ -2311,7 +2311,7 @@ components:
               fields: {}
               retryable: true
     ServiceUnavailable:
-      description: 必需依赖当前不可用，业务动作尚未开始
+      description: 必需依赖当前不可用，或管理服务并发容量已耗尽；业务动作尚未开始
       headers:
         X-Request-ID:
           $ref: '#/components/headers/RequestId'
@@ -2321,13 +2321,23 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-          example:
-            error:
-              code: dependency_unavailable
-              message: NapCat 当前不可用
-              request_id: req_01J4ZP8Y
-              fields: {}
-              retryable: true
+          examples:
+            dependencyUnavailable:
+              value:
+                error:
+                  code: dependency_unavailable
+                  message: NapCat 当前不可用
+                  request_id: req_01J4ZP8Y
+                  fields: {}
+                  retryable: true
+            serverBusy:
+              value:
+                error:
+                  code: server_busy
+                  message: 管理服务当前繁忙
+                  request_id: req_01J4ZP8Y
+                  fields: {}
+                  retryable: true
   schemas:
     Identifier:
       type: string
