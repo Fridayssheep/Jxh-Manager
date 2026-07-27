@@ -10,6 +10,15 @@
 
 ---
 
+## 实施状态（2026-07-28）
+
+- Tasks 1-6 已全部落地。运行时使用独立 `jxh-migrate`、连续且不可变的 001-009 migration manifest、数据库锁和 checksum ledger；Bot 运行连接禁用 multi-statements，且代码中不存在 `AutoMigrate`。
+- 真实 MySQL 8.4 完整验证已通过：`go test -race -count=1 ./internal/database`（363.694s）覆盖空库、历史 schema 采纳、部分 ledger、失败恢复、锁竞争、漂移拒绝、原始 init baseline 与 009；`go test -race -count=1 ./internal/storage`（126.328s）覆盖全部管理持久化实现。两组测试结束后 `jxh_migration_test_*` 与 `jxh_manager_*_test_*` 残留 schema 均为 0。
+- Docker 镜像构建和权限检查已通过：`/app/migrations` 为 `root:root 0555`，SQL 文件为 `root:root 0444`，运行用户只读；`docker compose config --quiet` 通过，Bot 由 one-shot migrate service 成功后才启动。
+- 最终门禁通过：`go test -race -count=1 ./...`、`go build ./...`、三个命令二进制构建、`go vet ./...`、`go mod tidy -diff`、`docker compose config --quiet`、`git diff --check`。
+- 关键完成提交包括 `0d04320`（迁移链）、`4ab0e5f`/`642650d`（数据库生命周期与单次受限探测）、`400a3c1`（NapCat 会话任务退出）、`7b7c282`（组件健康）、`49fdd3c`（迁移只读权限）和 `1280da1`（009 恢复场景）。
+- 真实 QQ/NapCat 连接及外部 WPS、AI、quote 服务调用仍属于部署环境联调范围，不作为 foundation 本地完成证据。
+
 ## File Map
 
 - `internal/config/config.go`: 管理监听、会话和数据库池配置及环境变量。
@@ -17,9 +26,9 @@
 - `internal/database/config.go`: 安全构建运行 DSN 与迁移 DSN。
 - `internal/database/database.go`: 打开、Ping、连接池和 Close。
 - `internal/database/migrate.go`: 迁移 manifest、校验和、数据库锁和顺序执行。
-- `internal/database/*_test.go`: 无数据库纯函数测试；MySQL 集成测试由 build tag 单独运行。
+- `internal/database/*_test.go`: 无数据库纯函数测试；真实 MySQL 集成测试由环境变量显式启用。
 - `cmd/migrate/main.go`: 独立迁移 CLI。
-- `deploy/mysql/migrations/*.sql`: 001-007 历史链与 008 管理平台 schema。
+- `deploy/mysql/migrations/*.sql`: 001-007 历史链、008 管理平台 schema 与 009 知识库重载操作扩展。
 - `deploy/mysql/init/001_schema.sql`: 当前完整空库 schema 和 migration 版本基线。
 - `internal/napcat/gateway.go`: 并发安全 client、连接状态和能力入口。
 - `internal/napcat/gateway_test.go`: 连接切换、离线错误和快照测试。
@@ -94,10 +103,11 @@ Commit: `feat: 增加管理端基础配置`
 - Restore: `Resource/Jxh-Go/deploy/mysql/migrations/006_reparse_group_request_applicants.sql`
 - Create: `Resource/Jxh-Go/deploy/mysql/migrations/007_remove_group_request_system_request_id.sql`
 - Create: `Resource/Jxh-Go/deploy/mysql/migrations/008_create_manager_schema.sql`
+- Create: `Resource/Jxh-Go/deploy/mysql/migrations/009_support_knowledge_reload_operations.sql`
 - Modify: `Resource/Jxh-Go/deploy/mysql/init/001_schema.sql`
 - Modify: `Resource/Jxh-Go/.gitattributes`
 
-- [ ] **Step 1: Write failing manifest validation tests**
+- [x] **Step 1: Write failing manifest validation tests**
 
 ```go
 func TestLoadMigrationsRequiresContiguousImmutableVersions(t *testing.T) {
@@ -117,33 +127,33 @@ func TestLoadMigrationsComputesStableSHA256(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the test and confirm RED**
+- [x] **Step 2: Run the test and confirm RED**
 
 Run: `go test ./internal/database -run TestLoadMigrations -count=1`
 
 Expected: compile failure because `LoadMigrations` and `ErrMigrationSequence` do not exist.
 
-- [ ] **Step 3: Implement manifest loading and runner**
+- [x] **Step 3: Implement manifest loading and runner**
 
 Use filename pattern `^[0-9]{3}_[a-z0-9_]+\.sql$`, require versions start at 1 and are contiguous, reject empty scripts, and calculate lowercase SHA-256. `Runner.Apply` must acquire `GET_LOCK('jxh_manager_migrations', timeout)`, create `schema_migrations(version, name, checksum, applied_at)`, reject checksum/name drift, execute pending scripts in order, record each version only after successful execution, and always release the lock. Migration connections enable `multiStatements=true`; bot runtime connections do not. Add `*.sql text eol=lf` before freezing checksums so Windows and Linux load identical bytes.
 
 If `schema_migrations` is absent or exists with zero rows but core bot tables already exist, the runner must not execute 001-007 blindly. Under the same database lock, inspect `information_schema` and adopt only a conservatively proven historical baseline. At minimum, recognize the `c581408` post-007 schema used by the immediately preceding release; for the structurally indistinguishable 005/006 pair, adopt 005 and re-run the idempotent data cleanup in 006. Write all adopted 001..N ledger rows in one `sql.Tx` on the locked connection so a failed insert cannot leave a partial baseline. A non-empty partial ledger is validated strictly and never auto-completed. Partial, ambiguous, or unknown schemas fail closed with a typed legacy-schema error and execute no business DDL.
 
-- [ ] **Step 4: Restore legacy history and add manager schema**
+- [x] **Step 4: Restore legacy history and add manager schema**
 
-`001` creates the original three core tables. Restore 002-006 byte-for-byte from Git history. Migration 007 must verify that every non-empty `system_request_id` agrees byte-for-byte with the corresponding `flag`, does not identify another row, and that flags remain non-empty and unique; any anomaly raises `SIGNAL` before it drops the parallel index and column. Make 008 create/extend: `admin_users`, `admin_sessions`, `admin_audit_logs`, `managed_groups`, `feature_settings`, `custom_commands`, `custom_command_runs`, `group_join_decisions`, `scheduled_job_runs`, `bot_operation_events`, `bot_operation_daily`, plus revision/status columns required by the OpenAPI schemas. Use binary collation for opaque IDs and unique idempotency constraints.
+`001` creates the original three core tables. Restore 002-006 byte-for-byte from Git history. Migration 007 must verify that every non-empty `system_request_id` agrees byte-for-byte with the corresponding `flag`, does not identify another row, and that flags remain non-empty and unique; any anomaly raises `SIGNAL` before it drops the parallel index and column. Make 008 create/extend: `admin_users`, `admin_sessions`, `admin_audit_logs`, `managed_groups`, `feature_settings`, `custom_commands`, `custom_command_runs`, `group_join_decisions`, `scheduled_job_runs`, `bot_operation_events`, `bot_operation_daily`, plus revision/status columns required by the OpenAPI schemas. Migration 009 extends the durable system operation type constraint for knowledge reloads. Use binary collation for opaque IDs and unique idempotency constraints.
 
-- [ ] **Step 5: Add CLI and empty-schema baseline**
+- [x] **Step 5: Add CLI and empty-schema baseline**
 
-`cmd/migrate` accepts `-config` and `-dir`, loads config, opens a migration connection, applies all files, prints only version/name (never DSN), and exits non-zero on lock, checksum, legacy-schema, or SQL error. Update `001_schema.sql` to the final schema and insert versions 1-8 with the exact checksums so MySQL entrypoint initialization and the runner agree. Tests must compare the init baseline metadata with the loaded manifest rather than duplicating unchecked checksum literals.
+`cmd/migrate` accepts `-config` and `-dir`, loads config, opens a migration connection, applies all files, prints only version/name (never DSN), and exits non-zero on lock, checksum, legacy-schema, or SQL error. Update `001_schema.sql` to the final schema and insert versions 1-9 with the exact checksums so MySQL entrypoint initialization and the runner agree. Tests must compare the init baseline metadata with the loaded manifest rather than duplicating unchecked checksum literals.
 
-- [ ] **Step 6: Verify migration behavior**
+- [x] **Step 6: Verify migration behavior**
 
 Run: `go test ./internal/database -count=1; go test ./...; go build ./cmd/migrate ./cmd/bot; go vet ./...; git diff --check`
 
-When Docker is available, additionally run empty-database and legacy-upgrade integration tests under `JXH_MYSQL_INTEGRATION=1`; otherwise record that external MySQL execution remains unverified.
+When Docker is available, additionally run empty-database and legacy-upgrade integration tests with `JXH_MYSQL_INTEGRATION_DSN` and `JXH_MYSQL_INTEGRATION_CONTAINER`; otherwise record that external MySQL execution remains unverified.
 
-- [ ] **Step 7: Commit migration chain**
+- [x] **Step 7: Commit migration chain**
 
 Commit: `feat: 建立数据库版本迁移链`
 
@@ -156,7 +166,7 @@ Commit: `feat: 建立数据库版本迁移链`
 - Create: `Resource/Jxh-Go/internal/database/database_test.go`
 - Modify: `Resource/Jxh-Go/cmd/bot/main.go`
 
-- [ ] **Step 1: Write failing DSN safety tests**
+- [x] **Step 1: Write failing DSN safety tests**
 
 ```go
 func TestRuntimeDSNPreservesEscapedLocationWithoutMultiStatements(t *testing.T) {
@@ -176,23 +186,23 @@ func TestRuntimeDSNPreservesCompleteDSNSemantics(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/database -run TestRuntimeDSN -count=1`
 
 Expected: compile failure because `RuntimeDSN` does not exist.
 
-- [ ] **Step 3: Implement `database.Open` and `DB.Close`**
+- [x] **Step 3: Implement `database.Open` and `DB.Close`**
 
 Use one package-private driver-config builder for split fields and complete DSNs. Complete DSNs go through `mysql.ParseDSN`; `RuntimeDSN` always forces `MultiStatements=false` and the migration helper always forces it to true, while preserving Unix sockets, TLS, charset, location, timeouts and custom parameters semantically. Split fields use `net.JoinHostPort` and `mysql.Config.Apply(mysql.Charset(...))` so IPv6, escaped passwords and the driver's charset behavior remain correct.
 
 `Open(ctx, cfg)` creates `*sql.DB`, opens GORM with `mysql.Config{Conn: sqlDB, SkipInitializeWithVersion:true}` and `gorm.Config{DisableAutomaticPing:true}`, sets all four pool values, and performs exactly one bounded `PingContext`. On GORM initialization or Ping failure it closes the pool. `DB` exposes `GORM()`, `Ping(ctx)`, `Stats()`, and concurrent idempotent `Close()`. Reject duration values that overflow `time.Duration`. Errors preserve `context.Canceled`/`DeadlineExceeded` but never include the DSN, password or raw driver error text.
 
-- [ ] **Step 4: Replace `main.openDB`**
+- [x] **Step 4: Replace `main.openDB`**
 
 Move all DSN and pool logic out of `cmd/bot/main.go`; close the database on every path after a successful open. Replace post-open `log.Fatalf` calls with returned errors or logged returns because `os.Exit` skips deferred `Close`. Keep the current schema-first rule and never call `AutoMigrate`; full process composition remains Task 5.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `gofmt -w internal/database/*.go cmd/bot/main.go; go test ./...; go build ./...; go vet ./...; git diff --check`
 
@@ -207,7 +217,7 @@ Commit: `refactor: 收敛数据库生命周期`
 - Modify: `Resource/Jxh-Go/internal/bot/pipeline.go`
 - Modify: `Resource/Jxh-Go/cmd/bot/main.go`
 
-- [ ] **Step 1: Write failing state transition tests**
+- [x] **Step 1: Write failing state transition tests**
 
 ```go
 func TestGatewayAttachDetachAndUnavailable(t *testing.T) {
@@ -221,25 +231,25 @@ func TestGatewayAttachDetachAndUnavailable(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/napcat -run TestGateway -count=1`
 
 Expected: compile failure because Gateway does not exist.
 
-- [ ] **Step 3: Implement atomic client and status snapshot**
+- [x] **Step 3: Implement atomic client and status snapshot**
 
 Gateway uses an immutable atomic state containing generation, current client, connected/connected-at/disconnected-at/last-event-at and a sanitized last-error summary. Detach only clears the matching generation so a stale connection cannot disconnect a newer client. Every operation snapshots one client and returns typed `ErrUnavailable` before network I/O when disconnected.
 
-- [ ] **Step 4: Move existing NapCat capabilities behind Gateway**
+- [x] **Step 4: Move existing NapCat capabilities behind Gateway**
 
 Gateway implements current message, flash file, quote history, member lookup, group moderation and restart behavior without changing outputs. Add group list and group-request decision primitives required by later services. Keep small consumer-side interfaces; do not expand `bot.Sender` with manager-only methods.
 
-- [ ] **Step 5: Wire Server connection lifecycle**
+- [x] **Step 5: Wire Server connection lifecycle**
 
 `Server` receives one Gateway. On each successful SDK connection it attaches the client before consuming events, records event timestamps, and detaches on session end. `Pipeline.SetSender` receives the stable Gateway once at composition rather than a transient `SDKSender` per reconnect.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run: `gofmt -w internal/napcat/*.go internal/bot/pipeline.go cmd/bot/main.go; go test -race ./internal/napcat ./internal/bot; go test ./...; go build ./...; go vet ./...; git diff --check`
 
@@ -254,7 +264,7 @@ Commit: `refactor: 建立共享 NapCat Gateway`
 - Create: `Resource/Jxh-Go/internal/app/app_test.go`
 - Modify: `Resource/Jxh-Go/cmd/bot/main.go`
 
-- [ ] **Step 1: Write failing readiness tests**
+- [x] **Step 1: Write failing readiness tests**
 
 ```go
 func TestReadinessSeparatesLivenessFromDependencies(t *testing.T) {
@@ -266,25 +276,25 @@ func TestReadinessSeparatesLivenessFromDependencies(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `go test ./internal/health -count=1`
 
 Expected: package/type missing failure.
 
-- [ ] **Step 3: Implement immutable health state**
+- [x] **Step 3: Implement immutable health state**
 
 Track MySQL, NapCat, WPS, AI, quote, scheduler and workers with status code, safe summary, last success/error and latency. `/healthz` remains liveness-only; later `/api/admin/v1/system/health` reads the full snapshot. Status updates never include secrets or raw upstream payloads.
 
-- [ ] **Step 4: Introduce `app.App` composition and shutdown**
+- [x] **Step 4: Introduce `app.App` composition and shutdown**
 
 `App.Run(ctx)` starts health HTTP, NapCat, scheduler, group request parser, purge loops and later admin HTTP using one root context. It captures worker exits, distinguishes fatal startup from degradable runtime failure, and closes HTTP servers, workers, NapCat and DB in deterministic order. `cmd/bot/main.go` becomes flag/config/signal plus `app.New(...).Run(ctx)`.
 
-- [ ] **Step 5: Verify shutdown and existing behavior**
+- [x] **Step 5: Verify shutdown and existing behavior**
 
 Run: `gofmt -w internal/app/*.go internal/health/*.go cmd/bot/main.go; go test -race ./internal/app ./internal/health; go test ./...; go build ./...; go vet ./...; git diff --check`
 
-- [ ] **Step 6: Commit lifecycle refactor**
+- [x] **Step 6: Commit lifecycle refactor**
 
 Commit: `refactor: 拆分应用生命周期`
 
@@ -297,28 +307,28 @@ Commit: `refactor: 拆分应用生命周期`
 - Modify: `Resource/Jxh-Go/README.md`
 - Update: `docs/superpowers/plans/2026-07-27-jxh-manager-openapi-coverage.md`
 
-- [ ] **Step 1: Build both binaries in the image**
+- [x] **Step 1: Build both binaries in the image**
 
 Build `jxh-bot` and `jxh-migrate` with `CGO_ENABLED=0`; copy migrations read-only into `/app/migrations`.
 
-- [ ] **Step 2: Add one-shot migrate service**
+- [x] **Step 2: Add one-shot migrate service**
 
 Compose starts `migrate` after MySQL health succeeds, and bot depends on `migrate: condition: service_completed_successfully`. A failed migration prevents bot startup. Do not let bot silently continue against an old schema.
 
-- [ ] **Step 3: Add operator commands and documentation**
+- [x] **Step 3: Add operator commands and documentation**
 
 Add `make migrate`, `make migration-status`, database backup/rollback notes, and explain that SQL migrations are immutable after release.
 
-- [ ] **Step 4: Run complete foundation verification**
+- [x] **Step 4: Run complete foundation verification**
 
 Run: `go test -race ./...; go build ./...; go vet ./...; go mod tidy -diff; git diff --check; docker compose config --quiet`
 
 Expected: all commands exit 0, except the pre-existing `go.sum` line-ending-only diff must first be normalized in its own maintenance commit if still present.
 
-- [ ] **Step 5: Commit deployment gate**
+- [x] **Step 5: Commit deployment gate**
 
 Commit: `build: 在启动前执行数据库迁移`
 
-- [ ] **Step 6: Review foundation against design**
+- [x] **Step 6: Review foundation against design**
 
 Confirm no `AutoMigrate`, no secret logging, one NapCat client owner, stable liveness endpoint, deterministic shutdown, current QQ behavior preserved, and both empty-schema and upgrade-schema paths have evidence. Do not mark any OpenAPI operation implemented in this phase; foundation supplies dependencies but no complete Admin handler yet.
