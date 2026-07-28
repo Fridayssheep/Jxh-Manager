@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import { pinia } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
-import HomeView from '@/views/HomeView.vue'
+import OverviewView from '@/views/overview/OverviewView.vue'
 import { resolveAuthNavigation } from './guard'
 
 const router = createRouter({
@@ -17,7 +17,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'overview',
-      component: HomeView,
+      component: OverviewView,
       meta: { permission: 'overview:read', title: '总览' },
     },
   ],

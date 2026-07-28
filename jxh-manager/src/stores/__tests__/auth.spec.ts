@@ -45,4 +45,15 @@ describe('auth store', () => {
     expect(store.ready).toBe(true)
     expect(store.isAuthenticated).toBe(false)
   })
+
+  it('keeps routing usable when the authentication service is offline', async () => {
+    vi.spyOn(authApi, 'me').mockRejectedValue(new TypeError('network offline'))
+    const store = useAuthStore()
+
+    await expect(store.bootstrap()).resolves.toBeUndefined()
+
+    expect(store.ready).toBe(true)
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.bootstrapError).toBeInstanceOf(TypeError)
+  })
 })

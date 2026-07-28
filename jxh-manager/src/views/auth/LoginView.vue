@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRight, KeyRound, LoaderCircle, UserRound } from '@lucide/vue'
+import { ArrowRight, KeyRound, LoaderCircle, UserRound, WifiOff } from '@lucide/vue'
 
 import { getLoginErrorMessage } from '@/api/auth'
 import logoAvatar from '@/assets/logo-avatar.webp'
@@ -59,6 +59,14 @@ async function submit(): Promise<void> {
           <h1>登录管理端</h1>
           <p>使用管理员分配的本地账号。</p>
         </header>
+
+        <div v-if="auth.bootstrapError" class="service-warning" role="status">
+          <WifiOff :size="18" aria-hidden="true" />
+          <div>
+            <strong>管理服务暂时不可用</strong>
+            <span>可以检查网络后再次登录。</span>
+          </div>
+        </div>
 
         <form novalidate @submit.prevent="submit">
           <label for="username">账号</label>
@@ -127,17 +135,6 @@ async function submit(): Promise<void> {
     linear-gradient(var(--color-brand-border) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-brand-border) 1px, transparent 1px);
   background-size: 48px 48px;
-}
-
-.brand-panel::after {
-  position: absolute;
-  right: -64px;
-  bottom: 64px;
-  width: 220px;
-  height: 220px;
-  content: '';
-  border: 1px solid var(--color-brand-border);
-  border-radius: 50%;
 }
 
 .brand-track {
@@ -219,6 +216,31 @@ async function submit(): Promise<void> {
 
 form {
   display: grid;
+}
+
+.service-warning {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  margin-bottom: 18px;
+  padding: 10px 11px;
+  color: var(--color-warning);
+  background: var(--color-warning-surface);
+  border-left: 3px solid var(--color-warning);
+}
+
+.service-warning div {
+  display: grid;
+}
+
+.service-warning strong {
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
+.service-warning span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
 }
 
 label {
@@ -320,8 +342,7 @@ footer {
   }
 
   .brand-panel > p,
-  .brand-index,
-  .brand-panel::after {
+  .brand-index {
     display: none;
   }
 

@@ -10,6 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const permissions = ref<Permission[]>([])
   const ready = ref(false)
   const pending = ref(false)
+  const bootstrapError = ref<unknown>(null)
   let bootstrapPromise: Promise<void> | null = null
 
   const isAuthenticated = computed(() => currentUser.value !== null)
@@ -38,10 +39,14 @@ export const useAuthStore = defineStore('auth', () => {
 
     bootstrapPromise = (async () => {
       pending.value = true
+      bootstrapError.value = null
       try {
         const context = await authApi.me()
         if (context) acceptContext(context)
         else clearSession()
+      } catch (reason) {
+        bootstrapError.value = reason
+        clearSession()
       } finally {
         pending.value = false
         ready.value = true
@@ -54,6 +59,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(username: string, password: string): Promise<void> {
     pending.value = true
+    bootstrapError.value = null
     try {
       acceptContext(await authApi.login(username, password))
     } finally {
@@ -78,6 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissions,
     ready,
     pending,
+    bootstrapError,
     isAuthenticated,
     acceptContext,
     clearSession,
