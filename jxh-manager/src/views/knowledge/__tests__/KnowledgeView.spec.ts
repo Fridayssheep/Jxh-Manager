@@ -32,6 +32,16 @@ describe('KnowledgeView', () => {
     expect(wrapper.findAll('button').map((button) => button.text()).join('')).not.toMatch(/保存词条|编辑词条/)
   })
 
+  it('presents WPS as the only knowledge source', async () => {
+    const wrapper = await mountView(); await flushPromises()
+
+    const sources = wrapper.findAll('[data-test=knowledge-source]')
+    expect(sources).toHaveLength(1)
+    expect(sources[0]?.text()).toContain('WPS 知识源')
+    expect(wrapper.text()).not.toMatch(/本地知识库|AI 知识库|手动知识库/)
+    expect(wrapper.get('select').text()).toContain('仅 AI 检索')
+  })
+
   it('renders the last successful reload in the browser local timezone', async () => {
     const lastSuccessAt = '2026-07-28T11:51:00Z'
     vi.mocked(knowledgeApi.getStatus).mockResolvedValue(makeKnowledgeStatus({ last_success_at: lastSuccessAt }))

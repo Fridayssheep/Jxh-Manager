@@ -51,7 +51,7 @@ const stateLabels: Record<KnowledgeState, string> = {
   unavailable: '不可用', not_configured: '未配置',
 }
 const typeLabels: Record<KnowledgeEntryType, string> = {
-  exact_reply: '精确回复', ai_knowledge: 'AI 知识', hybrid: '混合词条',
+  exact_reply: '仅精确回复', ai_knowledge: '仅 AI 检索', hybrid: '精确回复 + AI 检索',
 }
 const operationLabels = { accepted: '已接受', running: '执行中', succeeded: '已完成', failed: '失败' }
 const conflictLabels = { source_key: '来源键', keyword: '关键词', alias: '别名' }
@@ -186,7 +186,7 @@ onBeforeUnmount(unsubscribe)
     <ResourceState v-if="statusLoading && !status" state="loading" title="正在读取知识库状态" description="不会返回 WPS SID 或分享链接。" />
     <ResourceState v-else-if="statusError && !status" state="error" title="知识库状态读取失败" description="词条列表仍可独立重试。" @retry="loadStatus" />
     <section v-else-if="status" class="status-strip" aria-label="知识库状态">
-      <div class="state-cell"><Database :size="19" /><span>当前状态<strong :class="`state--${status.state}`">{{ stateLabels[status.state] }}</strong></span></div>
+      <div class="state-cell" data-test="knowledge-source"><Database :size="19" /><span>WPS 知识源<strong :class="`state--${status.state}`">{{ stateLabels[status.state] }}</strong></span></div>
       <div><span>有效词条</span><strong class="mono">{{ status.entry_count }}</strong></div>
       <div><span>解析冲突</span><strong :class="{ danger: status.conflict_count > 0 }" class="mono">{{ status.conflict_count }}</strong></div>
       <div><span>索引版本</span><strong class="mono">{{ status.active_index_version || '尚无' }}</strong></div>
