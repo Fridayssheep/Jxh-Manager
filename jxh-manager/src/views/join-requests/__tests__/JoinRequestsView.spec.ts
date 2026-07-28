@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AdminApiError } from '@/api/client'
 import { joinRequestsApi } from '@/api/join-requests'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
@@ -86,6 +87,32 @@ describe('JoinRequestsView', () => {
       7,
     )
     expect(wrapper.text()).toContain('已确认批准')
+  })
+
+  it('keeps request details visible when the group policy does not exist', async () => {
+    vi.mocked(joinRequestsApi.getPolicy).mockRejectedValue(
+      new AdminApiError(404, {
+        code: 'not_found',
+        message: 'join request does not exist',
+        request_id: 'request-policy-404',
+        fields: {},
+        retryable: false,
+      }),
+    )
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=request-row-flag-10001]').trigger('click')
+    await flushPromises()
+
+    const detailText = wrapper.get('[aria-label="申请详情"]').text()
+    expect(joinRequestsApi.get).toHaveBeenCalledWith('flag-10001')
+    expect(joinRequestsApi.listDecisions).toHaveBeenCalledWith('flag-10001')
+    expect(detailText).toContain('计算机科学与技术')
+    expect(detailText).toContain('决策时间线')
+    expect(wrapper.text()).not.toContain('join request does not exist')
+    expect(wrapper.text()).not.toContain('自动批准策略')
+    expect(wrapper.find('[data-test=approve-request]').exists()).toBe(true)
   })
 
   it('limits bulk selection to one group and sends every loaded version', async () => {
