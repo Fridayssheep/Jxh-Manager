@@ -4,7 +4,7 @@
 
 **Goal:** 实现管理端 HTTP 基础边界、Auth、三档 RBAC、账号与会话管理、统一审计、SSE、系统健康和 NapCat 重启，使对应 17 个 OpenAPI operation 具备完整路由、权限、服务、持久化和契约测试证据。
 
-**Architecture:** `internal/adminapi` 只负责 HTTP、Cookie、DTO 和错误映射；`internal/auth`、`internal/audit`、`internal/idempotency`、`internal/events` 和 `internal/system` 持有业务规则并定义最小 Store/Gateway 接口，`internal/storage` 提供 GORM 实现。所有账号、会话、审计、幂等和系统操作持久化均使用数据库事务；SSE 使用单进程有界 replay ring，未知历史发送 `stream.reset`。
+**Architecture:** `internal/management/api` 只负责 HTTP、Cookie、DTO 和错误映射；`internal/management/auth`、`internal/management/audit`、`internal/management/idempotency`、`internal/management/events` 和 `internal/management/system` 持有业务规则并定义最小 Store/Gateway 接口，`internal/platform/storage` 提供 GORM 实现。所有账号、会话、审计、幂等和系统操作持久化均使用数据库事务；SSE 使用单进程有界 replay ring，未知历史发送 `stream.reset`。
 
 **Tech Stack:** Go 1.25.7、`net/http`、GORM/MySQL 8.4、`golang.org/x/crypto/argon2`、标准库 `crypto/hmac`/`crypto/rand`/`crypto/sha256`、Go `testing` 和现有 fake 风格。
 
@@ -14,8 +14,8 @@
 
 ## 实施状态（2026-07-28）
 
-- Tasks 1-13 已全部落地，且后续管理资源阶段已把同一安全边界扩展到 OpenAPI 全部 57 个 operation；路由与 `x-status` 由 `internal/adminapi/management_test.go` 自动核对。
-- 认证、账号/会话、审计、幂等、系统操作和运营资源的真实 MySQL 持久化测试已随 `internal/storage` 完整套件通过；迁移与恢复链由 `internal/database` 完整套件通过。
+- Tasks 1-13 已全部落地，且后续管理资源阶段已把同一安全边界扩展到 OpenAPI 全部 57 个 operation；路由与 `x-status` 由 `internal/management/api/management_test.go` 自动核对。
+- 认证、账号/会话、审计、幂等、系统操作和运营资源的真实 MySQL 持久化测试已随 `internal/platform/storage` 完整套件通过；迁移与恢复链由 `internal/platform/database` 完整套件通过。
 - 安全审查修复已经合入：审计写入前递归脱敏（`e215eea`）、有效会话状态与稳定账号分页（`06197b7`）、提交后认证状态一致（`9ac2f94`）、认证故障和改密限速隔离（`e566549`）、SSE 持续授权校验（`cf2a765`）、按发布时间清理 replay（`82e4136`）、系统操作终态恢复（`5bb2e00`）、quote 非 2xx 正文不进入错误和普通日志（`d2c3330`），以及 Admin HTTP 非阻塞并发上限（`444a513`）。
 - 最终门禁通过：`go test -race -count=1 ./...`、`go build ./...`、三个命令二进制构建、`go vet ./...`、`go mod tidy -diff`、`docker compose config --quiet`、`git diff --check`。
 - 真实 NapCat 重启、QQ 入群审批/发送、WPS 和 quote 上游成功路径仍需部署环境凭据与服务配合；本地完成证据覆盖状态机、幂等、失败/unknown、恢复和 fake gateway 行为，不声称已执行外部副作用。
@@ -36,28 +36,28 @@
 
 ## File Map
 
-- `internal/auth/types.go`, `permissions.go`: 用户、会话、Principal、Role/Permission 和权限矩阵。
-- `internal/auth/password.go`: Argon2id PHC 编码、常量时间校验和参数升级判断。
-- `internal/auth/session.go`, `limiter.go`, `service.go`: token 摘要、登录限速、认证、轮换和账号管理规则。
-- `internal/audit/types.go`, `redactor.go`, `service.go`: 审计词汇、字段脱敏和事务输入。
-- `internal/idempotency/service.go`: actor + operation + key 的并发占位、请求 HMAC 和结果重放。
-- `internal/events/hub.go`: 有界 replay、topic 授权、会话撤销和慢订阅者处理。
-- `internal/system/service.go`: 健康读取与 NapCat 异步重启状态机。
-- `internal/storage/auth.go`, `audit.go`, `idempotency.go`, `system.go`: 对应聚合的 GORM Store。
-- `internal/adminapi/server.go`, `router.go`, `middleware.go`, `request.go`, `response.go`, `errors.go`: Admin HTTP 基础设施。
-- `internal/adminapi/*_handlers.go`: 17 个 operation 的 handler 和 DTO 映射。
+- `internal/management/auth/types.go`, `permissions.go`: 用户、会话、Principal、Role/Permission 和权限矩阵。
+- `internal/management/auth/password.go`: Argon2id PHC 编码、常量时间校验和参数升级判断。
+- `internal/management/auth/session.go`, `limiter.go`, `service.go`: token 摘要、登录限速、认证、轮换和账号管理规则。
+- `internal/management/audit/types.go`, `redactor.go`, `service.go`: 审计词汇、字段脱敏和事务输入。
+- `internal/management/idempotency/service.go`: actor + operation + key 的并发占位、请求 HMAC 和结果重放。
+- `internal/management/events/hub.go`: 有界 replay、topic 授权、会话撤销和慢订阅者处理。
+- `internal/management/system/service.go`: 健康读取与 NapCat 异步重启状态机。
+- `internal/platform/storage/auth.go`, `audit.go`, `idempotency.go`, `system.go`: 对应聚合的 GORM Store。
+- `internal/management/api/server.go`, `router.go`, `middleware.go`, `request.go`, `response.go`, `errors.go`: Admin HTTP 基础设施。
+- `internal/management/api/*_handlers.go`: 17 个 operation 的 handler 和 DTO 映射。
 - `cmd/admin-bootstrap/main.go`: 首个超级管理员一次性引导命令。
-- `internal/app/app.go`: Admin Server 的启动、依赖注入和关闭。
+- `internal/platform/app/app.go`: Admin Server 的启动、依赖注入和关闭。
 - `docs/api/jxh-manager-openapi.yaml`: 仅在 operation 完成全部门槛后更新 `x-status`。
 
 ### Task 1: 身份类型、权限矩阵和通用协议值
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/auth/types.go`
-- Create: `Resource/Jxh-Go/internal/auth/permissions.go`
-- Create: `Resource/Jxh-Go/internal/auth/permissions_test.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/protocol.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/protocol_test.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/types.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/permissions.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/permissions_test.go`
+- Create: `Resource/Jxh-Go/internal/management/api/protocol.go`
+- Create: `Resource/Jxh-Go/internal/management/api/protocol_test.go`
 
 - [x] **Step 1: Write failing permission and protocol tests**
 
@@ -77,7 +77,7 @@ func TestParseIfMatchRequiresQuotedPositiveVersion(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/auth ./internal/adminapi -run 'Test(Permissions|ParseIfMatch)' -count=1`
+Run: `go test ./internal/management/auth ./internal/management/api -run 'Test(Permissions|ParseIfMatch)' -count=1`
 
 Expected: packages or symbols are missing.
 
@@ -87,15 +87,15 @@ Define all OpenAPI permission strings, `RoleSuperAdmin`, `RoleMaintainer`, `Role
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/auth internal/adminapi; go test ./internal/auth ./internal/adminapi; go vet ./internal/auth ./internal/adminapi; git diff --check`
+Run: `gofmt -w internal/management/auth internal/management/api; go test ./internal/management/auth ./internal/management/api; go vet ./internal/management/auth ./internal/management/api; git diff --check`
 
 Commit: `feat: 增加管理端身份与权限模型`
 
 ### Task 2: Argon2id password hashing
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/auth/password.go`
-- Create: `Resource/Jxh-Go/internal/auth/password_test.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/password.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/password_test.go`
 - Modify: `Resource/Jxh-Go/go.mod`
 - Modify: `Resource/Jxh-Go/go.sum`
 
@@ -119,7 +119,7 @@ func TestPasswordHasherRejectsHostilePHCParameters(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/auth -run TestPasswordHasher -count=1`
+Run: `go test ./internal/management/auth -run TestPasswordHasher -count=1`
 
 Expected: `NewPasswordHasher` is missing.
 
@@ -129,20 +129,20 @@ Use the fixed parameters from Contract Decisions. Reject malformed base64, unkno
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/auth/password.go internal/auth/password_test.go; go test -race ./internal/auth; go mod tidy; go mod tidy -diff; go vet ./internal/auth; git diff --check`
+Run: `gofmt -w internal/management/auth/password.go internal/management/auth/password_test.go; go test -race ./internal/management/auth; go mod tidy; go mod tidy -diff; go vet ./internal/management/auth; git diff --check`
 
 Commit: `feat: 实现 Argon2id 密码哈希与参数升级`
 
 ### Task 3: Auth, audit and idempotency persistence
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/storage/auth.go`
-- Create: `Resource/Jxh-Go/internal/storage/audit.go`
-- Create: `Resource/Jxh-Go/internal/storage/idempotency.go`
-- Create: `Resource/Jxh-Go/internal/storage/auth_test.go`
-- Create: `Resource/Jxh-Go/internal/auth/store.go`
-- Create: `Resource/Jxh-Go/internal/audit/types.go`
-- Create: `Resource/Jxh-Go/internal/idempotency/types.go`
+- Create: `Resource/Jxh-Go/internal/platform/storage/auth.go`
+- Create: `Resource/Jxh-Go/internal/platform/storage/audit.go`
+- Create: `Resource/Jxh-Go/internal/platform/storage/idempotency.go`
+- Create: `Resource/Jxh-Go/internal/platform/storage/auth_test.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/store.go`
+- Create: `Resource/Jxh-Go/internal/management/audit/types.go`
+- Create: `Resource/Jxh-Go/internal/management/idempotency/types.go`
 
 - [x] **Step 1: Write failing transaction and conditional-update tests**
 
@@ -164,7 +164,7 @@ func TestReserveIdempotencyKeyRejectsDifferentRequestHash(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run unit fakes first: `go test ./internal/storage -run 'Test(UpdateUser|ReserveIdempotency)' -count=1`
+Run unit fakes first: `go test ./internal/platform/storage -run 'Test(UpdateUser|ReserveIdempotency)' -count=1`
 
 Expected: store methods are missing. Real MySQL tests remain skipped unless `JXH_MYSQL_INTEGRATION_DSN` is set.
 
@@ -174,18 +174,18 @@ Use `SELECT ... FOR UPDATE` or one conditional transaction to protect the last e
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/storage internal/auth/store.go internal/audit internal/idempotency; go test -race ./internal/storage ./internal/auth ./internal/audit ./internal/idempotency; go test ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/platform/storage internal/management/auth/store.go internal/management/audit internal/management/idempotency; go test -race ./internal/platform/storage ./internal/management/auth ./internal/management/audit ./internal/management/idempotency; go test ./...; go vet ./...; git diff --check`
 
 Commit: `feat: 增加账号会话审计与幂等持久化`
 
 ### Task 4: Login limiter and server-side sessions
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/auth/limiter.go`
-- Create: `Resource/Jxh-Go/internal/auth/limiter_test.go`
-- Create: `Resource/Jxh-Go/internal/auth/session.go`
-- Create: `Resource/Jxh-Go/internal/auth/service.go`
-- Create: `Resource/Jxh-Go/internal/auth/service_test.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/limiter.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/limiter_test.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/session.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/service.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/service_test.go`
 
 - [x] **Step 1: Write failing login/session tests**
 
@@ -207,7 +207,7 @@ func TestAuthenticateEnforcesIdleAndAbsoluteExpiry(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/auth -run 'Test(Login|Authenticate)' -count=1`
+Run: `go test ./internal/management/auth -run 'Test(Login|Authenticate)' -count=1`
 
 Expected: service methods are missing.
 
@@ -217,7 +217,7 @@ Always execute one Argon2 verification using a fixed dummy PHC hash for unknown/
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/auth; go test -race ./internal/auth; go test ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/management/auth; go test -race ./internal/management/auth; go test ./...; go vet ./...; git diff --check`
 
 Commit: `feat: 实现登录限速与服务端会话`
 
@@ -259,13 +259,13 @@ Commit: `feat: 增加首个超级管理员引导命令`
 ### Task 6: User/session administration and audit services
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/auth/admin_service.go`
-- Create: `Resource/Jxh-Go/internal/auth/admin_service_test.go`
-- Create: `Resource/Jxh-Go/internal/audit/redactor.go`
-- Create: `Resource/Jxh-Go/internal/audit/service.go`
-- Create: `Resource/Jxh-Go/internal/audit/service_test.go`
-- Create: `Resource/Jxh-Go/internal/idempotency/service.go`
-- Create: `Resource/Jxh-Go/internal/idempotency/service_test.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/admin_service.go`
+- Create: `Resource/Jxh-Go/internal/management/auth/admin_service_test.go`
+- Create: `Resource/Jxh-Go/internal/management/audit/redactor.go`
+- Create: `Resource/Jxh-Go/internal/management/audit/service.go`
+- Create: `Resource/Jxh-Go/internal/management/audit/service_test.go`
+- Create: `Resource/Jxh-Go/internal/management/idempotency/service.go`
+- Create: `Resource/Jxh-Go/internal/management/idempotency/service_test.go`
 
 - [x] **Step 1: Write failing service tests**
 
@@ -285,7 +285,7 @@ func TestResetPasswordUsesRevisionAndRevokesAllSessions(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/auth ./internal/audit ./internal/idempotency -run 'Test(Observer|ResetPassword)' -count=1`
+Run: `go test ./internal/management/auth ./internal/management/audit ./internal/management/idempotency -run 'Test(Observer|ResetPassword)' -count=1`
 
 Expected: services are missing.
 
@@ -295,20 +295,20 @@ Create/list/get/update users; list/revoke sessions; reset passwords; enforce rol
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/auth internal/audit internal/idempotency; go test -race ./internal/auth ./internal/audit ./internal/idempotency; go vet ./...; git diff --check`
+Run: `gofmt -w internal/management/auth internal/management/audit internal/management/idempotency; go test -race ./internal/management/auth ./internal/management/audit ./internal/management/idempotency; go vet ./...; git diff --check`
 
 Commit: `feat: 实现管理员账号会话与审计服务`
 
 ### Task 7: Admin HTTP middleware and server
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/adminapi/server.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/router.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/middleware.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/request.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/response.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/errors.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/middleware_test.go`
+- Create: `Resource/Jxh-Go/internal/management/api/server.go`
+- Create: `Resource/Jxh-Go/internal/management/api/router.go`
+- Create: `Resource/Jxh-Go/internal/management/api/middleware.go`
+- Create: `Resource/Jxh-Go/internal/management/api/request.go`
+- Create: `Resource/Jxh-Go/internal/management/api/response.go`
+- Create: `Resource/Jxh-Go/internal/management/api/errors.go`
+- Create: `Resource/Jxh-Go/internal/management/api/middleware_test.go`
 
 - [x] **Step 1: Write failing HTTP boundary tests**
 
@@ -332,7 +332,7 @@ func TestOversizedBodyUsesErrorEnvelope(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/adminapi -run 'Test(Mutating|Oversized)' -count=1`
+Run: `go test ./internal/management/api -run 'Test(Mutating|Oversized)' -count=1`
 
 Expected: HTTP server is missing.
 
@@ -342,17 +342,17 @@ Order: recover -> request ID -> security/cache headers -> body limit/content typ
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/adminapi; go test -race ./internal/adminapi; go test ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/management/api; go test -race ./internal/management/api; go test ./...; go vet ./...; git diff --check`
 
 Commit: `feat: 增加管理端 HTTP 安全边界`
 
 ### Task 8: Auth HTTP operations
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/adminapi/dto.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/auth_handlers.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/auth_handlers_test.go`
-- Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
+- Create: `Resource/Jxh-Go/internal/management/api/dto.go`
+- Create: `Resource/Jxh-Go/internal/management/api/auth_handlers.go`
+- Create: `Resource/Jxh-Go/internal/management/api/auth_handlers_test.go`
+- Modify: `Resource/Jxh-Go/internal/management/api/router.go`
 
 - [x] **Step 1: Write failing contract tests for four routes**
 
@@ -369,7 +369,7 @@ func TestLoginSetsStrictCookieWithoutReturningToken(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/adminapi -run 'Test(Login|CurrentAdmin|Logout|ChangePassword)' -count=1`
+Run: `go test ./internal/management/api -run 'Test(Login|CurrentAdmin|Logout|ChangePassword)' -count=1`
 
 Expected: routes return 404.
 
@@ -379,18 +379,18 @@ Register login/me/logout/change-password. Decode one JSON object with unknown fi
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/adminapi; go test -race ./internal/adminapi; go test ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/management/api; go test -race ./internal/management/api; go test ./...; go vet ./...; git diff --check`
 
 Commit: `feat: 接入管理端认证接口`
 
 ### Task 9: Admin user and session HTTP operations
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/adminapi/users_handlers.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/users_handlers_test.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/sessions_handlers.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/sessions_handlers_test.go`
-- Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
+- Create: `Resource/Jxh-Go/internal/management/api/users_handlers.go`
+- Create: `Resource/Jxh-Go/internal/management/api/users_handlers_test.go`
+- Create: `Resource/Jxh-Go/internal/management/api/sessions_handlers.go`
+- Create: `Resource/Jxh-Go/internal/management/api/sessions_handlers_test.go`
+- Modify: `Resource/Jxh-Go/internal/management/api/router.go`
 
 - [x] **Step 1: Write failing role, revision and idempotency table tests**
 
@@ -406,7 +406,7 @@ func TestUpdateUserRequiresSuperAdminAndIfMatch(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/adminapi -run 'Test(UpdateUser|CreateUser|ListUsers|ResetPassword|RevokeSession)' -count=1`
+Run: `go test ./internal/management/api -run 'Test(UpdateUser|CreateUser|ListUsers|ResetPassword|RevokeSession)' -count=1`
 
 Expected: routes return 404.
 
@@ -416,16 +416,16 @@ Implement `/users` GET/POST, `/users/{user_id}` GET/PATCH, password reset, user 
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/adminapi; go test -race ./internal/adminapi; go test ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/management/api; go test -race ./internal/management/api; go test ./...; go vet ./...; git diff --check`
 
 Commit: `feat: 接入管理员账号与会话接口`
 
 ### Task 10: Audit query HTTP operations
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/adminapi/audit_handlers.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/audit_handlers_test.go`
-- Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
+- Create: `Resource/Jxh-Go/internal/management/api/audit_handlers.go`
+- Create: `Resource/Jxh-Go/internal/management/api/audit_handlers_test.go`
+- Modify: `Resource/Jxh-Go/internal/management/api/router.go`
 
 - [x] **Step 1: Write failing filter and redaction tests**
 
@@ -441,7 +441,7 @@ func TestObserverGetsRedactedAuditDetail(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/adminapi -run TestObserverGetsRedactedAuditDetail -count=1`
+Run: `go test ./internal/management/api -run TestObserverGetsRedactedAuditDetail -count=1`
 
 Expected: route returns 404.
 
@@ -451,18 +451,18 @@ Validate all enums and `from <= to`, cap action/target filters, and order by `(o
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/adminapi; go test -race ./internal/adminapi ./internal/audit; go vet ./...; git diff --check`
+Run: `gofmt -w internal/management/api; go test -race ./internal/management/api ./internal/management/audit; go vet ./...; git diff --check`
 
 Commit: `feat: 接入管理审计查询接口`
 
 ### Task 11: Replayable event hub and SSE operation
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/events/hub.go`
-- Create: `Resource/Jxh-Go/internal/events/hub_test.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/events_handler.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/events_handler_test.go`
-- Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
+- Create: `Resource/Jxh-Go/internal/management/events/hub.go`
+- Create: `Resource/Jxh-Go/internal/management/events/hub_test.go`
+- Create: `Resource/Jxh-Go/internal/management/api/events_handler.go`
+- Create: `Resource/Jxh-Go/internal/management/api/events_handler_test.go`
+- Modify: `Resource/Jxh-Go/internal/management/api/router.go`
 
 - [x] **Step 1: Write failing replay/reset/backpressure tests**
 
@@ -479,7 +479,7 @@ func TestSubscribeResetsExpiredCursorThenContinues(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/events ./internal/adminapi -run 'Test(Subscribe|SSE)' -count=1`
+Run: `go test ./internal/management/events ./internal/management/api -run 'Test(Subscribe|SSE)' -count=1`
 
 Expected: hub/SSE handler is missing.
 
@@ -489,19 +489,19 @@ Generate opaque event IDs from the injected ID source, copy payload values befor
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/events internal/adminapi; go test -race ./internal/events ./internal/adminapi; go vet ./...; git diff --check`
+Run: `gofmt -w internal/management/events internal/management/api; go test -race ./internal/management/events ./internal/management/api; go vet ./...; git diff --check`
 
 Commit: `feat: 增加可重放的管理事件中心`
 
 ### Task 12: System health and asynchronous NapCat restart
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/system/service.go`
-- Create: `Resource/Jxh-Go/internal/system/service_test.go`
-- Create: `Resource/Jxh-Go/internal/storage/system.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/system_handlers.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/system_handlers_test.go`
-- Modify: `Resource/Jxh-Go/internal/adminapi/router.go`
+- Create: `Resource/Jxh-Go/internal/management/system/service.go`
+- Create: `Resource/Jxh-Go/internal/management/system/service_test.go`
+- Create: `Resource/Jxh-Go/internal/platform/storage/system.go`
+- Create: `Resource/Jxh-Go/internal/management/api/system_handlers.go`
+- Create: `Resource/Jxh-Go/internal/management/api/system_handlers_test.go`
+- Modify: `Resource/Jxh-Go/internal/management/api/router.go`
 
 - [x] **Step 1: Write failing unavailable/unknown restart tests**
 
@@ -522,7 +522,7 @@ func TestAcceptedRestartPersistsUnknownOnDisconnect(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/system ./internal/adminapi -run 'Test(Restart|SystemHealth)' -count=1`
+Run: `go test ./internal/management/system ./internal/management/api -run 'Test(Restart|SystemHealth)' -count=1`
 
 Expected: system service/handlers are missing.
 
@@ -532,17 +532,17 @@ Map every health component independently to OpenAPI `DependencyHealth`; never pr
 
 - [x] **Step 4: Verify and commit**
 
-Run: `gofmt -w internal/system internal/storage/system.go internal/adminapi; go test -race ./internal/system ./internal/adminapi; go test ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/management/system internal/platform/storage/system.go internal/management/api; go test -race ./internal/management/system ./internal/management/api; go test ./...; go vet ./...; git diff --check`
 
 Commit: `feat: 实现管理端健康与 NapCat 重启接口`
 
 ### Task 13: App wiring, contract evidence and OpenAPI status
 
 **Files:**
-- Modify: `Resource/Jxh-Go/internal/app/app.go`
-- Modify: `Resource/Jxh-Go/internal/app/app_test.go`
+- Modify: `Resource/Jxh-Go/internal/platform/app/app.go`
+- Modify: `Resource/Jxh-Go/internal/platform/app/app_test.go`
 - Modify: `Resource/Jxh-Go/cmd/bot/main.go`
-- Create: `Resource/Jxh-Go/internal/adminapi/openapi_contract_test.go`
+- Create: `Resource/Jxh-Go/internal/management/api/openapi_contract_test.go`
 - Modify: `docs/api/jxh-manager-openapi.yaml`
 - Modify: `docs/superpowers/plans/2026-07-27-jxh-manager-openapi-coverage.md`
 
@@ -564,7 +564,7 @@ func TestImplementedAdminCoreOperationsHaveRoutes(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/app ./internal/adminapi -run 'Test(AppShuts|ImplementedAdminCore)' -count=1`
+Run: `go test ./internal/platform/app ./internal/management/api -run 'Test(AppShuts|ImplementedAdminCore)' -count=1`
 
 Expected: Admin server is not wired and operations remain planned.
 

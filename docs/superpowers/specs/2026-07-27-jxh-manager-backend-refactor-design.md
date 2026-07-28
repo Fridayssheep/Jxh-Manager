@@ -29,12 +29,12 @@
 
 - `cmd/bot/main.go` 的装配、生命周期和健康服务。
 - `internal/bot` 的消息管线、内置命令和权限检查。
-- `internal/napcat` 的连接、事件消费和 OneBot API 调用。
-- `internal/storage` 的模型和 GORM 数据访问。
-- `internal/grouprequest` 的采集、AI 解析、同步与导出。
-- `internal/scheduler` 和 `internal/commands` 的定时任务逻辑。
+- `internal/platform/napcat` 的连接、事件消费和 OneBot API 调用。
+- `internal/platform/storage` 的模型和 GORM 数据访问。
+- `internal/groups/grouprequest` 的采集、AI 解析、同步与导出。
+- `internal/automation/scheduler` 和 `internal/bot/commands` 的定时任务逻辑。
 - `internal/knowledge` 的 WPS 同步、解析和内存索引。
-- `internal/ai`、`internal/quote`、`internal/linkcleaner` 和 `internal/triggerstats`。
+- `internal/ai`、`internal/messaging/quote`、`internal/messaging/linkcleaner` 和 `internal/knowledge/triggerstats`。
 - `deploy/mysql`、Compose、配置文件和部署说明。
 
 基线验证结果：
@@ -51,18 +51,18 @@
 | --- | --- |
 | `main.go` 承担组合根和多个生命周期职责 | `cmd/bot/main.go:35-159`、`cmd/bot/main.go:227-239` |
 | 健康服务只有固定存活响应 | `cmd/bot/main.go:121-148` |
-| NapCat client 是重连循环局部变量 | `internal/napcat/adapter.go:27-87` |
+| NapCat client 是重连循环局部变量 | `internal/platform/napcat/adapter.go:27-87` |
 | `bot.Sender` 混合发送、文件、引用、禁言、重启和角色查询 | `internal/bot/pipeline.go:21-30` |
 | QQ 群管理员共用全局操作授权路径 | `internal/bot/command_router.go:105-115`、`internal/bot/command_router.go:214-267` |
-| 申请只能表示 `pending/processed` | `internal/grouprequest/service.go:21-24`、`internal/grouprequest/service.go:315-360` |
-| 申请 upsert 没有决策事务或 revision | `internal/storage/store.go:135-243` |
-| AI 与手工申请字段规则不一致 | `internal/ai/applicant.go:79-105`、`internal/grouprequest/service.go:365-406` |
-| 调度领域 DTO 位于 QQ 命令包 | `internal/commands/admin.go:27-45`、`internal/storage/store.go:65-99` |
+| 申请只能表示 `pending/processed` | `internal/groups/grouprequest/service.go:21-24`、`internal/groups/grouprequest/service.go:315-360` |
+| 申请 upsert 没有决策事务或 revision | `internal/platform/storage/store.go:135-243` |
+| AI 与手工申请字段规则不一致 | `internal/ai/applicant.go:79-105`、`internal/groups/grouprequest/service.go:365-406` |
+| 调度领域 DTO 位于 QQ 命令包 | `internal/bot/commands/admin.go:27-45`、`internal/platform/storage/store.go:65-99` |
 | 欢迎文案和命令帮助硬编码 | `internal/bot/pipeline.go:138-139`、`internal/bot/command_router.go:33-51` |
 | WPS 冲突只静默关闭 AI | `internal/knowledge/parser.go:27-61` |
 | WPS Syncer 没有状态快照和并发重载保护 | `internal/knowledge/syncer.go:18-84` |
-| 词条统计同步写数据库 | `internal/triggerstats/service.go:80-95` |
-| quote 返回值无法区分 GIF 与 PNG 回退 | `internal/quote/client.go:44-58` |
+| 词条统计同步写数据库 | `internal/knowledge/triggerstats/service.go:80-95` |
+| quote 返回值无法区分 GIF 与 PNG 回退 | `internal/messaging/quote/client.go:44-58` |
 | 已有部署迁移目录不存在 | `docker-compose.yaml:13-15`、`README.md:218-220`、`AGENTS.md:10-11` |
 
 ## 3. 必须先解决的阻塞项
@@ -119,7 +119,7 @@
 
 ### 3.3 NapCat 连接无法作为共享运行时依赖
 
-`internal/napcat/adapter.go` 在重连循环中创建局部 SDK client，随后把 `SDKSender` 临时写入 `Pipeline.SetSender`。该模型只满足消息管线发送需求，不能稳定支持管理端的连接状态、群目录、人工审批、自动审批和系统操作。
+`internal/platform/napcat/adapter.go` 在重连循环中创建局部 SDK client，随后把 `SDKSender` 临时写入 `Pipeline.SetSender`。该模型只满足消息管线发送需求，不能稳定支持管理端的连接状态、群目录、人工审批、自动审批和系统操作。
 
 必须引入并发安全的 `napcat.Gateway`：
 
@@ -144,7 +144,7 @@ type QuoteHistoryReader interface { /* 引用消息历史 */ }
 
 这些接口由同一个 Gateway 实现，共享唯一 NapCat 连接。
 
-现有 `internal/flashfile.Stager`、CQ image/file 安全解析、远程文件暂存限制和 NapCat 闪传响应校验可以继续复用。重构时只移动其装配和调用边界，不把它们改造成管理端可提交任意 URL 的通用下载器，也不把暂存文件绝对路径或源 URL 暴露到 API。
+现有 `internal/messaging/flashfile.Stager`、CQ image/file 安全解析、远程文件暂存限制和 NapCat 闪传响应校验可以继续复用。重构时只移动其装配和调用边界，不把它们改造成管理端可提交任意 URL 的通用下载器，也不把暂存文件绝对路径或源 URL 暴露到 API。
 
 ### 3.4 入群审批状态和并发模型不足
 
@@ -178,20 +178,20 @@ type QuoteHistoryReader interface { /* 引用消息历史 */ }
 
 ```text
 cmd/bot
-  -> internal/app                 组合根、启动、关闭、后台 worker
-       -> internal/adminapi       HTTP、DTO、middleware、SSE
-       -> internal/auth           账号、密码、会话、CSRF、RBAC
-       -> internal/audit          追加式审计
-       -> internal/settings       全局/群级设置与运行时快照
+  -> internal/platform/app                 组合根、启动、关闭、后台 worker
+       -> internal/management/api       HTTP、DTO、middleware、SSE
+       -> internal/management/auth           账号、密码、会话、CSRF、RBAC
+       -> internal/management/audit          追加式审计
+       -> internal/management/settings       全局/群级设置与运行时快照
        -> internal/groupcatalog   NapCat 群目录和最后成功快照
-       -> internal/grouprequest   采集、校验、决策、自动批准
-       -> internal/scheduler      任务服务和运行时
-       -> internal/customcommand  受控命令编译与执行
+       -> internal/groups/grouprequest   采集、校验、决策、自动批准
+       -> internal/automation/scheduler      任务服务和运行时
+       -> internal/automation/customcommand  受控命令编译与执行
        -> internal/knowledge      WPS 同步、状态和只读索引
-       -> internal/telemetry      异步运营事件和日聚合
-       -> internal/health         存活、就绪和依赖状态
-       -> internal/napcat         Gateway、事件适配和 OneBot 能力
-       -> internal/storage        GORM 持久化实现
+       -> internal/platform/telemetry      异步运营事件和日聚合
+       -> internal/platform/health         存活、就绪和依赖状态
+       -> internal/platform/napcat         Gateway、事件适配和 OneBot 能力
+       -> internal/platform/storage        GORM 持久化实现
 ```
 
 边界规则：
@@ -199,7 +199,7 @@ cmd/bot
 - HTTP handler 只负责鉴权、输入解码、DTO 校验、调用应用服务、错误映射和输出编码。
 - Handler 不直接访问 GORM、NapCat SDK、WPS、AI 或 quote client。
 - 应用服务拥有完整业务规则，并同时供 Web、QQ 和后台任务调用。
-- 服务包定义所需 Store 或外部能力接口，`internal/storage` 和适配器实现这些接口。
+- 服务包定义所需 Store 或外部能力接口，`internal/platform/storage` 和适配器实现这些接口。
 - GORM model 不作为 API response 或领域对象返回。
 - 配置和索引的消息热路径读取内存快照，不在每条消息上查询数据库。
 
@@ -207,7 +207,7 @@ cmd/bot
 
 当前 `cmd/bot/main.go` 同时完成配置读取、数据库打开、WPS 同步、AI 初始化、Pipeline 组装、调度启动、健康服务和 NapCat 阻塞运行。新增管理 API 后继续扩展该文件会使启动失败、降级和关闭行为难以推理。
 
-### 5.1 `internal/app`
+### 5.1 `internal/platform/app`
 
 `app.App` 负责：
 
@@ -218,7 +218,7 @@ cmd/bot
 - 按确定顺序关闭 HTTP、后台循环、NapCat、数据库和其他资源。
 - 区分关键组件退出与可降级组件错误，避免任意 goroutine 静默终止进程功能。
 
-### 5.2 `internal/database`
+### 5.2 `internal/platform/database`
 
 数据库模块负责：
 
@@ -238,7 +238,7 @@ cmd/bot
 
 ## 6. 登录、会话、RBAC 与审计
 
-新增 `internal/auth` 和 `internal/audit`，不要把认证逻辑散落在路由中。
+新增 `internal/management/auth` 和 `internal/management/audit`，不要把认证逻辑散落在路由中。
 
 ### 6.1 账号与密码
 
@@ -293,7 +293,7 @@ cmd/bot
 
 `feature_settings` 使用明确的 scope 和修订版本。全局设置只有一份；群级记录只保存覆盖项。群级启停采用继承、启用、停用三态，不复制完整全局配置。
 
-新增 `internal/settings`：
+新增 `internal/management/settings`：
 
 - Store 负责读取和事务化更新设置。
 - Validator 校验功能键、可覆盖字段、文案长度和模板变量。
@@ -335,7 +335,7 @@ Worker 以 `system` Actor 调用同一个 Decision Service，记录规则版本�
 
 ## 9. 调度服务
 
-当前 `ScheduledJobInput` 和 `ScheduledJobView` 位于 `internal/commands`，使 storage 反向依赖 QQ 命令层。应把领域类型、校验和 Store 接口移动到 `internal/scheduler`，让 QQ Router 和 Admin API 都依赖 Scheduler Service。
+当前 `ScheduledJobInput` 和 `ScheduledJobView` 位于 `internal/bot/commands`，使 storage 反向依赖 QQ 命令层。应把领域类型、校验和 Store 接口移动到 `internal/automation/scheduler`，让 QQ Router 和 Admin API 都依赖 Scheduler Service。
 
 Scheduler Service 需要支持：
 
@@ -372,7 +372,7 @@ Syncer 需要：
 
 ## 11. 自定义命令引擎
 
-新增 `internal/customcommand`，包含四个主要部分：
+新增 `internal/automation/customcommand`，包含四个主要部分：
 
 - Definition Validator：名称、参数、权限、scope、动作和硬限制校验。
 - Compiler：把数据库定义编译成不可变运行时 Registry。
@@ -397,7 +397,7 @@ Syncer 需要：
 
 当前 `triggerstats.Service.record` 在消息处理 goroutine 中同步写 MySQL。保留现有词条统计表，但新增群消息量、活跃用户和命令事件后，不能对每条消息执行同步数据库写入。
 
-新增 `internal/telemetry`：
+新增 `internal/platform/telemetry`：
 
 - 消息热路径非阻塞写入有界内存队列。
 - Worker 按数量或时间批量写 `bot_operation_events`。
@@ -420,7 +420,7 @@ Syncer 需要：
 
 ## 13. Storage 与数据模型
 
-数据访问继续集中在 `internal/storage`，但按聚合拆分文件，避免新增十余张表后继续扩大单个 `store.go`：
+数据访问继续集中在 `internal/platform/storage`，但按聚合拆分文件，避免新增十余张表后继续扩大单个 `store.go`：
 
 - `auth.go`
 - `audit.go`
@@ -521,7 +521,7 @@ MySQL 集成测试覆盖迁移、事务、唯一约束、条件更新和分页�
 
 ### 17.2 基础一：生命周期和外部边界
 
-- 引入 `internal/app` 和 `internal/database`。
+- 引入 `internal/platform/app` 和 `internal/platform/database`。
 - 引入 NapCat Gateway 和能力接口。
 - 拆分 `bot.Sender`，保持现有消息行为不变。
 - 增加就绪和依赖状态快照。
