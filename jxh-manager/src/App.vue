@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
 
 import AppShell from '@/app/AppShell.vue'
 import { useAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
 import { useOverviewStore } from '@/stores/overview'
+import { useRuntimeStore } from '@/stores/runtime'
 
 const refreshRevision = ref(0)
 const auth = useAuthStore()
 const overview = useOverviewStore()
+const runtime = useRuntimeStore()
 const router = useRouter()
 const { status: liveStatus } = useAdminEvents({
   topics: ['overview', 'join_requests', 'scheduled_jobs', 'knowledge', 'system', 'auth'],
@@ -21,6 +23,8 @@ const { status: liveStatus } = useAdminEvents({
     }
   },
 })
+
+watch(liveStatus, (status) => { runtime.liveStatus = status }, { immediate: true })
 </script>
 
 <template>
