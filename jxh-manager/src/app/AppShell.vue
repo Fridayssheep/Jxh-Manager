@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
-import { LogOut, Menu, Radio, RefreshCw, X } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { LogOut, Menu, RefreshCw, X } from '@lucide/vue'
 
 import logoAvatar from '@/assets/logo-avatar.webp'
 import { useAuthStore } from '@/stores/auth'
@@ -14,19 +14,20 @@ import {
 const props = withDefaults(
   defineProps<{
     pendingJoinRequests?: number
-    liveStatus?: 'connecting' | 'connected' | 'disconnected'
   }>(),
   {
     pendingJoinRequests: 0,
-    liveStatus: 'connecting',
   },
 )
 
 const emit = defineEmits<{ refresh: [] }>()
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
+const sidebar = ref<HTMLElement | null>(null)
 const mobileMenuOpen = ref(false)
 const refreshPending = ref(false)
+const navigationHighlightStyle = ref<Record<string, string>>({ opacity: '0' })
 
 const visiblePrimaryNavigation = computed(() =>
   primaryNavigation.filter((item) => canAccessNavigation(item, auth.permissions)),
@@ -34,11 +35,26 @@ const visiblePrimaryNavigation = computed(() =>
 const visibleManagementNavigation = computed(() =>
   managementNavigation.filter((item) => canAccessNavigation(item, auth.permissions)),
 )
-const liveStatusLabel = computed(() => {
-  if (props.liveStatus === 'connected') return '实时同步'
-  if (props.liveStatus === 'disconnected') return '实时连接中断'
-  return '等待实时连接'
-})
+
+async function updateNavigationHighlight(): Promise<void> {
+  await nextTick()
+  const sidebarElement = sidebar.value
+  const activeLink = sidebarElement?.querySelector<HTMLElement>(
+    '.navigation-item.router-link-exact-active, .navigation-item.router-link-active',
+  )
+  if (!sidebarElement || !activeLink) {
+    navigationHighlightStyle.value = { opacity: '0' }
+    return
+  }
+  const sidebarRect = sidebarElement.getBoundingClientRect()
+  const activeRect = activeLink.getBoundingClientRect()
+  navigationHighlightStyle.value = {
+    opacity: '1',
+    width: `${activeRect.width}px`,
+    height: `${activeRect.height}px`,
+    transform: `translate3d(${activeRect.left - sidebarRect.left}px, ${activeRect.top - sidebarRect.top}px, 0)`,
+  }
+}
 
 function closeMobileMenu(): void {
   mobileMenuOpen.value = false
@@ -55,13 +71,29 @@ async function logout(): Promise<void> {
   await auth.logout()
   await router.replace({ name: 'login' })
 }
+
+watch(
+  [
+    () => route.path,
+    () => visiblePrimaryNavigation.value.map((item) => item.to).join('|'),
+    () => visibleManagementNavigation.value.map((item) => item.to).join('|'),
+    mobileMenuOpen,
+  ],
+  () => { void updateNavigationHighlight() },
+  { flush: 'post' },
+)
+onMounted(() => {
+  window.addEventListener('resize', updateNavigationHighlight)
+  void updateNavigationHighlight()
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateNavigationHighlight))
 </script>
 
 <template>
   <div class="app-shell" :class="{ 'app-shell--menu-open': mobileMenuOpen }">
     <div class="mobile-scrim" aria-hidden="true" @click="closeMobileMenu" />
 
-    <aside data-test="app-sidebar" class="sidebar" aria-label="主导航">
+    <aside ref="sidebar" data-test="app-sidebar" class="sidebar" aria-label="主导航">
       <div class="brand-rail" aria-hidden="true" />
       <div class="brand-block">
         <img :src="logoAvatar" class="brand-avatar" width="40" height="40" alt="精小弘" />
@@ -73,6 +105,13 @@ async function logout(): Promise<void> {
           <X :size="18" aria-hidden="true" />
         </button>
       </div>
+
+      <span
+        data-test="navigation-highlight"
+        class="navigation-highlight"
+        :style="navigationHighlightStyle"
+        aria-hidden="true"
+      />
 
       <nav class="sidebar-navigation" aria-label="工作台">
         <span class="navigation-label">工作台</span>
@@ -110,13 +149,6 @@ async function logout(): Promise<void> {
         </RouterLink>
       </nav>
 
-      <div class="sidebar-health" role="status">
-        <span class="health-dot" />
-        <div>
-          <strong>服务状态待同步</strong>
-          <span>NapCat · MySQL · WPS · SSE</span>
-        </div>
-      </div>
     </aside>
 
     <div class="workspace">
@@ -136,10 +168,6 @@ async function logout(): Promise<void> {
         </div>
 
         <div class="topbar-actions">
-          <span class="live-status" :class="`live-status--${liveStatus}`">
-            <Radio :size="15" aria-hidden="true" />
-            {{ liveStatusLabel }}
-          </span>
           <button
             class="icon-button"
             type="button"
@@ -243,6 +271,7 @@ async function logout(): Promise<void> {
 
 .sidebar-management {
   margin-top: auto;
+  padding-bottom: 16px;
 }
 
 .navigation-label {
@@ -253,6 +282,7 @@ async function logout(): Promise<void> {
 
 .navigation-item {
   position: relative;
+  z-index: 1;
   display: grid;
   min-height: 40px;
   grid-template-columns: 18px minmax(0, 1fr) auto;
@@ -275,11 +305,26 @@ async function logout(): Promise<void> {
 .navigation-item--exact.router-link-exact-active {
   color: var(--color-brand-ink);
   font-weight: 600;
-  background: var(--color-brand-surface);
+  background: transparent;
 }
 
-.navigation-item.router-link-active::before,
-.navigation-item--exact.router-link-exact-active::before {
+.navigation-highlight {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  background: var(--color-brand-surface);
+  border-radius: var(--radius-control);
+  transition:
+    width var(--duration-overlay) ease,
+    height var(--duration-overlay) ease,
+    opacity var(--duration-fast) ease,
+    transform var(--duration-overlay) ease;
+  will-change: transform;
+}
+
+.navigation-highlight::before {
   position: absolute;
   inset: 8px auto 8px -12px;
   width: 3px;
@@ -298,44 +343,6 @@ async function logout(): Promise<void> {
   text-align: center;
   background: var(--color-warning-surface);
   border-radius: 9px;
-}
-
-.sidebar-health {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 12px 12px 14px 16px;
-  padding: 9px 10px;
-  background: var(--color-surface-subtle);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
-}
-
-.health-dot {
-  width: 7px;
-  height: 7px;
-  margin-top: 5px;
-  background: var(--color-unknown);
-  border-radius: 50%;
-}
-
-.sidebar-health div {
-  display: grid;
-  min-width: 0;
-}
-
-.sidebar-health strong {
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.sidebar-health div span {
-  overflow: hidden;
-  color: var(--color-text-secondary);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .workspace {
@@ -377,23 +384,6 @@ async function logout(): Promise<void> {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.live-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-right: 8px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-
-.live-status--connected {
-  color: var(--color-success);
-}
-
-.live-status--disconnected {
-  color: var(--color-warning);
 }
 
 .icon-button,
@@ -489,8 +479,7 @@ async function logout(): Promise<void> {
 
   .brand-copy,
   .navigation-label,
-  .navigation-item span,
-  .sidebar-health {
+  .navigation-item span {
     display: none;
   }
 
@@ -499,14 +488,18 @@ async function logout(): Promise<void> {
     padding: 10px 8px 0;
   }
 
+  .sidebar-management {
+    padding-bottom: 12px;
+  }
+
   .navigation-item {
     grid-template-columns: 1fr;
     justify-items: center;
     padding: 0;
   }
 
-  .navigation-item.router-link-active::before {
-    inset: 8px auto 8px -8px;
+  .navigation-highlight::before {
+    left: -8px;
   }
 
   .workspace {
@@ -545,8 +538,7 @@ async function logout(): Promise<void> {
 
   .brand-copy,
   .navigation-label,
-  .navigation-item span,
-  .sidebar-health {
+  .navigation-item span {
     display: grid;
   }
 
@@ -561,14 +553,18 @@ async function logout(): Promise<void> {
     padding: 10px 12px 0 16px;
   }
 
+  .sidebar-management {
+    padding-bottom: 14px;
+  }
+
   .navigation-item {
     grid-template-columns: 18px minmax(0, 1fr) auto;
     justify-items: stretch;
     padding: 0 10px;
   }
 
-  .navigation-item.router-link-active::before {
-    inset: 8px auto 8px -12px;
+  .navigation-highlight::before {
+    left: -12px;
   }
 
   .workspace {
@@ -592,7 +588,6 @@ async function logout(): Promise<void> {
   }
 
   .scope-indicator span,
-  .live-status,
   .account-name {
     display: none;
   }
