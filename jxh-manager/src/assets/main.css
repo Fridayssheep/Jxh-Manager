@@ -56,3 +56,36 @@ a {
     border-color var(--duration-fast) ease,
     background-color var(--duration-fast) ease;
 }
+
+.page-rise-enter-active {
+  transition: opacity var(--duration-overlay) ease;
+}
+
+.page-rise-enter-from {
+  opacity: 0;
+}
+
+.page-rise-enter-active > * {
+  animation: page-rise-item var(--duration-overlay) ease both;
+}
+
+.page-rise-enter-active > :nth-child(2) { animation-delay: 40ms; }
+.page-rise-enter-active > :nth-child(3) { animation-delay: 80ms; }
+.page-rise-enter-active > :nth-child(4) { animation-delay: 120ms; }
+.page-rise-enter-active > :nth-child(5) { animation-delay: 160ms; }
+.page-rise-enter-active > :nth-child(6) { animation-delay: 200ms; }
+.page-rise-enter-active > :nth-child(7) { animation-delay: 240ms; }
+.page-rise-enter-active > :nth-child(8) { animation-delay: 280ms; }
+.page-rise-enter-active > :nth-child(n + 9) { animation-delay: 320ms; }
+
+@keyframes page-rise-item {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -36,10 +36,11 @@ watch(liveStatus, (status) => { runtime.liveStatus = status }, { immediate: true
     <AppShell
       v-else
       :pending-join-requests="overview.pendingJoinRequests"
-      :live-status="liveStatus"
       @refresh="refreshRevision += 1"
     >
-      <component :is="Component" :key="`${route.fullPath}:${refreshRevision}`" />
+      <Transition name="page-rise" mode="out-in">
+        <component :is="Component" :key="`${route.path}:${refreshRevision}`" />
+      </Transition>
     </AppShell>
   </RouterView>
 </template>
