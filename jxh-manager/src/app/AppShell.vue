@@ -512,12 +512,17 @@ async function logout(): Promise<void> {
 @media (max-width: 767px) {
   .sidebar {
     width: min(280px, calc(100vw - 48px));
+    visibility: hidden;
     transform: translateX(-100%);
-    transition: transform var(--duration-overlay) ease;
+    transition:
+      transform var(--duration-overlay) ease,
+      visibility 0s linear var(--duration-overlay);
   }
 
   .app-shell--menu-open .sidebar {
+    visibility: visible;
     transform: translateX(0);
+    transition-delay: 0s;
   }
 
   .app-shell--menu-open .mobile-scrim {
