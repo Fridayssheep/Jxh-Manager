@@ -4,7 +4,7 @@
 
 **Goal:** 为全部管理 API 建立可升级数据库、完整运行配置、受控生命周期和单连接 NapCat Gateway，同时保持现有 QQ bot 行为不变。
 
-**Architecture:** 管理端继续与 bot 运行在同一 Go 进程。`internal/database` 独立负责 DSN、连接池、探测、关闭和版本迁移；`internal/napcat.Gateway` 原子持有当前 SDK client 并向消息管线和后续应用服务提供小型能力；`internal/app` 成为组合根。迁移通过独立 `jxh-migrate` 命令在 bot 启动前执行，运行时禁止 `AutoMigrate`。
+**Architecture:** 管理端继续与 bot 运行在同一 Go 进程。`internal/platform/database` 独立负责 DSN、连接池、探测、关闭和版本迁移；`internal/platform/napcat.Gateway` 原子持有当前 SDK client 并向消息管线和后续应用服务提供小型能力；`internal/platform/app` 成为组合根。迁移通过独立 `jxh-migrate` 命令在 bot 启动前执行，运行时禁止 `AutoMigrate`。
 
 **Tech Stack:** Go 1.25.7、标准库 `database/sql`/`net/http`/`sync/atomic`、GORM 1.31、MySQL driver 1.10、NapCat SDK 1.0.2、Docker Compose、Go `testing`。
 
@@ -13,7 +13,7 @@
 ## 实施状态（2026-07-28）
 
 - Tasks 1-6 已全部落地。运行时使用独立 `jxh-migrate`、连续且不可变的 001-009 migration manifest、数据库锁和 checksum ledger；Bot 运行连接禁用 multi-statements，且代码中不存在 `AutoMigrate`。
-- 真实 MySQL 8.4 完整验证已通过：`go test -race -count=1 ./internal/database`（363.694s）覆盖空库、历史 schema 采纳、部分 ledger、失败恢复、锁竞争、漂移拒绝、原始 init baseline 与 009；`go test -race -count=1 ./internal/storage`（126.328s）覆盖全部管理持久化实现。两组测试结束后 `jxh_migration_test_*` 与 `jxh_manager_*_test_*` 残留 schema 均为 0。
+- 真实 MySQL 8.4 完整验证已通过：`go test -race -count=1 ./internal/platform/database`（363.694s）覆盖空库、历史 schema 采纳、部分 ledger、失败恢复、锁竞争、漂移拒绝、原始 init baseline 与 009；`go test -race -count=1 ./internal/platform/storage`（126.328s）覆盖全部管理持久化实现。两组测试结束后 `jxh_migration_test_*` 与 `jxh_manager_*_test_*` 残留 schema 均为 0。
 - Docker 镜像构建和权限检查已通过：`/app/migrations` 为 `root:root 0555`，SQL 文件为 `root:root 0444`，运行用户只读；`docker compose config --quiet` 通过，Bot 由 one-shot migrate service 成功后才启动。
 - 最终门禁通过：`go test -race -count=1 ./...`、`go build ./...`、三个命令二进制构建、`go vet ./...`、`go mod tidy -diff`、`docker compose config --quiet`、`git diff --check`。
 - 关键完成提交包括 `0d04320`（迁移链）、`4ab0e5f`/`642650d`（数据库生命周期与单次受限探测）、`400a3c1`（NapCat 会话任务退出）、`7b7c282`（组件健康）、`49fdd3c`（迁移只读权限）和 `1280da1`（009 恢复场景）。
@@ -21,28 +21,28 @@
 
 ## File Map
 
-- `internal/config/config.go`: 管理监听、会话和数据库池配置及环境变量。
-- `internal/config/config_test.go`: 默认值、归一化和环境覆盖测试。
-- `internal/database/config.go`: 安全构建运行 DSN 与迁移 DSN。
-- `internal/database/database.go`: 打开、Ping、连接池和 Close。
-- `internal/database/migrate.go`: 迁移 manifest、校验和、数据库锁和顺序执行。
-- `internal/database/*_test.go`: 无数据库纯函数测试；真实 MySQL 集成测试由环境变量显式启用。
+- `internal/platform/config/config.go`: 管理监听、会话和数据库池配置及环境变量。
+- `internal/platform/config/config_test.go`: 默认值、归一化和环境覆盖测试。
+- `internal/platform/database/config.go`: 安全构建运行 DSN 与迁移 DSN。
+- `internal/platform/database/database.go`: 打开、Ping、连接池和 Close。
+- `internal/platform/database/migrate.go`: 迁移 manifest、校验和、数据库锁和顺序执行。
+- `internal/platform/database/*_test.go`: 无数据库纯函数测试；真实 MySQL 集成测试由环境变量显式启用。
 - `cmd/migrate/main.go`: 独立迁移 CLI。
 - `deploy/mysql/migrations/*.sql`: 001-007 历史链、008 管理平台 schema 与 009 知识库重载操作扩展。
 - `deploy/mysql/init/001_schema.sql`: 当前完整空库 schema 和 migration 版本基线。
-- `internal/napcat/gateway.go`: 并发安全 client、连接状态和能力入口。
-- `internal/napcat/gateway_test.go`: 连接切换、离线错误和快照测试。
-- `internal/napcat/adapter.go`: Server 连接建立/断开时挂载 Gateway。
-- `internal/app/app.go`: 进程组件的启动、关闭和状态。
-- `internal/health/service.go`: 存活/就绪与依赖快照。
+- `internal/platform/napcat/gateway.go`: 并发安全 client、连接状态和能力入口。
+- `internal/platform/napcat/gateway_test.go`: 连接切换、离线错误和快照测试。
+- `internal/platform/napcat/adapter.go`: Server 连接建立/断开时挂载 Gateway。
+- `internal/platform/app/app.go`: 进程组件的启动、关闭和状态。
+- `internal/platform/health/service.go`: 存活/就绪与依赖快照。
 - `cmd/bot/main.go`: 仅解析参数、加载配置、构建 App 和运行。
 - `Dockerfile`, `docker-compose.yaml`, `Makefile`, `config.example.yaml`: 构建及部署迁移流程。
 
 ### Task 1: 管理端与数据库运行配置
 
 **Files:**
-- Modify: `Resource/Jxh-Go/internal/config/config.go`
-- Create: `Resource/Jxh-Go/internal/config/config_test.go`
+- Modify: `Resource/Jxh-Go/internal/platform/config/config.go`
+- Create: `Resource/Jxh-Go/internal/platform/config/config_test.go`
 - Modify: `Resource/Jxh-Go/config.example.yaml`
 
 - [x] **Step 1: Write failing default and environment tests**
@@ -69,7 +69,7 @@ func TestLoadAppliesAdminEnvironment(t *testing.T) {
 
 - [x] **Step 2: Run the focused test and confirm RED**
 
-Run: `go test ./internal/config -run 'Test(DefaultIncludesAdmin|LoadAppliesAdmin)' -count=1`
+Run: `go test ./internal/platform/config -run 'Test(DefaultIncludesAdmin|LoadAppliesAdmin)' -count=1`
 
 Expected: compile failure because `Config.Admin`, `AdminConfig`, and pool fields do not exist.
 
@@ -79,21 +79,21 @@ Add `AdminConfig` with `Addr`, `PublicOrigin`, `CookieSecure`, `SessionTTLSecond
 
 - [x] **Step 4: Run focused and package tests**
 
-Run: `go test ./internal/config -count=1`
+Run: `go test ./internal/platform/config -count=1`
 
 Expected: PASS.
 
 - [x] **Step 5: Verify and commit configuration**
 
-Run: `gofmt -w internal/config/config.go internal/config/config_test.go; go test ./...; go build ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/platform/config/config.go internal/platform/config/config_test.go; go test ./...; go build ./...; go vet ./...; git diff --check`
 
 Commit: `feat: 增加管理端基础配置`
 
 ### Task 2: 版本化迁移 manifest 与 CLI
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/database/migrate.go`
-- Create: `Resource/Jxh-Go/internal/database/migrate_test.go`
+- Create: `Resource/Jxh-Go/internal/platform/database/migrate.go`
+- Create: `Resource/Jxh-Go/internal/platform/database/migrate_test.go`
 - Create: `Resource/Jxh-Go/cmd/migrate/main.go`
 - Create: `Resource/Jxh-Go/deploy/mysql/migrations/001_create_core_schema.sql`
 - Restore: `Resource/Jxh-Go/deploy/mysql/migrations/002_add_run_date_to_scheduled_jobs.sql`
@@ -129,7 +129,7 @@ func TestLoadMigrationsComputesStableSHA256(t *testing.T) {
 
 - [x] **Step 2: Run the test and confirm RED**
 
-Run: `go test ./internal/database -run TestLoadMigrations -count=1`
+Run: `go test ./internal/platform/database -run TestLoadMigrations -count=1`
 
 Expected: compile failure because `LoadMigrations` and `ErrMigrationSequence` do not exist.
 
@@ -149,7 +149,7 @@ If `schema_migrations` is absent or exists with zero rows but core bot tables al
 
 - [x] **Step 6: Verify migration behavior**
 
-Run: `go test ./internal/database -count=1; go test ./...; go build ./cmd/migrate ./cmd/bot; go vet ./...; git diff --check`
+Run: `go test ./internal/platform/database -count=1; go test ./...; go build ./cmd/migrate ./cmd/bot; go vet ./...; git diff --check`
 
 When Docker is available, additionally run empty-database and legacy-upgrade integration tests with `JXH_MYSQL_INTEGRATION_DSN` and `JXH_MYSQL_INTEGRATION_CONTAINER`; otherwise record that external MySQL execution remains unverified.
 
@@ -160,10 +160,10 @@ Commit: `feat: 建立数据库版本迁移链`
 ### Task 3: 数据库连接生命周期
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/database/config.go`
-- Create: `Resource/Jxh-Go/internal/database/config_test.go`
-- Create: `Resource/Jxh-Go/internal/database/database.go`
-- Create: `Resource/Jxh-Go/internal/database/database_test.go`
+- Create: `Resource/Jxh-Go/internal/platform/database/config.go`
+- Create: `Resource/Jxh-Go/internal/platform/database/config_test.go`
+- Create: `Resource/Jxh-Go/internal/platform/database/database.go`
+- Create: `Resource/Jxh-Go/internal/platform/database/database_test.go`
 - Modify: `Resource/Jxh-Go/cmd/bot/main.go`
 
 - [x] **Step 1: Write failing DSN safety tests**
@@ -188,7 +188,7 @@ func TestRuntimeDSNPreservesCompleteDSNSemantics(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/database -run TestRuntimeDSN -count=1`
+Run: `go test ./internal/platform/database -run TestRuntimeDSN -count=1`
 
 Expected: compile failure because `RuntimeDSN` does not exist.
 
@@ -204,16 +204,16 @@ Move all DSN and pool logic out of `cmd/bot/main.go`; close the database on ever
 
 - [x] **Step 5: Verify and commit**
 
-Run: `gofmt -w internal/database/*.go cmd/bot/main.go; go test ./...; go build ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/platform/database/*.go cmd/bot/main.go; go test ./...; go build ./...; go vet ./...; git diff --check`
 
 Commit: `refactor: 收敛数据库生命周期`
 
 ### Task 4: 并发安全 NapCat Gateway
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/napcat/gateway.go`
-- Create: `Resource/Jxh-Go/internal/napcat/gateway_test.go`
-- Modify: `Resource/Jxh-Go/internal/napcat/adapter.go`
+- Create: `Resource/Jxh-Go/internal/platform/napcat/gateway.go`
+- Create: `Resource/Jxh-Go/internal/platform/napcat/gateway_test.go`
+- Modify: `Resource/Jxh-Go/internal/platform/napcat/adapter.go`
 - Modify: `Resource/Jxh-Go/internal/bot/pipeline.go`
 - Modify: `Resource/Jxh-Go/cmd/bot/main.go`
 
@@ -233,7 +233,7 @@ func TestGatewayAttachDetachAndUnavailable(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/napcat -run TestGateway -count=1`
+Run: `go test ./internal/platform/napcat -run TestGateway -count=1`
 
 Expected: compile failure because Gateway does not exist.
 
@@ -251,17 +251,17 @@ Gateway implements current message, flash file, quote history, member lookup, gr
 
 - [x] **Step 6: Verify and commit**
 
-Run: `gofmt -w internal/napcat/*.go internal/bot/pipeline.go cmd/bot/main.go; go test -race ./internal/napcat ./internal/bot; go test ./...; go build ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/platform/napcat/*.go internal/bot/pipeline.go cmd/bot/main.go; go test -race ./internal/platform/napcat ./internal/bot; go test ./...; go build ./...; go vet ./...; git diff --check`
 
 Commit: `refactor: 建立共享 NapCat Gateway`
 
 ### Task 5: App 生命周期与健康快照
 
 **Files:**
-- Create: `Resource/Jxh-Go/internal/health/service.go`
-- Create: `Resource/Jxh-Go/internal/health/service_test.go`
-- Create: `Resource/Jxh-Go/internal/app/app.go`
-- Create: `Resource/Jxh-Go/internal/app/app_test.go`
+- Create: `Resource/Jxh-Go/internal/platform/health/service.go`
+- Create: `Resource/Jxh-Go/internal/platform/health/service_test.go`
+- Create: `Resource/Jxh-Go/internal/platform/app/app.go`
+- Create: `Resource/Jxh-Go/internal/platform/app/app_test.go`
 - Modify: `Resource/Jxh-Go/cmd/bot/main.go`
 
 - [x] **Step 1: Write failing readiness tests**
@@ -278,7 +278,7 @@ func TestReadinessSeparatesLivenessFromDependencies(t *testing.T) {
 
 - [x] **Step 2: Confirm RED**
 
-Run: `go test ./internal/health -count=1`
+Run: `go test ./internal/platform/health -count=1`
 
 Expected: package/type missing failure.
 
@@ -292,7 +292,7 @@ Track MySQL, NapCat, WPS, AI, quote, scheduler and workers with status code, saf
 
 - [x] **Step 5: Verify shutdown and existing behavior**
 
-Run: `gofmt -w internal/app/*.go internal/health/*.go cmd/bot/main.go; go test -race ./internal/app ./internal/health; go test ./...; go build ./...; go vet ./...; git diff --check`
+Run: `gofmt -w internal/platform/app/*.go internal/platform/health/*.go cmd/bot/main.go; go test -race ./internal/platform/app ./internal/platform/health; go test ./...; go build ./...; go vet ./...; git diff --check`
 
 - [x] **Step 6: Commit lifecycle refactor**
 
