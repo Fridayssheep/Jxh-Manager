@@ -13,6 +13,8 @@ import ScheduledJobsView from '@/views/scheduled-jobs/ScheduledJobsView.vue'
 import KnowledgeView from '@/views/knowledge/KnowledgeView.vue'
 import AnalyticsView from '@/views/analytics/AnalyticsView.vue'
 import AuditLogsView from '@/views/audit/AuditLogsView.vue'
+import UsersView from '@/views/users/UsersView.vue'
+import AccountView from '@/views/account/AccountView.vue'
 import { resolveAuthNavigation } from './guard'
 
 const router = createRouter({
@@ -89,6 +91,18 @@ const router = createRouter({
       name: 'audit-logs',
       component: AuditLogsView,
       meta: { permission: 'audit:read', title: '审计日志' },
+    },
+    {
+      path: '/users',
+      name: 'users',
+      component: UsersView,
+      meta: { permission: 'users:manage', title: '账号与权限' },
+    },
+    {
+      path: '/account',
+      name: 'account',
+      component: AccountView,
+      meta: { title: '个人账号' },
     },
   ],
 })

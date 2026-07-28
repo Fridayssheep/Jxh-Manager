@@ -20,6 +20,7 @@ describe('AppShell', () => {
         { path: '/', component: { template: '<div />' } },
         { path: '/groups', component: { template: '<div />' } },
         { path: '/system', component: { template: '<div />' } },
+        { path: '/account', component: { template: '<div />' } },
       ],
     })
     await router.push('/')
@@ -37,6 +38,7 @@ describe('AppShell', () => {
     expect(wrapper.text()).not.toContain('账号与权限')
     expect(wrapper.text()).not.toContain('入群审批')
     expect(wrapper.find('[data-test=app-topbar]').exists()).toBe(true)
+    expect(wrapper.get('[data-test=account-link]').attributes('href')).toBe('/account')
     expect(warn.mock.calls.flat().join(' ')).not.toContain('No match found for location with path "/account"')
   })
 })
