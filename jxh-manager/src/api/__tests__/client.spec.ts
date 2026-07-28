@@ -44,6 +44,16 @@ describe('admin API client', () => {
     expect(request.headers.has('X-CSRF-Token')).toBe(false)
   })
 
+  it('bypasses browser caches for administrator API requests', async () => {
+    const fetchSpy = vi.fn<typeof fetch>(async () => Response.json({ items: [] }))
+    const adminFetch = createAdminFetch(fetchSpy)
+
+    await adminFetch('/api/admin/v1/auth/me', { method: 'GET' })
+
+    const request = fetchSpy.mock.calls[0]?.[0] as Request
+    expect(request.cache).toBe('no-store')
+  })
+
   it('notifies the auth store when a protected request becomes unauthorized', async () => {
     const onUnauthorized = vi.fn<() => void>()
     setUnauthorizedHandler(onUnauthorized)

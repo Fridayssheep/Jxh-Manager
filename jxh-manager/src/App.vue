@@ -17,17 +17,30 @@ const { status: liveStatus } = useAdminEvents({
   topics: ['overview', 'join_requests', 'scheduled_jobs', 'knowledge', 'system', 'auth'],
   enabled: computed(() => auth.isAuthenticated && auth.hasPermission('events:read')),
   onEvent: (event) => {
-    if (
-      event.event === 'auth.session_revoked' &&
-      event.resource?.type === 'session' &&
+    if (event.event === 'auth.session_revoked' && event.resource?.type === 'session') {
       auth.clearSessionIfCurrent(event.resource.id)
-    ) {
-      void router.replace({ name: 'login' })
     }
   },
 })
 
-watch(liveStatus, (status) => { runtime.liveStatus = status }, { immediate: true })
+watch(
+  liveStatus,
+  (status) => {
+    runtime.liveStatus = status
+  },
+  { immediate: true },
+)
+watch(
+  () => auth.isAuthenticated,
+  (authenticated, wasAuthenticated) => {
+    if (authenticated || !wasAuthenticated || router.currentRoute.value.meta.public) return
+
+    void router.replace({
+      name: 'login',
+      query: { redirect: router.currentRoute.value.fullPath },
+    })
+  },
+)
 </script>
 
 <template>

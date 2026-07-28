@@ -5,13 +5,9 @@ import { LogOut, Menu, RefreshCw, X } from '@lucide/vue'
 
 import logoAvatar from '@/assets/logo-avatar.webp'
 import { useAuthStore } from '@/stores/auth'
-import {
-  canAccessNavigation,
-  managementNavigation,
-  primaryNavigation,
-} from './navigation'
+import { canAccessNavigation, managementNavigation, primaryNavigation } from './navigation'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     pendingJoinRequests?: number
   }>(),
@@ -79,7 +75,9 @@ watch(
     () => visibleManagementNavigation.value.map((item) => item.to).join('|'),
     mobileMenuOpen,
   ],
-  () => { void updateNavigationHighlight() },
+  () => {
+    void updateNavigationHighlight()
+  },
   { flush: 'post' },
 )
 onMounted(() => {
@@ -121,6 +119,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateNavigationHighl
           :to="item.to"
           class="navigation-item"
           :class="{ 'navigation-item--exact': item.exact }"
+          :aria-label="item.label"
+          :title="item.label"
           @click="closeMobileMenu"
         >
           <component :is="item.icon" :size="18" :stroke-width="1.8" aria-hidden="true" />
@@ -142,13 +142,14 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateNavigationHighl
           :key="item.to"
           :to="item.to"
           class="navigation-item"
+          :aria-label="item.label"
+          :title="item.label"
           @click="closeMobileMenu"
         >
           <component :is="item.icon" :size="18" :stroke-width="1.8" aria-hidden="true" />
           <span>{{ item.label }}</span>
         </RouterLink>
       </nav>
-
     </aside>
 
     <div class="workspace">
@@ -187,7 +188,13 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateNavigationHighl
             <span class="account-avatar">{{ auth.currentUser?.display_name.slice(0, 1) }}</span>
             <span class="account-name">{{ auth.currentUser?.display_name }}</span>
           </RouterLink>
-          <button class="icon-button" type="button" title="退出登录" aria-label="退出登录" @click="logout">
+          <button
+            class="icon-button"
+            type="button"
+            title="退出登录"
+            aria-label="退出登录"
+            @click="logout"
+          >
             <LogOut :size="17" aria-hidden="true" />
           </button>
         </div>

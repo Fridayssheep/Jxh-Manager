@@ -34,13 +34,19 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler
 }
 
-export function createAdminFetch(fetchImplementation: typeof fetch = globalThis.fetch): typeof fetch {
+export function createAdminFetch(
+  fetchImplementation: typeof fetch = globalThis.fetch,
+): typeof fetch {
   return async (input, init) => {
     const requestInput =
       typeof input === 'string' || input instanceof URL
         ? new URL(input.toString(), globalThis.location?.origin ?? 'http://localhost')
         : input
-    const request = new Request(requestInput, { ...init, credentials: 'include' })
+    const request = new Request(requestInput, {
+      ...init,
+      credentials: 'include',
+      cache: 'no-store',
+    })
     const headers = new Headers(request.headers)
 
     if (!SAFE_METHODS.has(request.method.toUpperCase()) && csrfToken) {
@@ -50,7 +56,10 @@ export function createAdminFetch(fetchImplementation: typeof fetch = globalThis.
     const authenticatedRequest = new Request(request, { headers })
     const response = await fetchImplementation(authenticatedRequest)
 
-    if (response.status === 401 && !new URL(authenticatedRequest.url).pathname.endsWith('/auth/login')) {
+    if (
+      response.status === 401 &&
+      !new URL(authenticatedRequest.url).pathname.endsWith('/auth/login')
+    ) {
       unauthorizedHandler?.()
     }
 
@@ -91,12 +100,12 @@ function isApiErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
   const error = (value as { error?: unknown }).error
   return Boolean(
     error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      'message' in error &&
-      'request_id' in error &&
-      'fields' in error &&
-      'retryable' in error,
+    typeof error === 'object' &&
+    'code' in error &&
+    'message' in error &&
+    'request_id' in error &&
+    'fields' in error &&
+    'retryable' in error,
   )
 }
 
