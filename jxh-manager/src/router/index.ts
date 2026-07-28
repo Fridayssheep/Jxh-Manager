@@ -9,6 +9,8 @@ import GlobalSettingsView from '@/views/settings/GlobalSettingsView.vue'
 import JoinRequestsView from '@/views/join-requests/JoinRequestsView.vue'
 import CommandsView from '@/views/commands/CommandsView.vue'
 import CommandEditorView from '@/views/commands/CommandEditorView.vue'
+import ScheduledJobsView from '@/views/scheduled-jobs/ScheduledJobsView.vue'
+import KnowledgeView from '@/views/knowledge/KnowledgeView.vue'
 import { resolveAuthNavigation } from './guard'
 
 const router = createRouter({
@@ -61,6 +63,18 @@ const router = createRouter({
       name: 'command-editor',
       component: CommandEditorView,
       meta: { permission: 'commands:read', title: '命令编辑器' },
+    },
+    {
+      path: '/scheduled-jobs',
+      name: 'scheduled-jobs',
+      component: ScheduledJobsView,
+      meta: { permission: 'scheduled_jobs:read', title: '定时任务' },
+    },
+    {
+      path: '/knowledge',
+      name: 'knowledge',
+      component: KnowledgeView,
+      meta: { permission: 'knowledge:read', title: '知识库' },
     },
   ],
 })

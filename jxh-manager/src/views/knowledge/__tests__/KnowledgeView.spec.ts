@@ -1,0 +1,48 @@
+import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { knowledgeApi } from '@/api/knowledge'
+import { useAuthStore } from '@/stores/auth'
+import { makeAuthContext } from '@/test/auth-fixture'
+import { makeKnowledgeConflict, makeKnowledgeEntry, makeKnowledgeEntrySummary, makeKnowledgeStatus } from '@/test/knowledge-fixture'
+import KnowledgeView from '../KnowledgeView.vue'
+
+async function mountView() {
+  const pinia = createPinia(); setActivePinia(pinia)
+  useAuthStore().acceptContext(makeAuthContext(['knowledge:read', 'knowledge:reload']))
+  return mount(KnowledgeView, { global: { plugins: [pinia] }, attachTo: document.body })
+}
+
+describe('KnowledgeView', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(knowledgeApi, 'getStatus').mockResolvedValue(makeKnowledgeStatus())
+    vi.spyOn(knowledgeApi, 'listEntries').mockResolvedValue({ items: [makeKnowledgeEntrySummary()], next_cursor: null, has_more: false })
+    vi.spyOn(knowledgeApi, 'listConflicts').mockResolvedValue({ items: [makeKnowledgeConflict()], next_cursor: null, has_more: false })
+    vi.spyOn(knowledgeApi, 'getEntry').mockResolvedValue(makeKnowledgeEntry())
+  })
+
+  it('keeps WPS entries read-only while exposing source details', async () => {
+    const wrapper = await mountView(); await flushPromises()
+    await wrapper.get('[data-test=knowledge-entry-entry-1]').trigger('click'); await flushPromises()
+
+    expect(wrapper.text()).toContain('校园网无法使用怎么办？')
+    expect(wrapper.text()).toContain('wps-row-42')
+    expect(wrapper.findAll('button').map((button) => button.text()).join('')).not.toMatch(/保存词条|编辑词条/)
+  })
+
+  it('shows the accepted reload operation for later status refresh', async () => {
+    const reload = vi.spyOn(knowledgeApi, 'reload').mockResolvedValue({
+      operation_id: 'reload-1', status: 'accepted', started_at: '2026-07-28T06:00:00Z', completed_at: null, error_code: null,
+    })
+    const wrapper = await mountView(); await flushPromises()
+
+    await wrapper.get('[data-test=reload-knowledge]').trigger('click')
+    await wrapper.get('[data-test=confirm-reload]').trigger('click'); await flushPromises()
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(wrapper.text()).toContain('reload-1')
+    expect(wrapper.text()).toContain('已接受')
+  })
+})
