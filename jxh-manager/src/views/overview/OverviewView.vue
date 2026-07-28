@@ -102,7 +102,7 @@ onBeforeUnmount(unsubscribe)
       <MetricStrip :metrics="primaryMetrics" />
 
       <section class="overview-workspace">
-        <div class="trend-section">
+        <div class="trend-section overview-card">
           <header class="section-header">
             <div>
               <h2>最近趋势</h2>
@@ -120,7 +120,7 @@ onBeforeUnmount(unsubscribe)
           <TrendChart :points="overview.data.trend" />
         </div>
 
-        <section class="pending-section">
+        <section class="pending-section overview-card">
           <header class="section-header">
             <div>
               <h2>需要处理</h2>
@@ -149,7 +149,7 @@ onBeforeUnmount(unsubscribe)
         </section>
       </section>
 
-      <section class="health-section">
+      <section class="health-section overview-card">
         <header class="section-header">
           <div>
             <h2>系统健康</h2>
@@ -223,24 +223,15 @@ onBeforeUnmount(unsubscribe)
 .overview-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.85fr);
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  gap: 12px;
 }
 
-.trend-section,
-.pending-section,
-.health-section {
+.overview-card {
   min-width: 0;
+  padding: var(--space-card);
   background: var(--color-surface);
-}
-
-.trend-section {
-  padding: 18px 20px 14px 0;
-  border-right: 1px solid var(--color-border);
-}
-
-.pending-section {
-  padding: 18px 0 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
 }
 
 .section-header h2 {
@@ -306,10 +297,6 @@ onBeforeUnmount(unsubscribe)
   justify-content: center;
   gap: 8px;
   color: var(--color-success);
-}
-
-.health-section {
-  padding: 0;
 }
 
 .health-section .section-header a {
@@ -401,16 +388,6 @@ onBeforeUnmount(unsubscribe)
 @media (max-width: 1100px) {
   .overview-workspace {
     grid-template-columns: 1fr;
-  }
-
-  .trend-section {
-    padding-right: 0;
-    border-right: 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .pending-section {
-    padding-left: 0;
   }
 
   .dependency-grid {

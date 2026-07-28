@@ -36,6 +36,9 @@ describe('OverviewView', () => {
     expect(wrapper.text()).toContain('未配置')
     expect(wrapper.find('svg[aria-label="最近趋势"]').exists()).toBe(true)
     expect(wrapper.get('table[aria-label="最近趋势数据"]').classes()).toContain('sr-only')
+    expect(wrapper.get('.trend-section').classes()).toContain('overview-card')
+    expect(wrapper.get('.pending-section').classes()).toContain('overview-card')
+    expect(wrapper.get('.health-section').classes()).toContain('overview-card')
   })
 
   it('reloads the selected range', async () => {

@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 
 const baseCss = readFileSync(resolve(process.cwd(), 'src/assets/base.css'), 'utf8')
 const mainCss = readFileSync(resolve(process.cwd(), 'src/assets/main.css'), 'utf8')
+const metricStrip = readFileSync(resolve(process.cwd(), 'src/components/data/MetricStrip.vue'), 'utf8')
+const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 
 describe('design tokens', () => {
   it('defines the confirmed coral desk palette and geometry', () => {
@@ -14,7 +16,18 @@ describe('design tokens', () => {
     expect(baseCss).toContain('--color-danger: #9f2525')
     expect(baseCss).toContain('--radius-control: 4px')
     expect(baseCss).toContain('--radius-panel: 6px')
-    expect(baseCss).toContain('--font-ui: "IBM Plex Sans", "Noto Sans SC", sans-serif')
+    expect(baseCss).toContain('--font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif')
+    expect(baseCss).toContain('--space-card: 16px')
+  })
+
+  it('uses the shared card tokens for KPI geometry', () => {
+    expect(metricStrip).toContain('padding: var(--space-card)')
+    expect(metricStrip).toContain('border: 1px solid var(--color-border)')
+    expect(metricStrip).toContain('border-radius: var(--radius-panel)')
+  })
+
+  it('declares Simplified Chinese for the application document', () => {
+    expect(indexHtml).toContain('<html lang="zh-CN">')
   })
 
   it('keeps the app full bleed and honors reduced motion', () => {
