@@ -15,6 +15,7 @@ import AnalyticsView from '@/views/analytics/AnalyticsView.vue'
 import AuditLogsView from '@/views/audit/AuditLogsView.vue'
 import UsersView from '@/views/users/UsersView.vue'
 import AccountView from '@/views/account/AccountView.vue'
+import SystemView from '@/views/system/SystemView.vue'
 import { resolveAuthNavigation } from './guard'
 
 const router = createRouter({
@@ -103,6 +104,12 @@ const router = createRouter({
       name: 'account',
       component: AccountView,
       meta: { title: '个人账号' },
+    },
+    {
+      path: '/system',
+      name: 'system',
+      component: SystemView,
+      meta: { permission: 'system:read', title: '系统设置' },
     },
   ],
 })

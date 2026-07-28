@@ -10,6 +10,7 @@ describe('feature routes', () => {
     const auditMatches = router.resolve('/audit-logs').matched
     const usersMatches = router.resolve('/users').matched
     const accountMatches = router.resolve('/account').matched
+    const systemMatches = router.resolve('/system').matched
 
     expect(scheduledJobMatches[scheduledJobMatches.length - 1]?.meta.permission).toBe(
       'scheduled_jobs:read',
@@ -19,5 +20,6 @@ describe('feature routes', () => {
     expect(auditMatches[auditMatches.length - 1]?.meta.permission).toBe('audit:read')
     expect(usersMatches[usersMatches.length - 1]?.meta.permission).toBe('users:manage')
     expect(accountMatches[accountMatches.length - 1]?.meta.public).not.toBe(true)
+    expect(systemMatches[systemMatches.length - 1]?.meta.permission).toBe('system:read')
   })
 })
