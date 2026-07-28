@@ -29,6 +29,7 @@ const usersNextCursor = ref<string | null>(null)
 const usersHasMore = ref(false)
 const sessionsNextCursor = ref<string | null>(null)
 const sessionsHasMore = ref(false)
+const loadingDetailId = ref<string | null>(null)
 const editorOpen = ref(false)
 const editingUser = ref<AdminUser | null>(null)
 const saving = ref(false)
@@ -146,13 +147,23 @@ function openNew(): void {
   editorOpen.value = true
 }
 
-function openEdit(user: AdminUser): void {
-  editingUser.value = user
-  Object.assign(userForm, {
-    username: user.username, displayName: user.display_name, role: user.role,
-    qqUserId: user.qq_user_id ?? '', password: '',
-  })
-  editorOpen.value = true
+async function openEdit(user: AdminUser): Promise<void> {
+  loadingDetailId.value = user.user_id
+  operationResult.value = null
+  try {
+    const detail = await usersApi.get(user.user_id)
+    editingUser.value = detail
+    Object.assign(userForm, {
+      username: detail.username, displayName: detail.display_name, role: detail.role,
+      qqUserId: detail.qq_user_id ?? '', password: '',
+    })
+    editorOpen.value = true
+  } catch (reason) {
+    operationTone.value = 'danger'
+    operationResult.value = reason instanceof AdminApiError ? reason.message : '账号详情读取失败，未打开编辑器。'
+  } finally {
+    loadingDetailId.value = null
+  }
 }
 
 function replaceUser(saved: AdminUser): void {
@@ -305,7 +316,7 @@ onMounted(() => { void loadUsers() })
           <time data-label="最近登录">{{ displayTime(user.last_login_at) }}</time>
           <span data-label="状态" :class="['status-badge', { disabled: !user.enabled }]">{{ user.enabled ? '正常' : '已停用' }}</span>
           <div class="row-actions">
-            <button :data-test="`edit-user-${user.user_id}`" type="button" title="编辑账号" @click="openEdit(user)"><Pencil :size="15" /></button>
+            <button :data-test="`edit-user-${user.user_id}`" type="button" title="编辑账号" :disabled="loadingDetailId === user.user_id" @click="openEdit(user)"><RefreshCw v-if="loadingDetailId === user.user_id" class="spin" :size="15" /><Pencil v-else :size="15" /></button>
             <button :data-test="`reset-password-${user.user_id}`" type="button" title="重置密码" @click="askUserAction('reset_password', user)"><KeyRound :size="15" /></button>
             <button :data-test="`revoke-user-sessions-${user.user_id}`" type="button" title="撤销全部会话" @click="askUserAction('revoke_user_sessions', user)"><LogOut :size="15" /></button>
             <button v-if="user.enabled" :data-test="`disable-user-${user.user_id}`" class="danger" type="button" title="停用账号" @click="askUserAction('disable_user', user)"><Ban :size="15" /></button>
