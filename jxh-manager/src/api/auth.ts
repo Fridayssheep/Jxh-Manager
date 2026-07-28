@@ -1,4 +1,4 @@
-import { AdminApiError, api, unwrap } from './client'
+import { AdminApiError, api, createIdempotencyKey, unwrap } from './client'
 import type { AuthContext } from './types'
 
 export const authApi = {
@@ -20,6 +20,13 @@ export const authApi = {
     const result = await api.POST('/auth/logout')
     if (result.response.status === 401) return
     unwrap<void>(result)
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<AuthContext> {
+    return unwrap(await api.POST('/auth/change-password', {
+      params: { header: { 'Idempotency-Key': createIdempotencyKey() } },
+      body: { current_password: currentPassword, new_password: newPassword },
+    }))
   },
 }
 
