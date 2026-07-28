@@ -23,6 +23,7 @@ describe('UsersView', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(usersApi, 'list').mockResolvedValue({ items: [makeAdminUser()], next_cursor: null, has_more: false })
+    vi.spyOn(usersApi, 'get').mockResolvedValue(makeAdminUser())
     vi.spyOn(usersApi, 'listSessions').mockResolvedValue({ items: [makeAdminSession()], next_cursor: null, has_more: false })
   })
 
@@ -33,6 +34,25 @@ describe('UsersView', () => {
     await wrapper.get('[data-test=user-display-name]').setValue('夜班维护员')
     await wrapper.get('[data-test=save-user]').trigger('click'); await flushPromises()
     expect(update).toHaveBeenCalledWith('user-2', expect.objectContaining({ display_name: '夜班维护员' }), 4)
+  })
+
+  it('loads the latest account detail before opening the editor', async () => {
+    vi.mocked(usersApi.get).mockResolvedValue(
+      makeAdminUser({ display_name: '详情维护员', role: 'observer', version: 9 }),
+    )
+    const update = vi.spyOn(usersApi, 'update').mockResolvedValue(
+      makeAdminUser({ display_name: '更新后的详情维护员', version: 10 }),
+    )
+    const wrapper = await mountView(); await flushPromises()
+
+    await wrapper.get('[data-test=edit-user-user-2]').trigger('click'); await flushPromises()
+
+    expect(usersApi.get).toHaveBeenCalledWith('user-2')
+    expect((wrapper.get('[data-test=user-display-name]').element as HTMLInputElement).value).toBe('详情维护员')
+    expect((wrapper.get('[data-test=user-role]').element as HTMLSelectElement).value).toBe('observer')
+    await wrapper.get('[data-test=user-display-name]').setValue('更新后的详情维护员')
+    await wrapper.get('[data-test=save-user]').trigger('click'); await flushPromises()
+    expect(update).toHaveBeenCalledWith('user-2', expect.any(Object), 9)
   })
 
   it('shows how many sessions a password reset revoked', async () => {
