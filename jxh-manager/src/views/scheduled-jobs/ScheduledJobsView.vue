@@ -25,6 +25,7 @@ const error = ref<unknown>(null)
 const nextCursor = ref<string | null>(null)
 const hasMore = ref(false)
 const busyIds = ref(new Set<string>())
+const loadingDetailId = ref<string | null>(null)
 const editorOpen = ref(false)
 const editingJob = ref<ScheduledJob | null>(null)
 const saving = ref(false)
@@ -118,22 +119,33 @@ function openNew(): void {
 }
 
 async function openEdit(job: ScheduledJob): Promise<void> {
-  editingJob.value = job
-  Object.assign(form, {
-    name: job.name, groupId: job.group.group_id, message: job.message,
-    scheduleType: job.schedule.type,
-    dailyTime: job.schedule.type === 'daily' ? job.schedule.local_time.slice(0, 5) : '09:00',
-    runAt: job.schedule.type === 'once' ? localDateTime(job.schedule.run_at) : '',
-    status: job.status === 'paused' ? 'paused' : 'active', enabled: job.status === 'active',
-  })
-  editorOpen.value = true
-  runsLoading.value = true
+  loadingDetailId.value = job.job_id
+  operationResult.value = null
   try {
-    const page = await scheduledJobsApi.listRuns(job.job_id, { kind: '', result: '', from: '', to: '', cursor: null })
-    runs.value = page.items
-  } catch {
-    runs.value = []
+    const detail = await scheduledJobsApi.get(job.job_id)
+    editingJob.value = detail
+    Object.assign(form, {
+      name: detail.name, groupId: detail.group.group_id, message: detail.message,
+      scheduleType: detail.schedule.type,
+      dailyTime: detail.schedule.type === 'daily' ? detail.schedule.local_time.slice(0, 5) : '09:00',
+      runAt: detail.schedule.type === 'once' ? localDateTime(detail.schedule.run_at) : '',
+      status: detail.status === 'paused' ? 'paused' : 'active', enabled: detail.status === 'active',
+    })
+    editorOpen.value = true
+    runsLoading.value = true
+    loadingDetailId.value = null
+
+    try {
+      const page = await scheduledJobsApi.listRuns(detail.job_id, { kind: '', result: '', from: '', to: '', cursor: null })
+      runs.value = page.items
+    } catch {
+      runs.value = []
+    }
+  } catch (reason) {
+    operationTone.value = 'danger'
+    operationResult.value = reason instanceof AdminApiError ? reason.message : '任务详情读取失败，未打开编辑器。'
   } finally {
+    loadingDetailId.value = null
     runsLoading.value = false
   }
 }
@@ -279,7 +291,7 @@ onBeforeUnmount(unsubscribe)
         <div class="row-actions">
           <button v-if="auth.hasPermission('scheduled_jobs:write') && ['active','paused'].includes(job.status)" type="button" :title="job.status === 'active' ? '暂停任务' : '恢复任务'" :disabled="busyIds.has(job.job_id)" @click="toggleStatus(job)"><Pause v-if="job.status === 'active'" :size="15" /><Play v-else :size="15" /></button>
           <button :data-test="`test-send-${job.job_id}`" type="button" title="测试发送" @click="askConfirm('test', job)"><FlaskConical :size="15" /></button>
-          <button :data-test="`edit-job-${job.job_id}`" type="button" title="查看或编辑" @click="openEdit(job)"><Pencil :size="15" /></button>
+          <button :data-test="`edit-job-${job.job_id}`" type="button" title="查看或编辑" :disabled="loadingDetailId === job.job_id" @click="openEdit(job)"><LoaderCircle v-if="loadingDetailId === job.job_id" class="spin" :size="15" /><Pencil v-else :size="15" /></button>
         </div>
       </article>
     </section>
