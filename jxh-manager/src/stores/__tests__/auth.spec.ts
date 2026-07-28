@@ -36,6 +36,19 @@ describe('auth store', () => {
     expect(store.isAuthenticated).toBe(false)
   })
 
+  it('clears authentication only when the revoked session is the current session', () => {
+    const store = useAuthStore()
+    store.acceptContext(makeAuthContext())
+
+    expect(store.currentSessionId).toBe('session-1')
+    expect(store.clearSessionIfCurrent('session-other')).toBe(false)
+    expect(store.isAuthenticated).toBe(true)
+
+    expect(store.clearSessionIfCurrent('session-1')).toBe(true)
+    expect(store.currentSessionId).toBeNull()
+    expect(store.isAuthenticated).toBe(false)
+  })
+
   it('treats an unauthenticated bootstrap as a ready signed-out state', async () => {
     vi.spyOn(authApi, 'me').mockResolvedValue(null)
     const store = useAuthStore()

@@ -7,6 +7,7 @@ import type { AdminUser, AuthContext, Permission } from '@/api/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const currentUser = ref<AdminUser | null>(null)
+  const currentSessionId = ref<string | null>(null)
   const permissions = ref<Permission[]>([])
   const ready = ref(false)
   const pending = ref(false)
@@ -17,6 +18,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function acceptContext(context: AuthContext): void {
     currentUser.value = context.user
+    currentSessionId.value = context.session.session_id
     permissions.value = [...context.permissions]
     setCsrfToken(context.csrf_token)
     ready.value = true
@@ -24,9 +26,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   function clearSession(): void {
     currentUser.value = null
+    currentSessionId.value = null
     permissions.value = []
     setCsrfToken(null)
     ready.value = true
+  }
+
+  function clearSessionIfCurrent(sessionId: string | null | undefined): boolean {
+    if (!sessionId || sessionId !== currentSessionId.value) return false
+    clearSession()
+    return true
   }
 
   function hasPermission(permission: Permission): boolean {
@@ -81,6 +90,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     currentUser,
+    currentSessionId,
     permissions,
     ready,
     pending,
@@ -88,6 +98,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     acceptContext,
     clearSession,
+    clearSessionIfCurrent,
     hasPermission,
     bootstrap,
     login,

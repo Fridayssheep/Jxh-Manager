@@ -55,6 +55,9 @@ const typeLabels: Record<KnowledgeEntryType, string> = {
 }
 const operationLabels = { accepted: '已接受', running: '执行中', succeeded: '已完成', failed: '失败' }
 const conflictLabels = { source_key: '来源键', keyword: '关键词', alias: '别名' }
+const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+})
 
 const currentOperation = computed(() => acceptedOperation.value ?? status.value?.current_operation ?? null)
 
@@ -75,7 +78,7 @@ function conflictQuery(cursor: string | null): KnowledgeConflictListQuery {
 }
 
 function displayTime(value: string | null): string {
-  return value ? value.replace('T', ' ').replace('Z', '').slice(0, 16) : '尚无记录'
+  return value ? timeFormatter.format(new Date(value)) : '尚无记录'
 }
 
 async function loadStatus(): Promise<void> {
