@@ -12,6 +12,7 @@ import type {
   SystemOperationStatus,
 } from '@/api/types'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import ConfigurationEditor from '@/components/system/ConfigurationEditor.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
 import { useRuntimeStore } from '@/stores/runtime'
@@ -181,6 +182,8 @@ onBeforeUnmount(unsubscribe)
         <dl><div><dt>操作 ID</dt><dd class="mono">{{ operation.operation_id }}</dd></div><div><dt>请求时间</dt><dd>{{ displayTime(operation.requested_at) }}</dd></div><div><dt>完成时间</dt><dd>{{ displayTime(operation.completed_at) }}</dd></div><div><dt>错误代码</dt><dd class="mono">{{ operation.error_code || '—' }}</dd></div></dl>
       </section>
     </template>
+
+    <ConfigurationEditor :can-write="auth.hasPermission('config:write')" />
 
     <div v-if="restartOpen" class="dialog-layer" role="presentation">
       <section class="restart-dialog" role="alertdialog" aria-modal="true" aria-labelledby="restart-title">

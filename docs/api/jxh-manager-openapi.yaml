@@ -487,6 +487,64 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /system/configuration:
+    get:
+      tags: [System]
+      summary: 获取 Bot 配置文件
+      description: 返回保留结构和注释的 YAML；敏感字段替换为固定占位符，环境变量仅返回覆盖字段名。
+      operationId: getSystemConfiguration
+      x-stage: phase_1
+      x-status: implemented
+      responses:
+        '200':
+          description: 已脱敏的 Bot 配置文件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemConfiguration'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    patch:
+      tags: [System]
+      summary: 修改 Bot 配置文件
+      description: 仅超级管理员可以调用。未修改的敏感字段占位符会恢复为磁盘原值；保存后需要重启 Bot 才能生效。
+      operationId: updateSystemConfiguration
+      x-stage: phase_1
+      x-status: implemented
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemConfigurationPatch'
+      responses:
+        '200':
+          description: 保存后的已脱敏配置文件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemConfiguration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /system/napcat/restart:
     post:
       tags: [System]
@@ -2411,6 +2469,7 @@ components:
         - users:manage
         - sessions:manage
         - system:read
+        - config:write
         - napcat:restart
         - events:read
     Username:
@@ -4804,6 +4863,44 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DependencyHealth'
+    SystemConfiguration:
+      type: object
+      additionalProperties: false
+      required: [yaml, version, masked_fields, environment_overrides, restart_required]
+      properties:
+        yaml:
+          type: string
+          minLength: 1
+          maxLength: 1048576
+          description: 保留结构并使用固定占位符掩码敏感字段的 YAML 文档。
+        version:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        masked_fields:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'
+        environment_overrides:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'
+        restart_required:
+          type: boolean
+          const: true
+    SystemConfigurationPatch:
+      type: object
+      additionalProperties: false
+      required: [yaml]
+      properties:
+        yaml:
+          type: string
+          minLength: 1
+          maxLength: 1048576
     NapCatRestartRequest:
       type: object
       additionalProperties: false

@@ -3,15 +3,24 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { systemApi } from '@/api/system'
+import type { Permission, SystemConfiguration } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 import { useRuntimeStore } from '@/stores/runtime'
 import { makeAuthContext } from '@/test/auth-fixture'
 import { makeSystemHealth, makeSystemOperation } from '@/test/system-fixture'
 import SystemView from '../SystemView.vue'
 
-async function mountView() {
+const configuration: SystemConfiguration = {
+  yaml: 'app:\n  timezone: Asia/Shanghai\n',
+  version: 7,
+  masked_fields: ['admin.session_secret'],
+  environment_overrides: [],
+  restart_required: true,
+}
+
+async function mountView(permissions: Permission[] = ['system:read', 'napcat:restart']) {
   const pinia = createPinia(); setActivePinia(pinia)
-  useAuthStore().acceptContext(makeAuthContext(['system:read', 'napcat:restart']))
+  useAuthStore().acceptContext(makeAuthContext(permissions))
   useRuntimeStore().liveStatus = 'connected'
   return mount(SystemView, { global: { plugins: [pinia] }, attachTo: document.body })
 }
@@ -20,6 +29,7 @@ describe('SystemView', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(systemApi, 'getHealth').mockResolvedValue(makeSystemHealth())
+    vi.spyOn(systemApi, 'getConfiguration').mockResolvedValue(configuration)
   })
 
   it('shows dependencies and SSE in the fixed operational order', async () => {
@@ -50,6 +60,19 @@ describe('SystemView', () => {
     expect(restart).toHaveBeenCalledWith('维护窗口')
     expect(wrapper.text()).toContain('operation-1')
     expect(wrapper.text()).toContain('重启请求已受理')
+  })
+
+  it('shows Bot configuration read-only unless config:write is granted', async () => {
+    const readOnly = await mountView()
+    await flushPromises()
+    expect(readOnly.find('[data-test=system-configuration]').exists()).toBe(true)
+    expect(readOnly.get('[data-test=config-yaml]').attributes('readonly')).toBeDefined()
+    expect(readOnly.find('[data-test=save-configuration]').exists()).toBe(false)
+    readOnly.unmount()
+
+    const writable = await mountView(['system:read', 'config:write'])
+    await flushPromises()
+    expect(writable.get('[data-test=save-configuration]').attributes('type')).toBe('button')
   })
 
   it('reports an unknown outcome when the restart connection is interrupted', async () => {
