@@ -40,9 +40,20 @@ describe('AppShell', () => {
     expect(wrapper.find('[data-test=app-topbar]').exists()).toBe(true)
     expect(wrapper.get('[data-test=account-link]').attributes('href')).toBe('/account')
     expect(wrapper.findAll('[data-test=navigation-highlight]')).toHaveLength(1)
+    for (const [href, label] of [
+      ['/', '总览'],
+      ['/groups', '群与设置'],
+      ['/system', '系统设置'],
+    ]) {
+      const link = wrapper.get(`.navigation-item[href="${href}"]`)
+      expect(link.attributes('aria-label')).toBe(label)
+      expect(link.attributes('title')).toBe(label)
+    }
     expect(wrapper.text()).not.toContain('实时同步')
     expect(wrapper.text()).not.toContain('等待实时连接')
     expect(wrapper.text()).not.toContain('服务状态待同步')
-    expect(warn.mock.calls.flat().join(' ')).not.toContain('No match found for location with path "/account"')
+    expect(warn.mock.calls.flat().join(' ')).not.toContain(
+      'No match found for location with path "/account"',
+    )
   })
 })
