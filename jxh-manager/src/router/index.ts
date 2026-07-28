@@ -7,6 +7,8 @@ import GroupsView from '@/views/groups/GroupsView.vue'
 import GroupDetailView from '@/views/groups/GroupDetailView.vue'
 import GlobalSettingsView from '@/views/settings/GlobalSettingsView.vue'
 import JoinRequestsView from '@/views/join-requests/JoinRequestsView.vue'
+import CommandsView from '@/views/commands/CommandsView.vue'
+import CommandEditorView from '@/views/commands/CommandEditorView.vue'
 import { resolveAuthNavigation } from './guard'
 
 const router = createRouter({
@@ -47,6 +49,18 @@ const router = createRouter({
       name: 'join-requests',
       component: JoinRequestsView,
       meta: { permission: 'join_requests:read', title: '入群审批' },
+    },
+    {
+      path: '/commands',
+      name: 'commands',
+      component: CommandsView,
+      meta: { permission: 'commands:read', title: '自定义命令' },
+    },
+    {
+      path: '/commands/:commandId',
+      name: 'command-editor',
+      component: CommandEditorView,
+      meta: { permission: 'commands:read', title: '命令编辑器' },
     },
   ],
 })
