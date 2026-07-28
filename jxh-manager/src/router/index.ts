@@ -11,6 +11,7 @@ import CommandsView from '@/views/commands/CommandsView.vue'
 import CommandEditorView from '@/views/commands/CommandEditorView.vue'
 import ScheduledJobsView from '@/views/scheduled-jobs/ScheduledJobsView.vue'
 import KnowledgeView from '@/views/knowledge/KnowledgeView.vue'
+import AnalyticsView from '@/views/analytics/AnalyticsView.vue'
 import { resolveAuthNavigation } from './guard'
 
 const router = createRouter({
@@ -75,6 +76,12 @@ const router = createRouter({
       name: 'knowledge',
       component: KnowledgeView,
       meta: { permission: 'knowledge:read', title: '知识库' },
+    },
+    {
+      path: '/analytics',
+      name: 'analytics',
+      component: AnalyticsView,
+      meta: { permission: 'analytics:read', title: '统计分析' },
     },
   ],
 })
