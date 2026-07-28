@@ -337,12 +337,19 @@ blockquote {
 .validation-state--invalid { color: var(--color-danger); }
 
 .policy-switch {
+  position: relative;
   justify-content: flex-end;
   cursor: pointer;
 }
 
 .policy-switch input {
   position: absolute;
+  z-index: 1;
+  left: 0;
+  width: 34px;
+  height: 19px;
+  margin: 0;
+  cursor: inherit;
   opacity: 0;
 }
 

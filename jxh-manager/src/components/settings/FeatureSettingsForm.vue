@@ -181,6 +181,7 @@ function setMode(key: FeatureKey, mode: FeatureMode): void {
 }
 
 .switch-control {
+  position: relative;
   display: grid;
   grid-template-columns: 36px auto;
   align-items: center;
@@ -190,6 +191,12 @@ function setMode(key: FeatureKey, mode: FeatureMode): void {
 
 .switch-control input {
   position: absolute;
+  z-index: 1;
+  left: 0;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  cursor: inherit;
   opacity: 0;
 }
 

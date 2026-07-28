@@ -17,8 +17,11 @@ const { status: liveStatus } = useAdminEvents({
   topics: ['overview', 'join_requests', 'scheduled_jobs', 'knowledge', 'system', 'auth'],
   enabled: computed(() => auth.isAuthenticated && auth.hasPermission('events:read')),
   onEvent: (event) => {
-    if (event.event === 'auth.session_revoked') {
-      auth.clearSession()
+    if (
+      event.event === 'auth.session_revoked' &&
+      event.resource?.type === 'session' &&
+      auth.clearSessionIfCurrent(event.resource.id)
+    ) {
       void router.replace({ name: 'login' })
     }
   },

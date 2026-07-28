@@ -22,10 +22,10 @@ npm install
 npm run dev
 ```
 
-开发服务器默认打开 `http://127.0.0.1:5173`。如需连接其他管理 API，可设置：
+开发服务器默认打开 `http://127.0.0.1:5173`，并将同源 `/api/admin/v1` 代理到本机 `http://127.0.0.1:8090`。如需连接其他管理 API，可设置：
 
 ```powershell
-$env:VITE_ADMIN_API_BASE_URL='http://127.0.0.1:8080/api/admin/v1'
+$env:VITE_ADMIN_API_BASE_URL='http://127.0.0.1:8090/api/admin/v1'
 npm run dev
 ```
 

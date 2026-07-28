@@ -32,6 +32,18 @@ describe('KnowledgeView', () => {
     expect(wrapper.findAll('button').map((button) => button.text()).join('')).not.toMatch(/保存词条|编辑词条/)
   })
 
+  it('renders the last successful reload in the browser local timezone', async () => {
+    const lastSuccessAt = '2026-07-28T11:51:00Z'
+    vi.mocked(knowledgeApi.getStatus).mockResolvedValue(makeKnowledgeStatus({ last_success_at: lastSuccessAt }))
+    const expected = new Intl.DateTimeFormat('zh-CN', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(lastSuccessAt))
+
+    const wrapper = await mountView(); await flushPromises()
+
+    expect(wrapper.get('[aria-label="知识库状态"]').text()).toContain(expected)
+  })
+
   it('shows the accepted reload operation for later status refresh', async () => {
     const reload = vi.spyOn(knowledgeApi, 'reload').mockResolvedValue({
       operation_id: 'reload-1', status: 'accepted', started_at: '2026-07-28T06:00:00Z', completed_at: null, error_code: null,
