@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 
+import type { SystemConfiguration } from '../../src/api/types'
 import { makeAnalyticsRankings, makeAnalyticsSummary, makeAnalyticsTimeseries } from '../../src/test/analytics-fixture'
 import { makeAuditLog, makeAuditLogSummary } from '../../src/test/audit-fixture'
 import { makeCommandValidationResult } from '../../src/test/command-fixture'
@@ -31,8 +32,16 @@ const permissions = [
   'join_requests:read', 'join_requests:decide', 'join_policies:write',
   'commands:read', 'commands:write', 'scheduled_jobs:read', 'scheduled_jobs:write',
   'knowledge:read', 'knowledge:reload', 'analytics:read', 'analytics:export',
-  'audit:read', 'users:manage', 'sessions:manage', 'system:read', 'napcat:restart',
+  'audit:read', 'users:manage', 'sessions:manage', 'system:read', 'config:write', 'napcat:restart',
 ] as const
+
+const initialSystemConfiguration: SystemConfiguration = {
+  yaml: 'app:\n  timezone: "Asia/Shanghai"\nadmin:\n  session_secret: __JXH_SECRET_UNCHANGED__\n',
+  version: 7,
+  masked_fields: ['admin.session_secret'],
+  environment_overrides: [],
+  restart_required: true,
+}
 
 const group = {
   group_id: '10001', name: '精弘网络维护群', member_count: 428, max_member_count: 500,
@@ -101,6 +110,7 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
   const requests: RecordedAdminRequest[] = []
   const consoleErrors: string[] = []
   let authenticated = options.authenticated ?? true
+  let systemConfiguration = { ...initialSystemConfiguration }
 
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text())
@@ -262,6 +272,18 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
 
     if (method === 'GET' && path === '/system/health') {
       await route.fulfill({ json: makeSystemHealth() }); return
+    }
+    if (method === 'GET' && path === '/system/configuration') {
+      await route.fulfill({ json: systemConfiguration }); return
+    }
+    if (method === 'PATCH' && path === '/system/configuration') {
+      const patch = recorded.body as { yaml?: string }
+      systemConfiguration = {
+        ...systemConfiguration,
+        yaml: patch.yaml ?? systemConfiguration.yaml,
+        version: systemConfiguration.version + 1,
+      }
+      await route.fulfill({ json: systemConfiguration }); return
     }
     if (method === 'POST' && path === '/system/napcat/restart') {
       await route.fulfill({ status: 202, json: makeSystemOperation() }); return

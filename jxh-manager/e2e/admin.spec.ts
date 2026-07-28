@@ -238,6 +238,24 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expect(request.body).toMatchObject({ display_name: '更新后的详情维护员' })
   })
 
+  test('Bot 配置文件保存携带资源版本和 CSRF', async ({ page }) => {
+    const api = await installAdminApi(page)
+    await page.goto('/system')
+
+    const editor = page.locator('[data-test="config-yaml"]')
+    await expect(editor).toHaveValue(/timezone: "Asia\/Shanghai"/)
+    await editor.fill('app:\n  timezone: "Asia/Tokyo"\n')
+    await page.locator('[data-test="save-configuration"]').click()
+    await expect(page.getByText('配置文件已保存，重启 Bot 后生效。')).toBeVisible()
+
+    const request = api.findRequest('PATCH', '/system/configuration')!
+    expectCsrf(request)
+    expect(request.headers['if-match']).toBe('"7"')
+    expect(request.body).toEqual({ yaml: 'app:\n  timezone: "Asia/Tokyo"\n' })
+    await expect(page.getByText('版本 8')).toBeVisible()
+    expect(api.consoleErrors).toEqual([])
+  })
+
   test('NapCat 仅接受小写 restart 并提交受控重启', async ({ page }) => {
     const api = await installAdminApi(page)
     await page.goto('/system')
