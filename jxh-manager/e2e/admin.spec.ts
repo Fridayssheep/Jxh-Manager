@@ -162,6 +162,24 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expect(request.headers['if-match']).toBe('"7"')
   })
 
+  test('编辑定时任务使用详情版本提交更新', async ({ page }) => {
+    const api = await installAdminApi(page)
+    await page.goto('/scheduled-jobs')
+    await page.locator('[data-test="edit-job-job-1"]').click()
+
+    await expect(page.getByRole('heading', { name: '编辑任务' })).toBeVisible()
+    await expect(page.locator('[data-test="job-name"]')).toHaveValue('详情中的每日提醒')
+    await page.locator('[data-test="job-name"]').fill('更新后的每日提醒')
+    await page.locator('[data-test="save-job"]').click()
+    await expect(page.getByText('更新后的每日提醒 已保存，版本 13。')).toBeVisible()
+
+    expect(api.findRequest('GET', '/scheduled-jobs/job-1')).toBeDefined()
+    const request = api.findRequest('PATCH', '/scheduled-jobs/job-1')!
+    expectCsrf(request)
+    expect(request.headers['if-match']).toBe('"12"')
+    expect(request.body).toMatchObject({ name: '更新后的每日提醒' })
+  })
+
   test('知识库重载显示已受理操作并携带幂等键', async ({ page }) => {
     const api = await installAdminApi(page)
     await page.goto('/knowledge')
@@ -200,6 +218,24 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
 
     const request = api.findRequest('POST', '/sessions/session-2/revoke')!
     expectCsrf(request); expectIdempotencyKey(request)
+  })
+
+  test('编辑管理账号使用详情版本提交更新', async ({ page }) => {
+    const api = await installAdminApi(page)
+    await page.goto('/users')
+    await page.locator('[data-test="edit-user-user-2"]').click()
+
+    await expect(page.getByRole('heading', { name: '编辑管理账号' })).toBeVisible()
+    await expect(page.locator('[data-test="user-display-name"]')).toHaveValue('详情维护员')
+    await page.locator('[data-test="user-display-name"]').fill('更新后的详情维护员')
+    await page.locator('[data-test="save-user"]').click()
+    await expect(page.getByText('更新后的详情维护员 已保存，版本 10。')).toBeVisible()
+
+    expect(api.findRequest('GET', '/users/user-2')).toBeDefined()
+    const request = api.findRequest('PATCH', '/users/user-2')!
+    expectCsrf(request)
+    expect(request.headers['if-match']).toBe('"9"')
+    expect(request.body).toMatchObject({ display_name: '更新后的详情维护员' })
   })
 
   test('NapCat 仅接受小写 restart 并提交受控重启', async ({ page }) => {
