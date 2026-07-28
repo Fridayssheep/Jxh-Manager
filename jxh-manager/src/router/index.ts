@@ -3,6 +3,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { pinia } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import OverviewView from '@/views/overview/OverviewView.vue'
+import GroupsView from '@/views/groups/GroupsView.vue'
+import GroupDetailView from '@/views/groups/GroupDetailView.vue'
+import GlobalSettingsView from '@/views/settings/GlobalSettingsView.vue'
 import { resolveAuthNavigation } from './guard'
 
 const router = createRouter({
@@ -19,6 +22,24 @@ const router = createRouter({
       name: 'overview',
       component: OverviewView,
       meta: { permission: 'overview:read', title: '总览' },
+    },
+    {
+      path: '/groups',
+      name: 'groups',
+      component: GroupsView,
+      meta: { permission: 'groups:read', title: '群与设置' },
+    },
+    {
+      path: '/groups/:groupId',
+      name: 'group-detail',
+      component: GroupDetailView,
+      meta: { permission: 'groups:read', title: '群详情' },
+    },
+    {
+      path: '/settings',
+      name: 'global-settings',
+      component: GlobalSettingsView,
+      meta: { permission: 'settings:read', title: '全局设置' },
     },
   ],
 })
