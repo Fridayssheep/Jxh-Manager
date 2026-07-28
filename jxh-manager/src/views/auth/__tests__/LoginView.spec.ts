@@ -47,4 +47,12 @@ describe('LoginView', () => {
     expect(auth.login).toHaveBeenCalledWith('operator', 'a-secure-password')
     expect(router.currentRoute.value.path).toBe('/')
   })
+
+  it('shows a persistent service warning after an offline bootstrap', async () => {
+    const { wrapper, auth } = await mountLogin()
+    auth.bootstrapError = new TypeError('network offline')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('管理服务暂时不可用')
+  })
 })

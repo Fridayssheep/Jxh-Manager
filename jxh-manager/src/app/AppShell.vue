@@ -150,10 +150,10 @@ async function logout(): Promise<void> {
           >
             <RefreshCw :size="17" :class="{ spin: refreshPending }" aria-hidden="true" />
           </button>
-          <RouterLink class="account-link" to="/account">
+          <div class="account-link" aria-label="当前账号">
             <span class="account-avatar">{{ auth.currentUser?.display_name.slice(0, 1) }}</span>
             <span class="account-name">{{ auth.currentUser?.display_name }}</span>
-          </RouterLink>
+          </div>
           <button class="icon-button" type="button" title="退出登录" aria-label="退出登录" @click="logout">
             <LogOut :size="17" aria-hidden="true" />
           </button>
