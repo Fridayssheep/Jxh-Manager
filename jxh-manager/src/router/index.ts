@@ -6,6 +6,7 @@ import OverviewView from '@/views/overview/OverviewView.vue'
 import GroupsView from '@/views/groups/GroupsView.vue'
 import GroupDetailView from '@/views/groups/GroupDetailView.vue'
 import GlobalSettingsView from '@/views/settings/GlobalSettingsView.vue'
+import JoinRequestsView from '@/views/join-requests/JoinRequestsView.vue'
 import { resolveAuthNavigation } from './guard'
 
 const router = createRouter({
@@ -40,6 +41,12 @@ const router = createRouter({
       name: 'global-settings',
       component: GlobalSettingsView,
       meta: { permission: 'settings:read', title: '全局设置' },
+    },
+    {
+      path: '/join-requests',
+      name: 'join-requests',
+      component: JoinRequestsView,
+      meta: { permission: 'join_requests:read', title: '入群审批' },
     },
   ],
 })
