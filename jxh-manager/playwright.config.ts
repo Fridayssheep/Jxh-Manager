@@ -27,20 +27,19 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  reporter: process.env.CI
+    ? [['line'], ['html', { open: 'never' }]]
+    : 'line',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
     actionTimeout: 0,
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.CI ? 'http://localhost:4173' : 'http://localhost:5173',
+    baseURL: process.env.CI ? 'http://127.0.0.1:4173' : 'http://127.0.0.1:5173',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
-
-    /* Only on CI systems run the tests headless */
-    headless: !!process.env.CI,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
 
   /* Configure projects for major browsers */
@@ -49,52 +48,34 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        viewport: { width: 1440, height: 1024 },
       },
     },
     {
-      name: 'firefox',
+      name: 'chromium-tablet',
+      grepInvert: /@desktop/,
       use: {
-        ...devices['Desktop Firefox'],
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        viewport: { width: 1024, height: 768 },
       },
     },
     {
-      name: 'webkit',
+      name: 'chromium-mobile',
+      grepInvert: /@desktop/,
       use: {
-        ...devices['Desktop Safari'],
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        isMobile: true,
       },
     },
-
-    /* Test against mobile viewports. */
-    // {
-    //   name: 'Mobile Chrome',
-    //   use: {
-    //     ...devices['Pixel 5'],
-    //   },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: {
-    //     ...devices['iPhone 12'],
-    //   },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: {
-    //     channel: 'msedge',
-    //   },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: {
-    //     channel: 'chrome',
-    //   },
-    // },
   ],
 
   /* Folder for test artifacts such as screenshots, videos, traces, etc. */
-  // outputDir: 'test-results/',
+  outputDir: 'output/playwright/test-results',
 
   /* Run your local dev server before starting the tests */
   webServer: {
