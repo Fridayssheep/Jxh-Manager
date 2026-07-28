@@ -60,7 +60,7 @@ function formatValue(metric: DashboardMetric): string {
   min-width: 0;
   height: 104px;
   align-content: space-between;
-  padding: 13px 14px 12px;
+  padding: var(--space-card);
   overflow: hidden;
   background: var(--color-surface);
   border: 1px solid var(--color-border);

@@ -115,7 +115,7 @@ Figma 文件 [Jxh Manager - 珊瑚红事务台](https://www.figma.com/design/yVx
 | `border` | `#D8DDDA` | 常规边框与分隔线 |
 | `border-strong` | `#B8BFBB` | 聚焦前的强边界和拖拽边界 |
 
-页面不能被白色卡片切割成大量浮岛。相邻功能区优先使用留白、分隔线和全宽带状背景组织。
+页面不能被白色卡片切割成大量浮岛。相邻功能区优先使用留白、分隔线和全宽带状背景组织；总览下半区的趋势、待处理和系统健康属于需要明确边界的工具面板，应使用带边框的圆角卡片。
 
 ### 4.3 语义色
 
@@ -144,11 +144,11 @@ Figma 文件 [Jxh Manager - 珊瑚红事务台](https://www.figma.com/design/yVx
 ### 5.1 字体
 
 ```css
---font-ui: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+--font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
 --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", monospace;
 ```
 
-- 中文正文使用 `Noto Sans SC`，拉丁字符与数字优先使用 `IBM Plex Sans`。
+- 界面优先使用系统 UI 字体；中文在 Windows 使用 `Microsoft YaHei`，在 Apple 平台使用 `PingFang SC`，并保留 CJK 后备字体。
 - QQ、群号、请求 ID、版本、时间和代码值使用等宽字体。
 - 不使用超大营销标题；页面标题上限为 24px。
 - 字间距统一为 0，不随视口宽度缩放字号。
@@ -252,7 +252,7 @@ Figma 文件 [Jxh Manager - 珊瑚红事务台](https://www.figma.com/design/yVx
 
 ### 9.2 总览
 
-KPI 采用一行紧凑重复项，卡片圆角不超过 6px。品牌红只用于最主要趋势，健康度和待办按语义色展示。“需要处理”区域比装饰性图表优先。
+KPI 采用一行紧凑重复项，卡片圆角不超过 6px。最近趋势、需要处理和系统健康均使用与 KPI 一致的浅灰边框、6px 圆角和统一外缘内边距。品牌红只用于最主要趋势，健康度和待办按语义色展示。“需要处理”区域比装饰性图表优先。
 
 ### 9.3 群与设置
 

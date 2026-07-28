@@ -28,12 +28,13 @@
   --color-unknown: #6d7470;
   --color-unknown-surface: #f1f3f1;
 
-  --font-ui: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
   --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", monospace;
 
   --radius-control: 4px;
   --radius-panel: 6px;
   --radius-overlay: 8px;
+  --space-card: 16px;
   --duration-fast: 140ms;
   --duration-overlay: 220ms;
 
