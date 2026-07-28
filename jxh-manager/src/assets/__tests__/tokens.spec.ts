@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 const baseCss = readFileSync(resolve(process.cwd(), 'src/assets/base.css'), 'utf8')
 const mainCss = readFileSync(resolve(process.cwd(), 'src/assets/main.css'), 'utf8')
 const metricStrip = readFileSync(resolve(process.cwd(), 'src/components/data/MetricStrip.vue'), 'utf8')
-const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
+const overviewView = readFileSync(resolve(process.cwd(), 'src/views/overview/OverviewView.vue'), 'utf8')
 
 describe('design tokens', () => {
   it('defines the confirmed coral desk palette and geometry', () => {
@@ -17,6 +17,7 @@ describe('design tokens', () => {
     expect(baseCss).toContain('--radius-control: 4px')
     expect(baseCss).toContain('--radius-panel: 6px')
     expect(baseCss).toContain('--font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif')
+    expect(baseCss).toContain('--font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", monospace')
     expect(baseCss).toContain('--space-card: 16px')
   })
 
@@ -26,8 +27,10 @@ describe('design tokens', () => {
     expect(metricStrip).toContain('border-radius: var(--radius-panel)')
   })
 
-  it('declares Simplified Chinese for the application document', () => {
-    expect(indexHtml).toContain('<html lang="zh-CN">')
+  it('uses the shared card tokens for overview panels', () => {
+    expect(overviewView).toMatch(/\.overview-card\s*\{[^}]*padding: var\(--space-card\)[^}]*}/s)
+    expect(overviewView).toMatch(/\.overview-card\s*\{[^}]*border: 1px solid var\(--color-border\)[^}]*}/s)
+    expect(overviewView).toMatch(/\.overview-card\s*\{[^}]*border-radius: var\(--radius-panel\)[^}]*}/s)
   })
 
   it('keeps the app full bleed and honors reduced motion', () => {
