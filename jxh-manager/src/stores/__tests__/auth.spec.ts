@@ -1,0 +1,48 @@
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { authApi } from '@/api/auth'
+import { makeAuthContext } from '@/test/auth-fixture'
+import { useAuthStore } from '../auth'
+
+describe('auth store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    sessionStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps the csrf token and authenticated user in memory after login', async () => {
+    vi.spyOn(authApi, 'login').mockResolvedValue(makeAuthContext(['overview:read', 'groups:read']))
+    const store = useAuthStore()
+
+    await store.login('operator', 'a-secure-password')
+
+    expect(store.currentUser?.username).toBe('operator')
+    expect(store.hasPermission('groups:read')).toBe(true)
+    expect(localStorage.length).toBe(0)
+    expect(sessionStorage.length).toBe(0)
+  })
+
+  it('clears the local identity when the API reports an expired session', async () => {
+    vi.spyOn(authApi, 'login').mockResolvedValue(makeAuthContext())
+    const store = useAuthStore()
+    await store.login('operator', 'a-secure-password')
+
+    store.clearSession()
+
+    expect(store.currentUser).toBeNull()
+    expect(store.isAuthenticated).toBe(false)
+  })
+
+  it('treats an unauthenticated bootstrap as a ready signed-out state', async () => {
+    vi.spyOn(authApi, 'me').mockResolvedValue(null)
+    const store = useAuthStore()
+
+    await store.bootstrap()
+
+    expect(store.ready).toBe(true)
+    expect(store.isAuthenticated).toBe(false)
+  })
+})
