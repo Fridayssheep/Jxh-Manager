@@ -192,6 +192,16 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
     if (method === 'GET' && path === '/scheduled-jobs') {
       await route.fulfill({ json: { items: [makeScheduledJob()], next_cursor: null, has_more: false } }); return
     }
+    if (method === 'GET' && path === '/scheduled-jobs/job-1') {
+      await route.fulfill({ json: makeScheduledJob({ name: '详情中的每日提醒', version: 12 }) }); return
+    }
+    if (method === 'PATCH' && path === '/scheduled-jobs/job-1') {
+      const patch = recorded.body as { name?: string }
+      await route.fulfill({ json: makeScheduledJob({ name: patch.name ?? '详情中的每日提醒', version: 13 }) }); return
+    }
+    if (method === 'GET' && path === '/scheduled-jobs/job-1/runs') {
+      await route.fulfill({ json: { items: [makeScheduledJobRun()], next_cursor: null, has_more: false } }); return
+    }
     if (method === 'POST' && path === '/scheduled-jobs/job-1/test-send') {
       await route.fulfill({ json: makeScheduledJobRun({ kind: 'test', result: 'success' }) }); return
     }
@@ -235,6 +245,13 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
 
     if (method === 'GET' && path === '/users') {
       await route.fulfill({ json: { items: [makeAdminUser()], next_cursor: null, has_more: false } }); return
+    }
+    if (method === 'GET' && path === '/users/user-2') {
+      await route.fulfill({ json: makeAdminUser({ display_name: '详情维护员', role: 'observer', version: 9 }) }); return
+    }
+    if (method === 'PATCH' && path === '/users/user-2') {
+      const patch = recorded.body as { display_name?: string }
+      await route.fulfill({ json: makeAdminUser({ display_name: patch.display_name ?? '详情维护员', role: 'observer', version: 10 }) }); return
     }
     if (method === 'GET' && path === '/sessions') {
       await route.fulfill({ json: { items: [makeAdminSession()], next_cursor: null, has_more: false } }); return
