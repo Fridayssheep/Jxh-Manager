@@ -258,6 +258,7 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
 test('应用壳和关键页面适配当前 viewport', async ({ page }, testInfo) => {
   const api = await installAdminApi(page)
   await page.goto('/')
+  await expect(page.locator('.vue-devtools__anchor')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '总览' })).toBeVisible()
   await expect(page.locator('[data-test="app-topbar"]')).toHaveCSS('height', '52px')
   const trendChart = page.getByRole('img', { name: '最近趋势' })
