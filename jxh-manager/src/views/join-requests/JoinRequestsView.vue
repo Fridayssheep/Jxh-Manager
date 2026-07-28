@@ -168,6 +168,21 @@ function resetFilters(): void {
   void load()
 }
 
+async function loadOptionalPolicy(groupId: string): Promise<JoinRequestPolicy | null> {
+  try {
+    return await joinRequestsApi.getPolicy(groupId)
+  } catch (reason) {
+    if (
+      reason instanceof AdminApiError &&
+      reason.status === 404 &&
+      reason.code === 'not_found'
+    ) {
+      return null
+    }
+    throw reason
+  }
+}
+
 async function openRequest(item: JoinRequestSummary): Promise<void> {
   activeId.value = item.request_id
   detailLoading.value = true
@@ -178,7 +193,7 @@ async function openRequest(item: JoinRequestSummary): Promise<void> {
     const [nextDetail, history, nextPolicy] = await Promise.all([
       joinRequestsApi.get(item.request_id),
       joinRequestsApi.listDecisions(item.request_id),
-      joinRequestsApi.getPolicy(item.group.group_id),
+      loadOptionalPolicy(item.group.group_id),
     ])
     if (activeId.value !== item.request_id) return
     detail.value = nextDetail

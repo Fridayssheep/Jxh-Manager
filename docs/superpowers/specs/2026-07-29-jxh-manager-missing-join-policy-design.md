@@ -10,7 +10,7 @@
 
 - `GET /join-requests/{request_id}` 返回 200；
 - `GET /join-requests/{request_id}/decisions` 返回 200；
-- `GET /groups/{group_id}/join-request-policy` 按现有契约返回 404 `resource_not_found`。
+- `GET /groups/{group_id}/join-request-policy` 按当前后端实现返回 404 `not_found`。
 
 审批页当前用一个 `Promise.all` 同时读取三项数据。策略 404 会让整个读取失败，导致已经成功返回的申请详情和决策历史被清空，并误显示“join request does not exist”。
 
@@ -18,7 +18,7 @@
 
 ### 方案 A：前端将策略 404 视为缺省状态（采用）
 
-审批页仅对策略请求的 `404 + resource_not_found` 返回 `null`，继续展示申请详情和决策历史。现有详情组件已经支持 `policy: null`，此时不显示策略开关。
+审批页仅对策略请求的 `404 + not_found` 返回 `null`，继续展示申请详情和决策历史。现有详情组件已经支持 `policy: null`，此时不显示策略开关。
 
 优点是保持后端和 OpenAPI 的真实资源语义，不伪造可修改版本，也不修改历史数据。缺点是浏览器开发者工具仍会记录一次预期的 404。
 
@@ -35,7 +35,7 @@
 在 `JoinRequestsView.vue` 内增加局部的可选策略读取函数：
 
 1. 正常返回时保留 `JoinRequestPolicy`。
-2. 仅当错误是 `AdminApiError`，且状态为 404、错误码为 `resource_not_found` 时返回 `null`。
+2. 仅当错误是 `AdminApiError`，且状态为 404、错误码为 `not_found` 时返回 `null`。OpenAPI 的通用 404 响应使用 `resource_not_found` 作为示例，但 `Error.code` 没有枚举约束；当前后端统一使用 `not_found`，本次按真实响应实现且不修改 API 契约。
 3. 403、409、5xx、网络错误及未知错误继续抛出，由现有详情失败提示处理。
 4. `openRequest` 继续并行读取申请、决策历史和可选策略。
 5. 策略为 `null` 时详情与决策操作保持可用，策略区和策略修改入口保持隐藏。
@@ -48,7 +48,7 @@
 
 - 列表正常返回申请；
 - 申请详情和决策历史正常返回；
-- 策略读取拒绝并携带 `404 + resource_not_found`；
+- 策略读取拒绝并携带 `404 + not_found`；
 - 点击申请后仍显示详情中的 AI 提取字段；
 - 页面不显示“join request does not exist”错误；
 - 策略开关不出现。

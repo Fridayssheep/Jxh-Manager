@@ -4,7 +4,7 @@
 
 **Goal:** 当历史入群申请所属群没有持久化策略时，审批页继续展示申请详情和决策历史，同时隐藏策略控制。
 
-**Architecture:** 在 `JoinRequestsView.vue` 的消费边界增加一个局部可选策略加载函数。它只把 `AdminApiError` 的 `404 + resource_not_found` 转换为 `null`，其余异常继续交给现有详情错误处理；API 客户端、后端契约和数据库均不修改。
+**Architecture:** 在 `JoinRequestsView.vue` 的消费边界增加一个局部可选策略加载函数。它只把 `AdminApiError` 的 `404 + not_found` 转换为 `null`，其余异常继续交给现有详情错误处理；API 客户端、后端契约和数据库均不修改。
 
 **Tech Stack:** Vue 3、TypeScript、Vitest、Vue Test Utils
 
@@ -30,7 +30,7 @@ import { AdminApiError } from '@/api/client'
 it('keeps request details visible when the group policy does not exist', async () => {
   vi.mocked(joinRequestsApi.getPolicy).mockRejectedValue(
     new AdminApiError(404, {
-      code: 'resource_not_found',
+      code: 'not_found',
       message: 'join request does not exist',
       request_id: 'request-policy-404',
       fields: {},
@@ -71,7 +71,7 @@ async function loadOptionalPolicy(groupId: string): Promise<JoinRequestPolicy | 
     if (
       reason instanceof AdminApiError &&
       reason.status === 404 &&
-      reason.code === 'resource_not_found'
+      reason.code === 'not_found'
     ) {
       return null
     }
