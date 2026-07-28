@@ -247,6 +247,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/configuration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取 Bot 配置文件
+         * @description 返回保留结构和注释的 YAML；敏感字段替换为固定占位符，环境变量仅返回覆盖字段名。
+         */
+        get: operations["getSystemConfiguration"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 修改 Bot 配置文件
+         * @description 仅超级管理员可以调用。未修改的敏感字段占位符会恢复为磁盘原值；保存后需要重启 Bot 才能生效。
+         */
+        patch: operations["updateSystemConfiguration"];
+        trace?: never;
+    };
     "/system/napcat/restart": {
         parameters: {
             query?: never;
@@ -889,7 +913,7 @@ export interface components {
         /** @enum {string} */
         AdminRole: "super_admin" | "maintainer" | "observer";
         /** @enum {string} */
-        Permission: "overview:read" | "groups:read" | "groups:sync" | "settings:read" | "settings:write" | "join_requests:read" | "join_requests:decide" | "join_policies:write" | "commands:read" | "commands:write" | "scheduled_jobs:read" | "scheduled_jobs:write" | "knowledge:read" | "knowledge:reload" | "analytics:read" | "analytics:export" | "audit:read" | "users:manage" | "sessions:manage" | "system:read" | "napcat:restart" | "events:read";
+        Permission: "overview:read" | "groups:read" | "groups:sync" | "settings:read" | "settings:write" | "join_requests:read" | "join_requests:decide" | "join_policies:write" | "commands:read" | "commands:write" | "scheduled_jobs:read" | "scheduled_jobs:write" | "knowledge:read" | "knowledge:reload" | "analytics:read" | "analytics:export" | "audit:read" | "users:manage" | "sessions:manage" | "system:read" | "config:write" | "napcat:restart" | "events:read";
         Username: string;
         /** Format: password */
         Password: string;
@@ -1841,6 +1865,18 @@ export interface components {
             readiness: "healthy" | "degraded" | "unavailable";
             dependencies: components["schemas"]["DependencyHealth"][];
         };
+        SystemConfiguration: {
+            /** @description 保留结构并使用固定占位符掩码敏感字段的 YAML 文档。 */
+            yaml: string;
+            version: number;
+            masked_fields: string[];
+            environment_overrides: string[];
+            /** @constant */
+            restart_required: true;
+        };
+        SystemConfigurationPatch: {
+            yaml: string;
+        };
         NapCatRestartRequest: {
             /** @constant */
             confirmation: "restart";
@@ -2490,6 +2526,62 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    getSystemConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已脱敏的 Bot 配置文件 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemConfiguration"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    updateSystemConfiguration: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 资源 version 的带双引号十进制表示，例如 "7" */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemConfigurationPatch"];
+            };
+        };
+        responses: {
+            /** @description 保存后的已脱敏配置文件 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemConfiguration"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            428: components["responses"]["PreconditionRequired"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     restartNapCat: {
