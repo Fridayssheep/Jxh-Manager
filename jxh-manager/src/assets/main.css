@@ -57,6 +57,22 @@ a {
     background-color var(--duration-fast) ease;
 }
 
+button.filter-submit {
+  min-inline-size: 84px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+button:is(.filter-reset, .icon-action, .icon-button) {
+  display: grid;
+  inline-size: 38px;
+  min-inline-size: 38px;
+  block-size: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  padding: 0;
+}
+
 .page-rise-enter-active {
   transition: opacity var(--duration-overlay) ease;
 }
