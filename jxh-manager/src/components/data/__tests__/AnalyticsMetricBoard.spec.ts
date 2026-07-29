@@ -6,7 +6,9 @@ import AnalyticsMetricBoard from '../AnalyticsMetricBoard.vue'
 
 describe('AnalyticsMetricBoard', () => {
   it('shows four operational KPIs and groups every remaining raw metric once', () => {
-    const metrics = [...makeAnalyticsSummary().metrics].reverse()
+    const metrics = [...makeAnalyticsSummary().metrics]
+      .reverse()
+      .map((metric) => ({ ...metric, label: `Backend label: ${metric.key}` }))
     const wrapper = mount(AnalyticsMetricBoard, { props: { metrics } })
 
     expect(wrapper.findAll('[data-test^="analytics-kpi-"]')).toHaveLength(4)
@@ -23,6 +25,10 @@ describe('AnalyticsMetricBoard', () => {
     )
     expect(wrapper.findAll('[data-test^="analytics-metric-row-"]')).toHaveLength(12)
     expect(wrapper.findAll('[data-test="analytics-metric-group"]')).toHaveLength(3)
+    expect(wrapper.get('[data-test="analytics-metric-row-keyword_reply_count"]').text()).toContain(
+      '关键词回复',
+    )
+    expect(wrapper.text()).not.toContain('Backend label:')
   })
 
   it('does not invent an automatic approval share without a valid denominator', () => {

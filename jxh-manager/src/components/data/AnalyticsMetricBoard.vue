@@ -19,27 +19,35 @@ const kpiDefinitions = [
   { key: 'ai_success_rate', label: 'AI 成功率', icon: Bot },
 ] as const
 
-const metricGroups: { title: string; keys: AnalyticsMetricKey[] }[] = [
+const metricGroups: {
+  title: string
+  metrics: { key: AnalyticsMetricKey; label: string }[]
+}[] = [
   {
     title: '互动触达',
-    keys: ['keyword_reply_count', 'ai_request_count', 'command_run_count', 'link_clean_count'],
+    metrics: [
+      { key: 'keyword_reply_count', label: '关键词回复' },
+      { key: 'ai_request_count', label: 'AI 请求' },
+      { key: 'command_run_count', label: '命令运行' },
+      { key: 'link_clean_count', label: '链接净化' },
+    ],
   },
   {
     title: '审批自动化',
-    keys: [
-      'join_request_count',
-      'automatic_approval_count',
-      'manual_approval_count',
-      'scheduled_job_run_count',
+    metrics: [
+      { key: 'join_request_count', label: '入群申请' },
+      { key: 'automatic_approval_count', label: '自动审批' },
+      { key: 'manual_approval_count', label: '人工审批' },
+      { key: 'scheduled_job_run_count', label: '定时任务运行' },
     ],
   },
   {
     title: '服务质量',
-    keys: [
-      'ai_duration_ms',
-      'quote_success_count',
-      'quote_fallback_count',
-      'quote_failure_count',
+    metrics: [
+      { key: 'ai_duration_ms', label: 'AI 平均耗时' },
+      { key: 'quote_success_count', label: '引用成功' },
+      { key: 'quote_fallback_count', label: '引用回退' },
+      { key: 'quote_failure_count', label: '引用失败' },
     ],
   },
 ]
@@ -149,19 +157,19 @@ function formatChange(metric: AnalyticsMetric | undefined): string {
         </header>
         <div class="analytics-metric-list">
           <div
-            v-for="key in group.keys"
-            :key="key"
+            v-for="metric in group.metrics"
+            :key="metric.key"
             class="analytics-metric-row"
-            :data-test="`analytics-metric-row-${key}`"
+            :data-test="`analytics-metric-row-${metric.key}`"
           >
-            <span>{{ metricMap.get(key)?.label ?? key }}</span>
-            <strong class="mono">{{ formatValue(metricMap.get(key)) }}</strong>
+            <span>{{ metric.label }}</span>
+            <strong class="mono">{{ formatValue(metricMap.get(metric.key)) }}</strong>
             <small
               :class="{
-                negative: (metricMap.get(key)?.change_percent ?? 0) < 0,
+                negative: (metricMap.get(metric.key)?.change_percent ?? 0) < 0,
               }"
             >
-              {{ formatChange(metricMap.get(key)) }}
+              {{ formatChange(metricMap.get(metric.key)) }}
             </small>
           </div>
         </div>
