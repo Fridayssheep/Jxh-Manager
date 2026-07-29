@@ -43,6 +43,7 @@ describe('AnalyticsView', () => {
     const { wrapper, router } = await mountView()
     await flushPromises()
 
+    expect(analyticsApi.getSummary).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('12,840')
     await wrapper.get('input[name=group_id]').setValue('10002')
     await wrapper.get('select[name=metric]').setValue('ai_request_count')
@@ -61,6 +62,24 @@ describe('AnalyticsView', () => {
     expect(analyticsApi.getTimeseries).toHaveBeenLastCalledWith(
       expect.objectContaining({ metrics: ['ai_request_count'], groupIds: ['10002'] }),
     )
+    expect(analyticsApi.getSummary).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps local analysis controls out of the summary request lifecycle', async () => {
+    const summaryRequest = vi.mocked(analyticsApi.getSummary)
+    const timeseriesRequest = vi.mocked(analyticsApi.getTimeseries)
+    const rankingsRequest = vi.mocked(analyticsApi.getRankings)
+    const { wrapper, router } = await mountView()
+    await flushPromises()
+
+    expect(summaryRequest).toHaveBeenCalledTimes(1)
+    await wrapper.get('select[name=metric]').setValue('quote_failure_count')
+    await flushPromises()
+
+    expect(router.currentRoute.value.query.metric).toBe('quote_failure_count')
+    expect(summaryRequest).toHaveBeenCalledTimes(1)
+    expect(timeseriesRequest).toHaveBeenCalledTimes(2)
+    expect(rankingsRequest).toHaveBeenCalledTimes(2)
   })
 
   it('exports the active filter set', async () => {
