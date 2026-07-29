@@ -79,7 +79,7 @@ describe('JoinRequestsView', () => {
     await flushPromises()
 
     expect(joinRequestsApi.list).toHaveBeenCalledWith(
-      expect.objectContaining({ decisionStatus: ['pending'], cursor: null }),
+      expect.objectContaining({ decisionStatus: ['pending'], cursor: null, limit: 10 }),
     )
     await wrapper.get('[data-test=request-row-flag-10001]').trigger('click')
     await flushPromises()
@@ -209,5 +209,60 @@ describe('JoinRequestsView', () => {
     expect(wrapper.text()).toContain('处理结果未知')
     expect(wrapper.text()).toContain('不要重复提交')
     expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
+  })
+
+  it('replaces cursor pages and clears page-bound selection and detail state', async () => {
+    const pageTwo = makeJoinRequestSummary({
+      request_id: 'flag-page-2',
+      applicant_qq: '11223344',
+      version: 2,
+    })
+    vi.mocked(joinRequestsApi.list).mockImplementation(async (query) => {
+      if (query.cursor === 'cursor-2') {
+        return { items: [pageTwo], next_cursor: null, has_more: false }
+      }
+      return { items: [first], next_cursor: 'cursor-2', has_more: true }
+    })
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=select-flag-10001]').setValue(true)
+    await wrapper.get('[data-test=request-row-flag-10001]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test=bulk-approve]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('计算机科学与技术')
+
+    await wrapper.get('[data-test=cursor-next]').trigger('click')
+    await flushPromises()
+
+    expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: 'cursor-2', limit: 10 }),
+    )
+    expect(wrapper.find('[data-test=request-row-flag-10001]').exists()).toBe(false)
+    expect(wrapper.find('[data-test=request-row-flag-page-2]').exists()).toBe(true)
+    expect(wrapper.find('[data-test=bulk-approve]').exists()).toBe(false)
+    expect(wrapper.get('[aria-label="申请详情"]').text()).not.toContain('计算机科学与技术')
+
+    await wrapper.get('[data-test=cursor-previous]').trigger('click')
+    await flushPromises()
+
+    expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: null, limit: 10 }),
+    )
+    expect(wrapper.find('[data-test=request-row-flag-10001]').exists()).toBe(true)
+    expect(wrapper.find('[data-test=request-row-flag-page-2]').exists()).toBe(false)
+  })
+
+  it('keeps the queue in an internal scroll region with one sliding active highlight', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test=request-scroll]').exists()).toBe(true)
+    expect(wrapper.find('[data-test=request-row-highlight]').exists()).toBe(true)
+    expect(wrapper.find('[data-test=cursor-pager]').exists()).toBe(true)
+
+    await wrapper.get('[data-test=request-row-flag-10001]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test=request-row-highlight]').attributes('style')).toContain('opacity: 1')
   })
 })
