@@ -94,6 +94,28 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
       .toBe(true)
   })
 
+  test('positions the active marker on the highlight left edge at every breakpoint', async ({
+    page,
+  }) => {
+    await installAdminApi(page)
+    await page.goto('/knowledge')
+    await expect(page.locator('[data-test="reload-knowledge"]')).toBeVisible()
+
+    for (const viewport of [
+      { width: 1339, height: 662 },
+      { width: 1024, height: 768 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport)
+      const edges = await page.locator('[data-test="navigation-highlight"]').evaluate((highlight) => {
+        const highlightLeft = highlight.getBoundingClientRect().left
+        const markerOffset = Number.parseFloat(getComputedStyle(highlight, '::before').left)
+        return { highlightLeft, markerLeft: highlightLeft + markerOffset }
+      })
+      expect(edges.markerLeft).toBeCloseTo(edges.highlightLeft, 5)
+    }
+  })
+
   test('登录后进入总览且 CSRF 只保留在内存', async ({ page }) => {
     const api = await installAdminApi(page, { authenticated: false })
     await page.goto('/')

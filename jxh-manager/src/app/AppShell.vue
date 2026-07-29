@@ -346,7 +346,7 @@ onBeforeUnmount(() => {
 
 .navigation-highlight::before {
   position: absolute;
-  inset: 8px auto 8px -12px;
+  inset: 8px auto 8px 0;
   width: 3px;
   content: '';
   background: var(--color-brand-500);
@@ -518,10 +518,6 @@ onBeforeUnmount(() => {
     padding: 0;
   }
 
-  .navigation-highlight::before {
-    left: -8px;
-  }
-
   .workspace {
     margin-left: var(--sidebar-collapsed-width);
   }
@@ -581,10 +577,6 @@ onBeforeUnmount(() => {
     grid-template-columns: 18px minmax(0, 1fr) auto;
     justify-items: stretch;
     padding: 0 10px;
-  }
-
-  .navigation-highlight::before {
-    left: -12px;
   }
 
   .workspace {
