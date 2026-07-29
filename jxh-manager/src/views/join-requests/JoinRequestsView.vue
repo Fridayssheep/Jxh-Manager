@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   CheckCircle2,
   ChevronRight,
   Clock3,
   FilterX,
-  LoaderCircle,
   RefreshCw,
   Search,
   XCircle,
@@ -27,17 +26,22 @@ import DecisionDialog from '@/components/join-requests/DecisionDialog.vue'
 import JoinRequestDetail from '@/components/join-requests/JoinRequestDetail.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
+import CursorPager from '@/components/navigation/CursorPager.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
+import { useSlidingIndicator } from '@/composables/useSlidingIndicator'
+import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const route = useRoute()
 const items = ref<JoinRequestSummary[]>([])
 const loading = ref(false)
-const loadingMore = ref(false)
 const error = ref<unknown>(null)
 const nextCursor = ref<string | null>(null)
 const hasMore = ref(false)
+const pageIndex = ref(0)
+const cursorHistory = ref<(string | null)[]>([null])
+const queueRevision = ref(0)
 const activeId = ref<string | null>(null)
 const detail = ref<JoinRequest | null>(null)
 const detailLoading = ref(false)
@@ -48,6 +52,12 @@ const selectedIds = ref(new Set<string>())
 const decisionBusy = ref(false)
 const operationResult = ref<string | null>(null)
 const operationTone = ref<'success' | 'danger' | 'unknown' | 'warning'>('success')
+const requestList = ref<HTMLElement | null>(null)
+const requestRows = new Map<string, HTMLElement>()
+const { indicatorStyle, updateIndicator } = useSlidingIndicator({
+  container: requestList,
+  target: () => activeId.value ? requestRows.get(activeId.value) ?? null : null,
+})
 
 const dialog = reactive<{
   open: boolean
@@ -145,6 +155,11 @@ function setSort(value: string): void {
   filters.sort = value as typeof filters.sort
 }
 
+function setRequestRowElement(requestId: string, element: unknown): void {
+  if (element instanceof HTMLElement) requestRows.set(requestId, element)
+  else requestRows.delete(requestId)
+}
+
 function listQuery(cursor: string | null): JoinRequestListQuery {
   return {
     groupId: filters.groupId.trim(),
@@ -162,25 +177,59 @@ function listQuery(cursor: string | null): JoinRequestListQuery {
     query: filters.query.trim(),
     sort: filters.sort,
     cursor,
+    limit: 10,
   }
 }
 
-async function load(reset = true): Promise<void> {
-  if (reset) loading.value = true
-  else loadingMore.value = true
+function clearPageState(): void {
+  selectedIds.value = new Set()
+  activeId.value = null
+  detail.value = null
+  decisions.value = []
+  policy.value = null
+  detailLoading.value = false
+  dialog.open = false
+}
+
+async function loadPage(index: number, cursor: string | null): Promise<void> {
+  loading.value = true
   error.value = null
   try {
-    const result = await joinRequestsApi.list(listQuery(reset ? null : nextCursor.value))
-    items.value = reset ? result.items : [...items.value, ...result.items]
+    const result = await joinRequestsApi.list(listQuery(cursor))
+    items.value = result.items
     nextCursor.value = result.next_cursor
     hasMore.value = result.has_more
-    if (reset) selectedIds.value = new Set()
+    pageIndex.value = index
+    queueRevision.value += 1
+    clearPageState()
   } catch (reason) {
     error.value = reason
   } finally {
     loading.value = false
-    loadingMore.value = false
   }
+}
+
+async function load(): Promise<void> {
+  cursorHistory.value = [null]
+  await loadPage(0, null)
+}
+
+async function refreshCurrentPage(): Promise<void> {
+  await loadPage(pageIndex.value, cursorHistory.value[pageIndex.value] ?? null)
+}
+
+async function nextPage(): Promise<void> {
+  const cursor = nextCursor.value
+  if (!hasMore.value || !cursor || loading.value) return
+  const index = pageIndex.value + 1
+  cursorHistory.value = [...cursorHistory.value.slice(0, index), cursor]
+  await loadPage(index, cursor)
+}
+
+async function previousPage(): Promise<void> {
+  if (pageIndex.value === 0 || loading.value) return
+  const index = pageIndex.value - 1
+  await loadPage(index, cursorHistory.value[index] ?? null)
 }
 
 function resetFilters(): void {
@@ -351,9 +400,15 @@ async function updatePolicy(enabled: boolean): Promise<void> {
 
 const unsubscribe = subscribeToAdminEvents((event) => {
   if (event.event === 'join_request.created' || event.event === 'join_request.updated') {
-    void load()
+    void refreshCurrentPage()
   }
 })
+
+watch(
+  [activeId, queueRevision],
+  () => void updateIndicator(),
+  { flush: 'post' },
+)
 
 onMounted(() => load())
 onBeforeUnmount(unsubscribe)
@@ -366,7 +421,7 @@ onBeforeUnmount(unsubscribe)
         <h1>入群审批</h1>
         <p>核对验证消息与 AI 提取字段，并将明确决策提交给 NapCat。</p>
       </div>
-      <button class="refresh-button" type="button" :disabled="loading" @click="load()">
+      <button class="refresh-button" type="button" :disabled="loading" @click="refreshCurrentPage">
         <RefreshCw :size="16" :class="{ spin: loading }" aria-hidden="true" />刷新队列
       </button>
     </header>
@@ -432,84 +487,100 @@ onBeforeUnmount(unsubscribe)
 
     <section class="approval-workspace">
       <div class="request-queue">
-        <ResourceState
-          v-if="loading"
-          state="loading"
-          title="正在读取申请队列"
-          description="筛选条件和已打开详情保持不变。"
-        />
-        <ResourceState
-          v-else-if="error"
-          state="error"
-          title="申请队列读取失败"
-          description="请恢复连接后重试。"
-          @retry="load()"
-        />
-        <ResourceState
-          v-else-if="!items.length"
-          state="empty"
-          title="没有符合条件的申请"
-          description="调整筛选条件，或等待新的入群申请。"
-        />
+        <div data-test="request-scroll" class="request-scroll">
+          <div v-smooth-resize v-rise-on-change="queueRevision" class="request-queue-content">
+            <ResourceState
+              v-if="loading"
+              state="loading"
+              title="正在读取申请队列"
+              description="当前页保持不变，直到新数据读取成功。"
+            />
+            <ResourceState
+              v-else-if="error"
+              state="error"
+              title="申请队列读取失败"
+              description="请恢复连接后重试。"
+              @retry="refreshCurrentPage"
+            />
+            <ResourceState
+              v-else-if="!items.length"
+              state="empty"
+              title="没有符合条件的申请"
+              description="调整筛选条件，或等待新的入群申请。"
+            />
 
-        <div v-else class="request-list" aria-label="入群申请列表">
-          <article
-            v-for="item in items"
-            :key="item.request_id"
-            :data-test="`request-row-${item.request_id}`"
-            :class="['request-row', { 'request-row--active': activeId === item.request_id }]"
-            tabindex="0"
-            @click="openRequest(item)"
-            @keydown.enter="openRequest(item)"
-          >
-            <label v-if="auth.hasPermission('join_requests:decide')" class="row-select" @click.stop>
-              <input
-                type="checkbox"
-                :data-test="`select-${item.request_id}`"
-                :checked="selectedIds.has(item.request_id)"
-                :disabled="selectionDisabled(item) || item.decision_status !== 'pending'"
-                :aria-label="`选择 ${item.applicant_qq}`"
-                @change="setSelected(item, ($event.target as HTMLInputElement).checked)"
+            <div v-else ref="requestList" class="request-list" aria-label="入群申请列表">
+              <span
+                data-test="request-row-highlight"
+                class="request-row-highlight"
+                :style="indicatorStyle"
+                aria-hidden="true"
               />
-            </label>
-            <div class="request-main">
-              <header>
-                <strong>{{ item.applicant_nickname || item.applicant_qq }}</strong>
-                <span class="mono">{{ item.applicant_qq }}</span>
-                <span :class="['status-badge', `status-badge--${item.decision_status}`]">
-                  {{ decisionLabels[item.decision_status] ?? item.decision_status }}
-                </span>
-              </header>
-              <p>{{ item.verification_message || '未填写验证消息' }}</p>
-              <footer>
-                <span>{{ item.group.name }}</span>
-                <span :class="['ai-label', `ai-label--${item.ai_parse.status}`]">{{ aiLabels[item.ai_parse.status] ?? item.ai_parse.status }}</span>
-                <span v-if="item.overdue" class="overdue-label"><Clock3 :size="12" aria-hidden="true" />逾期</span>
-                <time class="mono">{{ timeFormatter.format(new Date(item.requested_at)) }}</time>
-              </footer>
+              <article
+                v-for="item in items"
+                :key="item.request_id"
+                :ref="(element) => setRequestRowElement(item.request_id, element)"
+                :data-test="`request-row-${item.request_id}`"
+                :class="['request-row', { 'request-row--active': activeId === item.request_id }]"
+                tabindex="0"
+                @click="openRequest(item)"
+                @keydown.enter="openRequest(item)"
+              >
+                <label v-if="auth.hasPermission('join_requests:decide')" class="row-select" @click.stop>
+                  <input
+                    type="checkbox"
+                    :data-test="`select-${item.request_id}`"
+                    :checked="selectedIds.has(item.request_id)"
+                    :disabled="selectionDisabled(item) || item.decision_status !== 'pending'"
+                    :aria-label="`选择 ${item.applicant_qq}`"
+                    @change="setSelected(item, ($event.target as HTMLInputElement).checked)"
+                  />
+                </label>
+                <div class="request-main">
+                  <header>
+                    <strong>{{ item.applicant_nickname || item.applicant_qq }}</strong>
+                    <span class="mono">{{ item.applicant_qq }}</span>
+                    <span :class="['status-badge', `status-badge--${item.decision_status}`]">
+                      {{ decisionLabels[item.decision_status] ?? item.decision_status }}
+                    </span>
+                  </header>
+                  <p>{{ item.verification_message || '未填写验证消息' }}</p>
+                  <footer>
+                    <span>{{ item.group.name }}</span>
+                    <span :class="['ai-label', `ai-label--${item.ai_parse.status}`]">{{ aiLabels[item.ai_parse.status] ?? item.ai_parse.status }}</span>
+                    <span v-if="item.overdue" class="overdue-label"><Clock3 :size="12" aria-hidden="true" />逾期</span>
+                    <time class="mono">{{ timeFormatter.format(new Date(item.requested_at)) }}</time>
+                  </footer>
+                </div>
+                <ChevronRight :size="17" aria-hidden="true" />
+              </article>
             </div>
-            <ChevronRight :size="17" aria-hidden="true" />
-          </article>
+          </div>
         </div>
-
-        <button v-if="hasMore" class="load-more" type="button" :disabled="loadingMore" @click="load(false)">
-          <LoaderCircle v-if="loadingMore" class="spin" :size="16" aria-hidden="true" />
-          {{ loadingMore ? '正在读取' : '加载更多申请' }}
-        </button>
+        <CursorPager
+          :page-number="pageIndex + 1"
+          :has-previous="pageIndex > 0"
+          :has-next="hasMore && Boolean(nextCursor)"
+          :busy="loading"
+          @previous="previousPage"
+          @next="nextPage"
+        />
       </div>
 
-      <JoinRequestDetail
-        :request="detail"
-        :decisions="decisions"
-        :policy="policy"
-        :loading="detailLoading"
-        :policy-busy="policyBusy"
-        :can-decide="auth.hasPermission('join_requests:decide')"
-        :can-manage-policy="auth.hasPermission('join_policies:write')"
-        @approve="openDecision('approve', 'single')"
-        @reject="openDecision('reject', 'single')"
-        @policy-change="updatePolicy"
-      />
+      <div v-smooth-resize v-rise-on-change="`${activeId ?? ''}:${detail?.version ?? ''}`" class="request-detail-motion">
+        <JoinRequestDetail
+          :request="detail"
+          :decisions="decisions"
+          :policy="policy"
+          :loading="detailLoading"
+          :policy-busy="policyBusy"
+          :can-decide="auth.hasPermission('join_requests:decide')"
+          :can-manage-policy="auth.hasPermission('join_policies:write')"
+          @approve="openDecision('approve', 'single')"
+          @reject="openDecision('reject', 'single')"
+          @policy-change="updatePolicy"
+        />
+      </div>
     </section>
 
     <DecisionDialog
@@ -716,17 +787,64 @@ onBeforeUnmount(unsubscribe)
 }
 
 .request-queue {
+  display: grid;
+  height: clamp(430px, calc(100dvh - 300px), 720px);
   min-width: 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
 }
 
+.request-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.request-queue-content,
+.request-detail-motion {
+  min-width: 0;
+}
+
 .request-list {
+  position: relative;
   display: grid;
 }
 
+.request-row-highlight {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  background: var(--color-brand-surface);
+  border-radius: var(--radius-control);
+  transition:
+    width var(--duration-overlay) ease,
+    height var(--duration-overlay) ease,
+    opacity var(--duration-fast) ease,
+    transform var(--duration-overlay) cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.request-row-highlight::before {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  content: '';
+  background: var(--color-brand-500);
+  border-radius: 0 2px 2px 0;
+}
+
 .request-row {
+  position: relative;
+  z-index: 1;
   display: grid;
   min-width: 0;
   min-height: 92px;
@@ -738,13 +856,12 @@ onBeforeUnmount(unsubscribe)
   border-bottom: 1px solid var(--color-border);
 }
 
-.request-row:hover {
+.request-row:hover:not(.request-row--active) {
   background: var(--color-surface-raised);
 }
 
 .request-row--active {
-  background: var(--color-brand-surface);
-  box-shadow: inset 3px 0 var(--color-brand-500);
+  color: var(--color-brand-ink);
 }
 
 .row-select input {
@@ -832,11 +949,6 @@ onBeforeUnmount(unsubscribe)
   white-space: nowrap;
 }
 
-.load-more {
-  width: calc(100% - 24px);
-  margin: 12px;
-}
-
 .spin {
   animation: spin 700ms linear infinite;
 }
@@ -869,6 +981,10 @@ onBeforeUnmount(unsubscribe)
 
   .approval-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .request-queue {
+    height: min(620px, calc(100dvh - 220px));
   }
 }
 
@@ -929,5 +1045,13 @@ onBeforeUnmount(unsubscribe)
   .request-row time {
     margin-left: 0;
   }
+
+  .request-queue {
+    height: min(560px, calc(100dvh - 190px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .request-row-highlight { transition-duration: 0.01ms; }
 }
 </style>
