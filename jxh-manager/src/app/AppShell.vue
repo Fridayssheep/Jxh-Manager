@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { LogOut, Menu, RefreshCw, X } from '@lucide/vue'
 
 import logoAvatar from '@/assets/logo-avatar.webp'
+import { useSlidingIndicator } from '@/composables/useSlidingIndicator'
 import { useAuthStore } from '@/stores/auth'
 import { canAccessNavigation, managementNavigation, primaryNavigation } from './navigation'
 
@@ -23,8 +24,20 @@ const router = useRouter()
 const sidebar = ref<HTMLElement | null>(null)
 const mobileMenuOpen = ref(false)
 const refreshPending = ref(false)
-const navigationHighlightStyle = ref<Record<string, string>>({ opacity: '0' })
-let navigationResizeObserver: ResizeObserver | null = null
+const { indicatorStyle: navigationHighlightStyle, updateIndicator: updateNavigationHighlight } =
+  useSlidingIndicator({
+    container: sidebar,
+    target: () =>
+      sidebar.value?.querySelector<HTMLElement>(
+        '.navigation-item.router-link-exact-active, .navigation-item.router-link-active',
+      ) ?? null,
+    observeElements: () =>
+      Array.from(
+        sidebar.value?.querySelectorAll<HTMLElement>(
+          '.sidebar-navigation, .sidebar-management',
+        ) ?? [],
+      ),
+  })
 
 const visiblePrimaryNavigation = computed(() =>
   primaryNavigation.filter((item) => canAccessNavigation(item, auth.permissions)),
@@ -32,26 +45,6 @@ const visiblePrimaryNavigation = computed(() =>
 const visibleManagementNavigation = computed(() =>
   managementNavigation.filter((item) => canAccessNavigation(item, auth.permissions)),
 )
-
-async function updateNavigationHighlight(): Promise<void> {
-  await nextTick()
-  const sidebarElement = sidebar.value
-  const activeLink = sidebarElement?.querySelector<HTMLElement>(
-    '.navigation-item.router-link-exact-active, .navigation-item.router-link-active',
-  )
-  if (!sidebarElement || !activeLink) {
-    navigationHighlightStyle.value = { opacity: '0' }
-    return
-  }
-  const sidebarRect = sidebarElement.getBoundingClientRect()
-  const activeRect = activeLink.getBoundingClientRect()
-  navigationHighlightStyle.value = {
-    opacity: '1',
-    width: `${activeRect.width}px`,
-    height: `${activeRect.height}px`,
-    transform: `translate3d(${activeRect.left - sidebarRect.left}px, ${activeRect.top - sidebarRect.top}px, 0)`,
-  }
-}
 
 function closeMobileMenu(): void {
   mobileMenuOpen.value = false
@@ -81,23 +74,6 @@ watch(
   },
   { flush: 'post' },
 )
-onMounted(() => {
-  window.addEventListener('resize', updateNavigationHighlight)
-  if (sidebar.value && typeof ResizeObserver !== 'undefined') {
-    navigationResizeObserver = new ResizeObserver(() => {
-      void updateNavigationHighlight()
-    })
-    navigationResizeObserver.observe(sidebar.value)
-    sidebar.value
-      .querySelectorAll<HTMLElement>('.sidebar-navigation, .sidebar-management')
-      .forEach((navigation) => navigationResizeObserver?.observe(navigation))
-  }
-  void updateNavigationHighlight()
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateNavigationHighlight)
-  navigationResizeObserver?.disconnect()
-})
 </script>
 
 <template>
