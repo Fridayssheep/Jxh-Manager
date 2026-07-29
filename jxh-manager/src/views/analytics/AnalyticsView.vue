@@ -23,6 +23,8 @@ import AnalyticsMetricBoard from '@/components/data/AnalyticsMetricBoard.vue'
 import AnalyticsTrendChart from '@/components/data/AnalyticsTrendChart.vue'
 import RankingTable from '@/components/data/RankingTable.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
+import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -37,6 +39,8 @@ const summaryError = ref<unknown>(null)
 const analysisError = ref<unknown>(null)
 const exporting = ref(false)
 const exportResult = ref('')
+const summaryRevision = ref(0)
+const analysisRevision = ref(0)
 const globalFilter = reactive({
   from: '',
   to: '',
@@ -70,6 +74,42 @@ const metricOptions: { value: AnalyticsMetricKey; label: string }[] = [
   { value: 'quote_success_count', label: '引用图成功' },
   { value: 'quote_fallback_count', label: '引用图回退' },
   { value: 'quote_failure_count', label: '引用图失败' },
+]
+const exportDatasetOptions: readonly AppSelectOption[] = [
+  { value: 'summary', label: '指标汇总' },
+  { value: 'timeseries', label: '趋势明细' },
+  { value: 'rankings', label: '排行' },
+  { value: 'join_requests', label: '入群申请' },
+  { value: 'scheduled_job_runs', label: '任务运行' },
+]
+const exportFormatOptions: readonly AppSelectOption[] = [
+  { value: 'csv', label: 'CSV' },
+  { value: 'xlsx', label: 'XLSX' },
+]
+const featureOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部功能' },
+  { value: 'ai_qa', label: 'AI 问答' },
+  { value: 'quote', label: '引用图' },
+  { value: 'link_cleaner', label: '链接净化' },
+  { value: 'custom_commands', label: '自定义命令' },
+]
+const resultOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部结果' },
+  { value: 'success', label: '成功' },
+  { value: 'failed', label: '失败' },
+  { value: 'fallback', label: '降级' },
+  { value: 'denied', label: '拒绝' },
+  { value: 'unknown', label: '未知' },
+  { value: 'skipped', label: '跳过' },
+]
+const granularityOptions: readonly AppSelectOption[] = [
+  { value: 'day', label: '按日' },
+  { value: 'hour', label: '按小时' },
+]
+const dimensionOptions: readonly AppSelectOption[] = [
+  { value: 'group', label: '群' },
+  { value: 'command', label: '命令' },
+  { value: 'knowledge_entry', label: '知识词条' },
 ]
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 
@@ -123,7 +163,10 @@ async function loadSummary(): Promise<void> {
   summaryError.value = null
   try {
     const nextSummary = await analyticsApi.getSummary(commonQuery.value)
-    if (requestId === summaryRequestId) summary.value = nextSummary
+    if (requestId === summaryRequestId) {
+      summary.value = nextSummary
+      summaryRevision.value += 1
+    }
   } catch (reason) {
     if (requestId === summaryRequestId) summaryError.value = reason
   } finally {
@@ -152,6 +195,7 @@ async function loadAnalysis(): Promise<void> {
     if (requestId === analysisRequestId) {
       timeseries.value = nextTimeseries
       rankings.value = nextRankings
+      analysisRevision.value += 1
     }
   } catch (reason) {
     if (requestId === analysisRequestId) analysisError.value = reason
@@ -163,6 +207,34 @@ async function loadAnalysis(): Promise<void> {
 function reloadAll(): void {
   void loadSummary()
   void loadAnalysis()
+}
+
+function setExportDataset(value: string): void {
+  exportOptions.dataset = value as AnalyticsDataset
+}
+
+function setExportFormat(value: string): void {
+  exportOptions.format = value as AnalyticsExportFormat
+}
+
+function setFeatureKey(value: string): void {
+  globalFilter.featureKey = value as FeatureKey | ''
+}
+
+function setResult(value: string): void {
+  globalFilter.result = value as AnalyticsResultFilter | ''
+}
+
+function setMetric(value: string): void {
+  analysisFilter.metric = value as AnalyticsMetricKey
+}
+
+function setGranularity(value: string): void {
+  analysisFilter.granularity = value as AnalyticsGranularity
+}
+
+function setDimension(value: string): void {
+  analysisFilter.dimension = value as AnalyticsDimension
 }
 
 async function applyFilters(): Promise<void> {
@@ -253,10 +325,18 @@ watch(
     <header class="page-header">
       <div><h1>统计分析</h1><p>对比业务趋势、群与自动化排行，并下载当前筛选范围的数据。</p></div>
       <div v-if="auth.hasPermission('analytics:export')" class="export-tools">
-        <select v-model="exportOptions.dataset" aria-label="导出数据集">
-          <option value="summary">指标汇总</option><option value="timeseries">趋势明细</option><option value="rankings">排行</option><option value="join_requests">入群申请</option><option value="scheduled_job_runs">任务运行</option>
-        </select>
-        <select v-model="exportOptions.format" aria-label="导出格式"><option value="csv">CSV</option><option value="xlsx">XLSX</option></select>
+        <AppSelect
+          :model-value="exportOptions.dataset"
+          :options="exportDatasetOptions"
+          accessible-name="导出数据集"
+          @update:model-value="setExportDataset"
+        />
+        <AppSelect
+          :model-value="exportOptions.format"
+          :options="exportFormatOptions"
+          accessible-name="导出格式"
+          @update:model-value="setExportFormat"
+        />
         <button data-test="export-analytics" type="button" :disabled="exporting" @click="exportAnalytics"><Download :size="16" />{{ exporting ? '导出中' : '导出' }}</button>
       </div>
     </header>
@@ -273,8 +353,26 @@ watch(
         </div>
       </div>
       <label class="filter-field"><span>群号</span><input v-model.trim="globalFilter.groupId" name="group_id" inputmode="numeric" placeholder="全部群" /></label>
-      <label class="filter-field"><span>功能</span><select v-model="globalFilter.featureKey" name="feature_key"><option value="">全部功能</option><option value="ai_qa">AI 问答</option><option value="quote">引用图</option><option value="link_cleaner">链接净化</option><option value="custom_commands">自定义命令</option></select></label>
-      <label class="filter-field"><span>结果</span><select v-model="globalFilter.result" name="result"><option value="">全部结果</option><option value="success">成功</option><option value="failed">失败</option><option value="fallback">降级</option><option value="denied">拒绝</option><option value="unknown">未知</option><option value="skipped">跳过</option></select></label>
+      <label class="filter-field">
+        <span>功能</span>
+        <AppSelect
+          :model-value="globalFilter.featureKey"
+          :options="featureOptions"
+          accessible-name="功能"
+          name="feature_key"
+          @update:model-value="setFeatureKey"
+        />
+      </label>
+      <label class="filter-field">
+        <span>结果</span>
+        <AppSelect
+          :model-value="globalFilter.result"
+          :options="resultOptions"
+          accessible-name="结果"
+          name="result"
+          @update:model-value="setResult"
+        />
+      </label>
       <div class="filter-actions">
         <button class="filter-submit" type="submit">应用筛选</button>
         <button class="filter-reset" type="button" aria-label="清除筛选" title="清除筛选" @click="resetFilters"><FilterX :size="16" /></button>
@@ -286,32 +384,70 @@ watch(
 
     <template v-else-if="summary">
       <div v-if="summaryError" class="stale-state"><RefreshCw :size="15" />刷新失败，当前仍显示上一次成功数据。</div>
-      <AnalyticsMetricBoard :metrics="summary.metrics" />
+      <AnalyticsMetricBoard :metrics="summary.metrics" :revision="summaryRevision" />
 
       <section class="analytics-workspace">
-        <section class="trend-section analytics-card">
+        <section v-smooth-resize class="trend-section analytics-card">
           <header>
             <div><h2>趋势</h2><p>{{ metricOptions.find((item) => item.value === analysisFilter.metric)?.label }} · {{ analysisFilter.granularity === 'day' ? '按日' : '按小时' }}</p></div>
             <div class="analysis-controls">
-              <label><span>指标</span><select v-model="analysisFilter.metric" name="metric" @change="applyAnalysisFilters"><option v-for="item in metricOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-              <label><span>粒度</span><select v-model="analysisFilter.granularity" name="granularity" @change="applyAnalysisFilters"><option value="day">按日</option><option value="hour">按小时</option></select></label>
+              <label>
+                <span>指标</span>
+                <AppSelect
+                  :model-value="analysisFilter.metric"
+                  :options="metricOptions"
+                  accessible-name="指标"
+                  name="metric"
+                  data-test="metric-select"
+                  size="compact"
+                  @update:model-value="setMetric"
+                  @change="applyAnalysisFilters"
+                />
+              </label>
+              <label>
+                <span>粒度</span>
+                <AppSelect
+                  :model-value="analysisFilter.granularity"
+                  :options="granularityOptions"
+                  accessible-name="粒度"
+                  name="granularity"
+                  size="compact"
+                  @update:model-value="setGranularity"
+                  @change="applyAnalysisFilters"
+                />
+              </label>
               <TrendingUp :size="18" aria-hidden="true" />
             </div>
           </header>
-          <div v-if="analysisError" class="analysis-state analysis-state--error"><span>分析数据刷新失败。</span><button type="button" @click="loadAnalysis">重试</button></div>
-          <div v-else-if="analysisLoading" class="analysis-state"><RefreshCw :size="14" aria-hidden="true" />正在更新趋势</div>
-          <AnalyticsTrendChart :series="timeseries?.series ?? []" />
+          <div v-rise-on-change="analysisRevision" class="analysis-content">
+            <div v-if="analysisError" class="analysis-state analysis-state--error"><span>分析数据刷新失败。</span><button type="button" @click="loadAnalysis">重试</button></div>
+            <div v-else-if="analysisLoading" class="analysis-state"><RefreshCw :size="14" aria-hidden="true" />正在更新趋势</div>
+            <AnalyticsTrendChart :series="timeseries?.series ?? []" />
+          </div>
         </section>
-        <section class="ranking-section analytics-card">
+        <section v-smooth-resize class="ranking-section analytics-card">
           <header>
             <div><h2>排行</h2><p>{{ analysisFilter.dimension === 'group' ? '群' : analysisFilter.dimension === 'command' ? '命令' : '知识词条' }}维度前 10</p></div>
             <div class="analysis-controls">
-              <label><span>维度</span><select v-model="analysisFilter.dimension" name="dimension" @change="applyAnalysisFilters"><option value="group">群</option><option value="command">命令</option><option value="knowledge_entry">知识词条</option></select></label>
+              <label>
+                <span>维度</span>
+                <AppSelect
+                  :model-value="analysisFilter.dimension"
+                  :options="dimensionOptions"
+                  accessible-name="维度"
+                  name="dimension"
+                  size="compact"
+                  @update:model-value="setDimension"
+                  @change="applyAnalysisFilters"
+                />
+              </label>
             </div>
           </header>
-          <div v-if="analysisError" class="analysis-state analysis-state--error"><span>排行数据刷新失败。</span><button type="button" @click="loadAnalysis">重试</button></div>
-          <div v-else-if="analysisLoading" class="analysis-state"><RefreshCw :size="14" aria-hidden="true" />正在更新排行</div>
-          <RankingTable :rankings="rankings" />
+          <div v-rise-on-change="analysisRevision" class="analysis-content">
+            <div v-if="analysisError" class="analysis-state analysis-state--error"><span>排行数据刷新失败。</span><button type="button" @click="loadAnalysis">重试</button></div>
+            <div v-else-if="analysisLoading" class="analysis-state"><RefreshCw :size="14" aria-hidden="true" />正在更新排行</div>
+            <RankingTable :rankings="rankings" />
+          </div>
         </section>
       </section>
 
@@ -363,13 +499,17 @@ watch(
   gap: 7px;
 }
 
-.export-tools select,
+.export-tools .app-select,
 .export-tools button {
   height: 36px;
-  padding: 0 9px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+}
+
+.export-tools .app-select:first-child {
+  width: 126px;
+}
+
+.export-tools .app-select:nth-child(2) {
+  width: 86px;
 }
 
 .export-tools button {
@@ -446,7 +586,6 @@ watch(
 }
 
 .analytics-filters input,
-.analytics-filters select,
 .filter-submit,
 .filter-reset {
   width: 100%;
@@ -530,15 +669,14 @@ watch(
   gap: 3px;
 }
 
-.analysis-controls select {
+.analysis-controls .app-select {
   width: 100%;
-  height: 32px;
   min-width: 92px;
   max-width: 170px;
-  padding: 0 8px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+}
+
+.analysis-content {
+  min-width: 0;
 }
 
 .analysis-controls svg {
@@ -607,6 +745,10 @@ watch(
     grid-template-columns: minmax(0, 1fr) 82px auto;
   }
 
+  .export-tools .app-select {
+    width: 100%;
+  }
+
   .analytics-filters {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -640,7 +782,7 @@ watch(
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .analysis-controls select {
+  .analysis-controls .app-select {
     max-width: none;
   }
 
