@@ -3,8 +3,12 @@ import { computed } from 'vue'
 import { Bot, MessageSquareText, ShieldCheck, UsersRound } from '@lucide/vue'
 
 import type { AnalyticsMetric, AnalyticsMetricKey } from '@/api/types'
+import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
 
-const props = defineProps<{ metrics: AnalyticsMetric[] }>()
+const props = withDefaults(
+  defineProps<{ metrics: AnalyticsMetric[]; revision?: number }>(),
+  { revision: 0 },
+)
 
 const numberFormatter = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 })
 const integerFormatter = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 })
@@ -113,34 +117,38 @@ function formatChange(metric: AnalyticsMetric | undefined): string {
         :class="`analytics-kpi--${definition.key}`"
         :data-test="`analytics-kpi-${definition.key}`"
       >
-        <header>
-          <span>{{ definition.label }}</span>
-          <component :is="definition.icon" :size="17" :stroke-width="1.8" aria-hidden="true" />
-        </header>
-        <strong class="analytics-kpi__value mono">
-          {{ formatValue(metricMap.get(definition.key)) }}
-        </strong>
-        <footer
-          :class="{
-            negative: (metricMap.get(definition.key)?.change_percent ?? 0) < 0,
-          }"
-        >
-          {{ formatChange(metricMap.get(definition.key)) }}
-        </footer>
+        <div v-rise-on-change="revision" class="analytics-kpi__content">
+          <header>
+            <span>{{ definition.label }}</span>
+            <component :is="definition.icon" :size="17" :stroke-width="1.8" aria-hidden="true" />
+          </header>
+          <strong class="analytics-kpi__value mono">
+            {{ formatValue(metricMap.get(definition.key)) }}
+          </strong>
+          <footer
+            :class="{
+              negative: (metricMap.get(definition.key)?.change_percent ?? 0) < 0,
+            }"
+          >
+            {{ formatChange(metricMap.get(definition.key)) }}
+          </footer>
+        </div>
       </article>
 
       <article
         class="analytics-kpi analytics-kpi--automatic-approval"
         data-test="analytics-kpi-automatic_approval_share"
       >
-        <header>
-          <span>自动审批占比</span>
-          <ShieldCheck :size="17" :stroke-width="1.8" aria-hidden="true" />
-        </header>
-        <strong class="analytics-kpi__value mono">
-          {{ automaticApprovalShare === null ? '—' : `${numberFormatter.format(automaticApprovalShare)}%` }}
-        </strong>
-        <footer>{{ automaticApprovalDetail }}</footer>
+        <div v-rise-on-change="revision" class="analytics-kpi__content">
+          <header>
+            <span>自动审批占比</span>
+            <ShieldCheck :size="17" :stroke-width="1.8" aria-hidden="true" />
+          </header>
+          <strong class="analytics-kpi__value mono">
+            {{ automaticApprovalShare === null ? '—' : `${numberFormatter.format(automaticApprovalShare)}%` }}
+          </strong>
+          <footer>{{ automaticApprovalDetail }}</footer>
+        </div>
       </article>
     </div>
 
@@ -148,6 +156,7 @@ function formatChange(metric: AnalyticsMetric | undefined): string {
       <section
         v-for="group in metricGroups"
         :key="group.title"
+        v-smooth-resize
         class="analytics-metric-group"
         data-test="analytics-metric-group"
       >
@@ -155,7 +164,7 @@ function formatChange(metric: AnalyticsMetric | undefined): string {
           <h2>{{ group.title }}</h2>
           <span>当前值 / 前期变化</span>
         </header>
-        <div class="analytics-metric-list">
+        <div v-rise-on-change="revision" class="analytics-metric-list">
           <div
             v-for="metric in group.metrics"
             :key="metric.key"
@@ -201,6 +210,12 @@ function formatChange(metric: AnalyticsMetric | undefined): string {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
+}
+
+.analytics-kpi__content {
+  display: grid;
+  height: 100%;
+  align-content: space-between;
 }
 
 .analytics-kpi::before {

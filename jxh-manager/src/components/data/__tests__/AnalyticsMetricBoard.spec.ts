@@ -1,8 +1,26 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { makeAnalyticsSummary } from '@/test/analytics-fixture'
 import AnalyticsMetricBoard from '../AnalyticsMetricBoard.vue'
+
+const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'animate')
+
+function fakeAnimation(): Animation {
+  return {
+    cancel: vi.fn<() => void>(),
+    oncancel: null,
+    onfinish: null,
+  } as unknown as Animation
+}
+
+afterEach(() => {
+  if (originalAnimate) {
+    Object.defineProperty(HTMLElement.prototype, 'animate', originalAnimate)
+  } else {
+    Reflect.deleteProperty(HTMLElement.prototype, 'animate')
+  }
+})
 
 describe('AnalyticsMetricBoard', () => {
   it('shows four operational KPIs and groups every remaining raw metric once', () => {
@@ -42,5 +60,33 @@ describe('AnalyticsMetricBoard', () => {
     expect(wrapper.get('[data-test="analytics-kpi-automatic_approval_share"]').text()).toContain(
       '—',
     )
+  })
+
+  it('rises metric content after a successful summary revision', async () => {
+    const animate = vi.fn<
+      (
+        keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
+        options?: number | KeyframeAnimationOptions,
+      ) => Animation
+    >(() => fakeAnimation())
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value: animate,
+    })
+    const summary = makeAnalyticsSummary()
+    const wrapper = mount(AnalyticsMetricBoard, {
+      props: { metrics: summary.metrics, revision: 1 },
+    })
+    const metrics = summary.metrics.map((metric) =>
+      metric.key === 'group_message_count' ? { ...metric, value: 12980 } : metric,
+    )
+
+    await wrapper.setProps({ metrics, revision: 2 })
+
+    expect(
+      animate.mock.calls.some(([keyframes]) =>
+        JSON.stringify(keyframes).includes('translateY(8px)'),
+      ),
+    ).toBe(true)
   })
 })

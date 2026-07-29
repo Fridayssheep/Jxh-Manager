@@ -1,10 +1,11 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { analyticsApi } from '@/api/analytics'
 import AnalyticsMetricBoard from '@/components/data/AnalyticsMetricBoard.vue'
+import AppSelect from '@/components/form/AppSelect.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   makeAnalyticsRankings,
@@ -32,6 +33,16 @@ async function mountView() {
   }
 }
 
+async function selectValue(wrapper: VueWrapper, name: string, value: string): Promise<void> {
+  const select = wrapper
+    .findAllComponents(AppSelect)
+    .find((component) => component.props('name') === name)
+  if (!select) throw new Error(`AppSelect ${name} was not rendered`)
+  select.vm.$emit('update:modelValue', value)
+  select.vm.$emit('change', value)
+  await flushPromises()
+}
+
 describe('AnalyticsView', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -47,8 +58,8 @@ describe('AnalyticsView', () => {
     expect(analyticsApi.getSummary).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('12,840')
     await wrapper.get('input[name=group_id]').setValue('10002')
-    await wrapper.get('select[name=metric]').setValue('ai_request_count')
-    await wrapper.get('select[name=result]').setValue('failed')
+    await selectValue(wrapper, 'metric', 'ai_request_count')
+    await selectValue(wrapper, 'result', 'failed')
     await wrapper.get('[data-test=analytics-filters]').trigger('submit')
     await flushPromises()
 
@@ -74,8 +85,7 @@ describe('AnalyticsView', () => {
     await flushPromises()
 
     expect(summaryRequest).toHaveBeenCalledTimes(1)
-    await wrapper.get('select[name=metric]').setValue('quote_failure_count')
-    await flushPromises()
+    await selectValue(wrapper, 'metric', 'quote_failure_count')
 
     expect(router.currentRoute.value.query.metric).toBe('quote_failure_count')
     expect(summaryRequest).toHaveBeenCalledTimes(1)
@@ -92,6 +102,18 @@ describe('AnalyticsView', () => {
     expect(wrapper.get('.trend-section').classes()).toContain('analytics-card')
     expect(wrapper.get('.ranking-section').classes()).toContain('analytics-card')
     expect(wrapper.find('.metric-grid').exists()).toBe(false)
+    const selects = wrapper.findAllComponents(AppSelect)
+    expect(selects).toHaveLength(7)
+    expect(wrapper.findAll('select')).toHaveLength(0)
+    expect(selects.map((select) => select.props('name'))).toEqual([
+      undefined,
+      undefined,
+      'feature_key',
+      'result',
+      'metric',
+      'granularity',
+      'dimension',
+    ])
   })
 
   it('exports the active filter set', async () => {
