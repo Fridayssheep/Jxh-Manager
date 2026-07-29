@@ -24,6 +24,7 @@ const sidebar = ref<HTMLElement | null>(null)
 const mobileMenuOpen = ref(false)
 const refreshPending = ref(false)
 const navigationHighlightStyle = ref<Record<string, string>>({ opacity: '0' })
+let navigationResizeObserver: ResizeObserver | null = null
 
 const visiblePrimaryNavigation = computed(() =>
   primaryNavigation.filter((item) => canAccessNavigation(item, auth.permissions)),
@@ -82,9 +83,21 @@ watch(
 )
 onMounted(() => {
   window.addEventListener('resize', updateNavigationHighlight)
+  if (sidebar.value && typeof ResizeObserver !== 'undefined') {
+    navigationResizeObserver = new ResizeObserver(() => {
+      void updateNavigationHighlight()
+    })
+    navigationResizeObserver.observe(sidebar.value)
+    sidebar.value
+      .querySelectorAll<HTMLElement>('.sidebar-navigation, .sidebar-management')
+      .forEach((navigation) => navigationResizeObserver?.observe(navigation))
+  }
   void updateNavigationHighlight()
 })
-onBeforeUnmount(() => window.removeEventListener('resize', updateNavigationHighlight))
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateNavigationHighlight)
+  navigationResizeObserver?.disconnect()
+})
 </script>
 
 <template>

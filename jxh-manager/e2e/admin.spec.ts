@@ -66,6 +66,34 @@ async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): P
 }
 
 test.describe('管理端核心流程', { tag: '@desktop' }, () => {
+  test('keeps the navigation highlight aligned after route layout settles', async ({ page }) => {
+    await installAdminApi(page)
+    await page.setViewportSize({ width: 1339, height: 662 })
+    await page.goto('/knowledge')
+    await expect(page.locator('[data-test="reload-knowledge"]')).toBeVisible()
+
+    await page.locator('.navigation-item[href="/audit-logs"]').click()
+    await expect(page.locator('[data-test="audit-row-audit-1"]')).toBeVisible()
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const activeRect = document
+            .querySelector('.navigation-item.router-link-active')
+            ?.getBoundingClientRect()
+          const highlightRect = document
+            .querySelector('[data-test="navigation-highlight"]')
+            ?.getBoundingClientRect()
+          if (!activeRect || !highlightRect) return false
+          return (
+            Math.abs(activeRect.top - highlightRect.top) < 0.5 &&
+            Math.abs(activeRect.height - highlightRect.height) < 0.5
+          )
+        }),
+      )
+      .toBe(true)
+  })
+
   test('登录后进入总览且 CSRF 只保留在内存', async ({ page }) => {
     const api = await installAdminApi(page, { authenticated: false })
     await page.goto('/')
