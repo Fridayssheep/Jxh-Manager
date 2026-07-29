@@ -261,6 +261,19 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
   test('presents analytics as an operational dashboard instead of a card wall', async ({
     page,
   }) => {
+    await page.addInitScript(() => {
+      const recordedFrames: (Keyframe[] | PropertyIndexedKeyframes | null)[] = []
+      const originalAnimate = Element.prototype.animate
+      ;(window as unknown as { __analyticsMotionFrames: typeof recordedFrames })
+        .__analyticsMotionFrames = recordedFrames
+      Element.prototype.animate = function (
+        keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
+        options?: number | KeyframeAnimationOptions,
+      ): Animation {
+        recordedFrames.push(keyframes)
+        return originalAnimate.call(this, keyframes, options)
+      }
+    })
     const api = await installAdminApi(page)
     await page.setViewportSize({ width: 1339, height: 662 })
     await page.goto('/analytics')
@@ -279,11 +292,39 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expect(requestCount('/analytics/timeseries')).toBe(1)
     expect(requestCount('/analytics/rankings')).toBe(1)
 
-    await page.locator('select[name="metric"]').selectOption('quote_failure_count')
+    await expect(page.locator('select')).toHaveCount(0)
+    await page.locator('[data-test="metric-select"]').click()
+    const listbox = page.getByRole('listbox', { name: '指标' })
+    await expect(listbox).toBeVisible()
+    await expect(
+      listbox.locator('[role="option"][data-value="group_message_count"]'),
+    ).toHaveAttribute('aria-selected', 'true')
+    const menuBounds = await listbox.boundingBox()
+    expect(menuBounds).not.toBeNull()
+    expect(menuBounds!.x).toBeGreaterThanOrEqual(0)
+    expect(menuBounds!.y).toBeGreaterThanOrEqual(0)
+    expect(menuBounds!.x + menuBounds!.width).toBeLessThanOrEqual(1339)
+    expect(menuBounds!.y + menuBounds!.height).toBeLessThanOrEqual(662)
+    await listbox.locator('[role="option"][data-value="quote_failure_count"]').click()
     await expect(page).toHaveURL(/metric=quote_failure_count/)
     await expect.poll(() => requestCount('/analytics/timeseries')).toBe(2)
     await expect.poll(() => requestCount('/analytics/rankings')).toBe(2)
     expect(requestCount('/analytics/summary')).toBe(1)
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const frames = (
+            window as unknown as {
+              __analyticsMotionFrames: (Keyframe[] | PropertyIndexedKeyframes | null)[]
+            }
+          ).__analyticsMotionFrames.map((keyframes) => JSON.stringify(keyframes))
+          return {
+            resized: frames.some((keyframes) => keyframes.includes('height')),
+            rose: frames.some((keyframes) => keyframes.includes('translateY(8px)')),
+          }
+        }),
+      )
+      .toEqual({ resized: true, rose: true })
     expect(api.consoleErrors).toEqual([])
   })
 
