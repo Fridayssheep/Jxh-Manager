@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { analyticsApi } from '@/api/analytics'
+import AnalyticsMetricBoard from '@/components/data/AnalyticsMetricBoard.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   makeAnalyticsRankings,
@@ -80,6 +81,17 @@ describe('AnalyticsView', () => {
     expect(summaryRequest).toHaveBeenCalledTimes(1)
     expect(timeseriesRequest).toHaveBeenCalledTimes(2)
     expect(rankingsRequest).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the grouped metric board and independent analysis cards', async () => {
+    const { wrapper } = await mountView()
+    await flushPromises()
+
+    expect(wrapper.findComponent(AnalyticsMetricBoard).exists()).toBe(true)
+    expect(wrapper.findAll('.analytics-card')).toHaveLength(2)
+    expect(wrapper.get('.trend-section').classes()).toContain('analytics-card')
+    expect(wrapper.get('.ranking-section').classes()).toContain('analytics-card')
+    expect(wrapper.find('.metric-grid').exists()).toBe(false)
   })
 
   it('exports the active filter set', async () => {
