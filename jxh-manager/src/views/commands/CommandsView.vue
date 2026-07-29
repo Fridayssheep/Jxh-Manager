@@ -21,6 +21,7 @@ import type {
 } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
 
@@ -61,6 +62,24 @@ const permissionLabels: Record<CommandTriggerPermission, string> = {
   group_admin: '群主与管理员',
   maintenance_allowlist: '维护名单',
 }
+const statusOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部状态' },
+  ...Object.entries(statusLabels).map(([value, label]) => ({ value, label })),
+]
+const enabledOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部启停' },
+  { value: 'true', label: '已启用' },
+  { value: 'false', label: '已停用' },
+]
+const scopeOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部范围' },
+  { value: 'global', label: '全局' },
+  { value: 'groups', label: '指定群' },
+]
+const permissionOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部权限' },
+  ...Object.entries(permissionLabels).map(([value, label]) => ({ value, label })),
+]
 
 const actionLabels = {
   reply_text: '回复',
@@ -81,6 +100,11 @@ function listQuery(cursor: string | null): CommandListQuery {
     cursor,
   }
 }
+
+function setStatus(value: string): void { filters.status = value as CommandStatus | '' }
+function setEnabled(value: string): void { filters.enabled = value as '' | 'true' | 'false' }
+function setScopeType(value: string): void { filters.scopeType = value as 'global' | 'groups' | '' }
+function setTriggerPermission(value: string): void { filters.triggerPermission = value as CommandTriggerPermission | '' }
 
 async function load(reset = true): Promise<void> {
   if (reset) loading.value = true
@@ -175,33 +199,19 @@ onBeforeUnmount(unsubscribe)
       </label>
       <label>
         <span class="sr-only">命令状态</span>
-        <select v-model="filters.status" name="status">
-          <option value="">全部状态</option>
-          <option v-for="(label, value) in statusLabels" :key="value" :value="value">{{ label }}</option>
-        </select>
+        <AppSelect :model-value="filters.status" :options="statusOptions" accessible-name="命令状态" name="status" data-test="commands-status" @update:model-value="setStatus" />
       </label>
       <label>
         <span class="sr-only">启用状态</span>
-        <select v-model="filters.enabled" name="enabled">
-          <option value="">全部启停</option>
-          <option value="true">已启用</option>
-          <option value="false">已停用</option>
-        </select>
+        <AppSelect :model-value="filters.enabled" :options="enabledOptions" accessible-name="启用状态" name="enabled" data-test="commands-enabled" @update:model-value="setEnabled" />
       </label>
       <label>
         <span class="sr-only">作用范围</span>
-        <select v-model="filters.scopeType" name="scope_type">
-          <option value="">全部范围</option>
-          <option value="global">全局</option>
-          <option value="groups">指定群</option>
-        </select>
+        <AppSelect :model-value="filters.scopeType" :options="scopeOptions" accessible-name="作用范围" name="scope_type" data-test="commands-scope" @update:model-value="setScopeType" />
       </label>
       <label>
         <span class="sr-only">触发权限</span>
-        <select v-model="filters.triggerPermission" name="trigger_permission">
-          <option value="">全部权限</option>
-          <option v-for="(label, value) in permissionLabels" :key="value" :value="value">{{ label }}</option>
-        </select>
+        <AppSelect :model-value="filters.triggerPermission" :options="permissionOptions" accessible-name="触发权限" name="trigger_permission" data-test="commands-permission" @update:model-value="setTriggerPermission" />
       </label>
       <button class="filter-submit" type="submit">应用筛选</button>
       <button class="filter-reset" type="button" title="清除筛选" aria-label="清除筛选" @click="resetFilters">

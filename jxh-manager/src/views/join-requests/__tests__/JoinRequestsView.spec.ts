@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminApiError } from '@/api/client'
 import { joinRequestsApi } from '@/api/join-requests'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppSelect from '@/components/form/AppSelect.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import {
@@ -14,6 +15,13 @@ import {
   makeJoinRequestSummary,
 } from '@/test/join-request-fixture'
 import JoinRequestsView from '../JoinRequestsView.vue'
+
+async function selectValue(wrapper: VueWrapper, name: string, value: string): Promise<void> {
+  const select = wrapper.findAllComponents(AppSelect).find((item) => item.props('name') === name)
+  if (!select) throw new Error(`AppSelect ${name} was not rendered`)
+  select.vm.$emit('update:modelValue', value)
+  await wrapper.vm.$nextTick()
+}
 
 const first = makeJoinRequestSummary()
 const sameGroup = makeJoinRequestSummary({ request_id: 'flag-10002', applicant_qq: '13579246', version: 4 })
@@ -151,8 +159,8 @@ describe('JoinRequestsView', () => {
     const wrapper = await mountView()
     await flushPromises()
 
-    await wrapper.get('select[name=observed_status]').setValue('checked')
-    await wrapper.get('select[name=sort]').setValue('requested_at_asc')
+    await selectValue(wrapper, 'observed_status', 'checked')
+    await selectValue(wrapper, 'sort', 'requested_at_asc')
     await wrapper.get('[data-test=join-request-filters]').trigger('submit')
     await flushPromises()
 

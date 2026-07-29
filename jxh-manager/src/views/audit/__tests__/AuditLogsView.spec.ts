@@ -1,13 +1,21 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { auditApi } from '@/api/audit'
+import AppSelect from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuditLog, makeAuditLogSummary } from '@/test/audit-fixture'
 import { makeAuthContext } from '@/test/auth-fixture'
 import AuditLogsView from '../AuditLogsView.vue'
+
+async function selectValue(wrapper: VueWrapper, name: string, value: string): Promise<void> {
+  const select = wrapper.findAllComponents(AppSelect).find((item) => item.props('name') === name)
+  if (!select) throw new Error(`AppSelect ${name} was not rendered`)
+  select.vm.$emit('update:modelValue', value)
+  await wrapper.vm.$nextTick()
+}
 
 async function mountView() {
   const pinia = createPinia()
@@ -42,7 +50,7 @@ describe('AuditLogsView', () => {
     await flushPromises()
     await wrapper.get('input[name=actor_user_id]').setValue('user-2')
     await wrapper.get('input[name=target_id]').setValue('10002')
-    await wrapper.get('select[name=result]').setValue('failed')
+    await selectValue(wrapper, 'result', 'failed')
     await wrapper.get('[data-test=audit-filters]').trigger('submit')
     await flushPromises()
 

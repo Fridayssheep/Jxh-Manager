@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { commandsApi } from '@/api/commands'
 import { groupsApi } from '@/api/groups'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppSelect from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
@@ -108,5 +109,7 @@ describe('CommandEditorView', () => {
 
     expect(wrapper.findComponent(AppOverlayTransition).props('variant')).toBe('dialog')
     expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
+    expect(wrapper.find('select').exists()).toBe(false)
+    expect(wrapper.findAllComponents(AppSelect).length).toBeGreaterThanOrEqual(6)
   })
 })

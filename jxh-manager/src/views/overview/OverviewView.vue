@@ -6,6 +6,7 @@ import { AlertCircle, ArrowUpRight, CheckCircle2, CircleHelp, Clock3 } from '@lu
 import MetricStrip from '@/components/data/MetricStrip.vue'
 import TrendChart from '@/components/data/TrendChart.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useOverviewStore } from '@/stores/overview'
 
@@ -13,6 +14,14 @@ const overview = useOverviewStore()
 
 const primaryMetrics = computed(() => overview.data?.metrics.slice(0, 4) ?? [])
 const secondaryMetrics = computed(() => overview.data?.metrics.slice(4) ?? [])
+const rangeOptions: readonly AppSelectOption[] = [
+  { value: '7d', label: '最近 7 天' },
+  { value: '30d', label: '最近 30 天' },
+]
+
+function setRange(value: string): void {
+  overview.range = value as '7d' | '30d'
+}
 
 const pendingLinks = {
   join_requests: '/join-requests?decision_status=pending',
@@ -77,10 +86,15 @@ onBeforeUnmount(unsubscribe)
       </div>
       <label class="range-control">
         <span class="sr-only">统计范围</span>
-        <select name="range" :value="overview.range" @change="overview.load({ range: ($event.target as HTMLSelectElement).value as '7d' | '30d' })">
-          <option value="7d">最近 7 天</option>
-          <option value="30d">最近 30 天</option>
-        </select>
+        <AppSelect
+          :model-value="overview.range"
+          :options="rangeOptions"
+          accessible-name="统计范围"
+          name="range"
+          data-test="overview-range"
+          @update:model-value="setRange"
+          @change="load"
+        />
       </label>
     </header>
 

@@ -1,9 +1,10 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usersApi } from '@/api/users'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppSelect from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import AppTabBar from '@/components/navigation/AppTabBar.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -15,6 +16,14 @@ import {
   makeSessionRevokeResult,
 } from '@/test/user-fixture'
 import UsersView from '../UsersView.vue'
+
+async function selectValue(wrapper: VueWrapper, dataTest: string, value: string): Promise<void> {
+  const select = wrapper.findAllComponents(AppSelect)
+    .find((item) => item.props('dataTest') === dataTest)
+  if (!select) throw new Error(`AppSelect ${dataTest} was not rendered`)
+  select.vm.$emit('update:modelValue', value)
+  await wrapper.vm.$nextTick()
+}
 
 async function mountView() {
   const pinia = createPinia(); setActivePinia(pinia)
@@ -52,7 +61,7 @@ describe('UsersView', () => {
 
     expect(usersApi.get).toHaveBeenCalledWith('user-2')
     expect((wrapper.get('[data-test=user-display-name]').element as HTMLInputElement).value).toBe('详情维护员')
-    expect((wrapper.get('[data-test=user-role]').element as HTMLSelectElement).value).toBe('observer')
+    expect(wrapper.findAllComponents(AppSelect).find((item) => item.props('dataTest') === 'user-role')?.props('modelValue')).toBe('observer')
     await wrapper.get('[data-test=user-display-name]').setValue('更新后的详情维护员')
     await wrapper.get('[data-test=save-user]').trigger('click'); await flushPromises()
     expect(update).toHaveBeenCalledWith('user-2', expect.any(Object), 9)
@@ -75,7 +84,7 @@ describe('UsersView', () => {
     await wrapper.get('[data-test=create-user]').trigger('click')
     await wrapper.get('[data-test=user-username]').setValue('maintainer')
     await wrapper.get('[data-test=user-display-name]').setValue('值班维护员')
-    await wrapper.get('[data-test=user-role]').setValue('maintainer')
+    await selectValue(wrapper, 'user-role', 'maintainer')
     await wrapper.get('[data-test=user-qq]').setValue('10002')
     await wrapper.get('[data-test=user-password]').setValue('initial-password-value')
     await wrapper.get('[data-test=save-user]').trigger('click'); await flushPromises()
@@ -116,7 +125,7 @@ describe('UsersView', () => {
     const wrapper = await mountView(); await flushPromises()
 
     await wrapper.get('[data-test=sessions-tab]').trigger('click'); await flushPromises()
-    await wrapper.get('select[name=session_status]').setValue('active')
+    await selectValue(wrapper, 'users-session-status', 'active')
     await wrapper.get('[data-test=session-filters]').trigger('submit'); await flushPromises()
     expect(usersApi.listSessions).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'active', cursor: null }))
 

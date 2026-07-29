@@ -2,6 +2,7 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from '@lucide/vue'
 
 import type { CommandParameter, CommandParameterType } from '@/api/types'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 
 withDefaults(defineProps<{ readonly?: boolean }>(), { readonly: false })
 const parameters = defineModel<CommandParameter[]>({ required: true })
@@ -13,6 +14,8 @@ const typeLabels: Record<CommandParameterType, string> = {
   member: 'QQ 成员',
   fixed_option: '固定选项',
 }
+const typeOptions: readonly AppSelectOption[] = Object.entries(typeLabels)
+  .map(([value, label]) => ({ value, label }))
 
 function makeParameter(type: CommandParameterType, index: number): CommandParameter {
   const common = {
@@ -104,9 +107,7 @@ function addOption(parameter: Extract<CommandParameter, { type: 'fixed_option' }
         </label>
         <label>
           <span>类型</span>
-          <select :value="parameter.type" :disabled="readonly" @change="changeType(index, ($event.target as HTMLSelectElement).value as CommandParameterType)">
-            <option v-for="(label, value) in typeLabels" :key="value" :value="value">{{ label }}</option>
-          </select>
+          <AppSelect :model-value="parameter.type" :options="typeOptions" accessible-name="参数类型" :data-test="`parameter-type-${index}`" :disabled="readonly" @update:model-value="changeType(index, $event as CommandParameterType)" />
         </label>
         <label class="check-field">
           <input v-model="parameter.required" type="checkbox" :disabled="readonly" />

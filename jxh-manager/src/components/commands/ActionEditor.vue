@@ -11,6 +11,7 @@ import {
 } from '@lucide/vue'
 
 import type { CommandAction, CommandParameter, Group } from '@/api/types'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -29,6 +30,28 @@ const memberParameters = computed(() =>
 const durationParameters = computed(() =>
   props.parameters.filter((parameter) => parameter.type === 'duration'),
 )
+const mentionTargetOptions: readonly AppSelectOption[] = [
+  { value: 'triggerer', label: '命令触发者' },
+  { value: 'parameter', label: '成员参数' },
+]
+const durationModeOptions: readonly AppSelectOption[] = [
+  { value: 'fixed', label: '固定秒数' },
+  { value: 'parameter', label: '时长参数' },
+]
+const memberParameterOptions = computed<readonly AppSelectOption[]>(() => [
+  { value: '', label: '请选择' },
+  ...memberParameters.value.map((parameter) => ({
+    value: parameter.name,
+    label: `${parameter.display_name} (${parameter.name})`,
+  })),
+])
+const durationParameterOptions = computed<readonly AppSelectOption[]>(() => [
+  { value: '', label: '请选择' },
+  ...durationParameters.value.map((parameter) => ({
+    value: parameter.name,
+    label: `${parameter.display_name} (${parameter.name})`,
+  })),
+])
 
 function add(action: CommandAction): void {
   actions.value = [...actions.value, action]
@@ -70,6 +93,18 @@ function remove(index: number): void {
 function setMentionTarget(action: Extract<CommandAction, { type: 'mention' }>, target: 'triggerer' | 'parameter'): void {
   action.target = target
   action.member_parameter = target === 'parameter' ? memberParameters.value[0]?.name ?? null : null
+}
+
+function setMentionParameter(action: Extract<CommandAction, { type: 'mention' }>, value: string): void {
+  action.member_parameter = value || null
+}
+
+function setMuteMemberParameter(action: Extract<CommandAction, { type: 'mute_member' }>, value: string): void {
+  action.member_parameter = value
+}
+
+function setDurationParameter(action: Extract<CommandAction, { type: 'mute_member' }>, value: string): void {
+  if (action.duration.type === 'ParameterDurationSource') action.duration.parameter = value
 }
 
 function setDurationMode(
@@ -139,34 +174,22 @@ const actionMeta = {
       <div v-else-if="action.type === 'mention'" class="field-grid">
         <label>
           <span>目标来源</span>
-          <select :value="action.target" :disabled="readonly" @change="setMentionTarget(action, ($event.target as HTMLSelectElement).value as 'triggerer' | 'parameter')">
-            <option value="triggerer">命令触发者</option>
-            <option value="parameter">成员参数</option>
-          </select>
+          <AppSelect :model-value="action.target" :options="mentionTargetOptions" accessible-name="目标来源" :data-test="`mention-target-${index}`" :disabled="readonly" @update:model-value="setMentionTarget(action, $event as 'triggerer' | 'parameter')" />
         </label>
         <label v-if="action.target === 'parameter'">
           <span>成员参数</span>
-          <select v-model="action.member_parameter" :disabled="readonly">
-            <option :value="null">请选择</option>
-            <option v-for="parameter in memberParameters" :key="parameter.name" :value="parameter.name">{{ parameter.display_name }} ({{ parameter.name }})</option>
-          </select>
+          <AppSelect :model-value="action.member_parameter ?? ''" :options="memberParameterOptions" accessible-name="成员参数" :data-test="`mention-parameter-${index}`" :disabled="readonly" @update:model-value="setMentionParameter(action, $event)" />
         </label>
       </div>
 
       <div v-else-if="action.type === 'mute_member'" class="field-grid">
         <label>
           <span>成员参数</span>
-          <select v-model="action.member_parameter" :disabled="readonly">
-            <option value="">请选择</option>
-            <option v-for="parameter in memberParameters" :key="parameter.name" :value="parameter.name">{{ parameter.display_name }} ({{ parameter.name }})</option>
-          </select>
+          <AppSelect :model-value="action.member_parameter" :options="memberParameterOptions" accessible-name="成员参数" :data-test="`mute-member-parameter-${index}`" :disabled="readonly" @update:model-value="setMuteMemberParameter(action, $event)" />
         </label>
         <label>
           <span>时长来源</span>
-          <select :value="action.duration.type === 'FixedDurationSource' ? 'fixed' : 'parameter'" :disabled="readonly" @change="setDurationMode(action, ($event.target as HTMLSelectElement).value as 'fixed' | 'parameter')">
-            <option value="fixed">固定秒数</option>
-            <option value="parameter">时长参数</option>
-          </select>
+          <AppSelect :model-value="action.duration.type === 'FixedDurationSource' ? 'fixed' : 'parameter'" :options="durationModeOptions" accessible-name="时长来源" :data-test="`mute-duration-mode-${index}`" :disabled="readonly" @update:model-value="setDurationMode(action, $event as 'fixed' | 'parameter')" />
         </label>
         <label v-if="action.duration.type === 'FixedDurationSource'">
           <span>禁言秒数</span>
@@ -174,10 +197,7 @@ const actionMeta = {
         </label>
         <label v-else>
           <span>时长参数</span>
-          <select v-model="action.duration.parameter" :disabled="readonly">
-            <option value="">请选择</option>
-            <option v-for="parameter in durationParameters" :key="parameter.name" :value="parameter.name">{{ parameter.display_name }} ({{ parameter.name }})</option>
-          </select>
+          <AppSelect :model-value="action.duration.parameter" :options="durationParameterOptions" accessible-name="时长参数" :data-test="`mute-duration-parameter-${index}`" :disabled="readonly" @update:model-value="setDurationParameter(action, $event)" />
         </label>
       </div>
 
