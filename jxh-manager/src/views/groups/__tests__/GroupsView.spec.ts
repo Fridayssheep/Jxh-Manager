@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { describe, expect, it, vi } from 'vitest'
 
 import { groupsApi } from '@/api/groups'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import GroupsView from '../GroupsView.vue'
@@ -81,5 +82,6 @@ describe('GroupsView', () => {
     expect(sync).toHaveBeenCalledOnce()
     expect(list).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('新增 1，更新 2')
+    expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
   })
 })

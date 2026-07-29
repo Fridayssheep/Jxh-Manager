@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowRight, CheckCircle2, RefreshCw, RotateCw, Search, UsersRound, X } from '@lucide/vue'
+import { ArrowRight, RefreshCw, RotateCw, Search, UsersRound, X } from '@lucide/vue'
 
 import { AdminApiError } from '@/api/client'
 import { groupsApi, type GroupListQuery } from '@/api/groups'
 import type { FeatureKey, Group, GroupRole, GroupSyncResult } from '@/api/types'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 import SettingsAreaNav from '@/components/settings/SettingsAreaNav.vue'
 import { FEATURE_META } from '@/components/settings/feature-settings'
@@ -173,14 +174,12 @@ onMounted(() => load())
       </button>
     </form>
 
-    <div v-if="syncResult" class="operation-result operation-result--success" role="status">
-      <CheckCircle2 :size="18" aria-hidden="true" />
-      <span>同步完成：新增 {{ syncResult.added_count }}，更新 {{ syncResult.updated_count }}，移除 {{ syncResult.removed_count }}。</span>
-      <small class="mono">总计 {{ syncResult.total_count }}</small>
-    </div>
-    <div v-else-if="syncError" class="operation-result operation-result--error" role="alert">
-      {{ syncError }}
-    </div>
+    <OperationNotice
+      :message="syncResult ? `同步完成：新增 ${syncResult.added_count}，更新 ${syncResult.updated_count}，移除 ${syncResult.removed_count}，总计 ${syncResult.total_count}。` : syncError ?? ''"
+      :tone="syncResult ? 'success' : 'danger'"
+      :revision="syncResult?.synced_at ?? syncError"
+      :closable="false"
+    />
 
     <ResourceState
       v-if="loading"

@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { auditApi } from '@/api/audit'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuditLog, makeAuditLogSummary } from '@/test/audit-fixture'
 import { makeAuthContext } from '@/test/auth-fixture'
@@ -48,5 +49,12 @@ describe('AuditLogsView', () => {
     expect(auditApi.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ actorUserId: 'user-2', targetId: '10002', result: 'failed', cursor: null }),
     )
+  })
+
+  it('animates the audit detail drawer', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.findComponent(AppOverlayTransition).props('variant')).toBe('drawer')
   })
 })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
-  AlertTriangle, Ban, CheckCircle2, FilterX, KeyRound, LogOut,
+  AlertTriangle, Ban, FilterX, KeyRound, LogOut,
   Monitor, Pencil, Plus, RefreshCw, Search, ShieldCheck, UserCog, X,
 } from '@lucide/vue'
 
@@ -11,7 +11,11 @@ import type {
   AdminRole, AdminSession, AdminUser, AdminUserCreateRequest, AdminUserPatchRequest,
   SessionStatus,
 } from '@/api/types'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
+import AppTabBar, { type AppTabOption } from '@/components/navigation/AppTabBar.vue'
+import { vRiseOnChange } from '@/directives/motion'
 import { useAuthStore } from '@/stores/auth'
 
 type Tab = 'users' | 'sessions'
@@ -55,6 +59,12 @@ const roleLabels: Record<AdminRole, string> = {
 const sessionStatusLabels: Record<SessionStatus, string> = {
   active: '活跃', expired: '已过期', revoked: '已撤销',
 }
+const tabOptions = computed<readonly AppTabOption[]>(() => [
+  { value: 'users', label: '管理账号', icon: UserCog, dataTest: 'users-tab' },
+  ...(auth.hasPermission('sessions:manage')
+    ? [{ value: 'sessions', label: '登录会话', icon: Monitor, dataTest: 'sessions-tab' }]
+    : []),
+])
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
 })
@@ -129,6 +139,10 @@ function switchTab(tab: Tab): void {
   activeTab.value = tab
   error.value = null
   if (tab === 'sessions' && !sessions.value.length) void loadSessions()
+}
+
+function selectTab(value: string): void {
+  switchTab(value as Tab)
 }
 
 function resetUserFilters(): void {
@@ -286,16 +300,17 @@ onMounted(() => { void loadUsers() })
       <button data-test="create-user" class="primary-action" type="button" @click="openNew"><Plus :size="16" />新建账号</button>
     </header>
 
-    <nav class="tabs" aria-label="账号管理视图">
-      <button :class="{ active: activeTab === 'users' }" type="button" @click="switchTab('users')"><UserCog :size="15" />管理账号</button>
-      <button v-if="auth.hasPermission('sessions:manage')" data-test="sessions-tab" :class="{ active: activeTab === 'sessions' }" type="button" @click="switchTab('sessions')"><Monitor :size="15" />登录会话</button>
-    </nav>
+    <AppTabBar
+      :model-value="activeTab"
+      :options="tabOptions"
+      accessible-name="账号管理视图"
+      @update:model-value="selectTab"
+    />
 
-    <div v-if="operationResult" :class="['operation-result', `operation-result--${operationTone}`]" :role="operationTone === 'success' ? 'status' : 'alert'">
-      <CheckCircle2 v-if="operationTone === 'success'" :size="17" /><AlertTriangle v-else :size="17" /><span>{{ operationResult }}</span><button type="button" aria-label="关闭提示" @click="operationResult = null"><X :size="15" /></button>
-    </div>
+    <OperationNotice :message="operationResult ?? ''" :tone="operationTone" :revision="operationResult" @close="operationResult = null" />
 
-    <template v-if="activeTab === 'users'">
+    <div v-rise-on-change="activeTab" class="tab-content">
+      <template v-if="activeTab === 'users'">
       <form data-test="user-filters" class="filter-bar" @submit.prevent="loadUsers()">
         <label class="search-field"><Search :size="15" /><span class="sr-only">搜索账号</span><input v-model="userFilters.query" placeholder="用户名、显示名称或完整 QQ" /></label>
         <label><span class="sr-only">账号角色</span><select v-model="userFilters.role"><option value="">全部角色</option><option v-for="(label, value) in roleLabels" :key="value" :value="value">{{ label }}</option></select></label>
@@ -325,9 +340,9 @@ onMounted(() => { void loadUsers() })
         </article>
       </section>
       <button v-if="usersHasMore" class="load-more" type="button" :disabled="loadingMore" @click="loadUsers(false)"><RefreshCw :class="{ spin: loadingMore }" :size="15" />{{ loadingMore ? '正在读取' : '加载更多账号' }}</button>
-    </template>
+      </template>
 
-    <template v-else>
+      <template v-else>
       <form data-test="session-filters" class="filter-bar session-filters" @submit.prevent="loadSessions()">
         <label><span class="sr-only">账号 ID</span><input v-model="sessionFilters.userId" placeholder="账号 ID" /></label>
         <label><span class="sr-only">会话状态</span><select v-model="sessionFilters.status" name="session_status"><option value="">全部状态</option><option v-for="(label, value) in sessionStatusLabels" :key="value" :value="value">{{ label }}</option></select></label>
@@ -351,10 +366,12 @@ onMounted(() => { void loadUsers() })
         </article>
       </section>
       <button v-if="sessionsHasMore" class="load-more" type="button" :disabled="loadingMore" @click="loadSessions(false)"><RefreshCw :class="{ spin: loadingMore }" :size="15" />{{ loadingMore ? '正在读取' : '加载更多会话' }}</button>
-    </template>
+      </template>
+    </div>
 
-    <div v-if="editorOpen" class="drawer-layer" @mousedown.self="editorOpen = false">
-      <section class="user-editor" role="dialog" aria-modal="true" aria-labelledby="user-editor-title">
+    <AppOverlayTransition :show="editorOpen" variant="drawer">
+      <div class="drawer-layer" @mousedown.self="editorOpen = false">
+        <section class="user-editor" role="dialog" aria-modal="true" aria-labelledby="user-editor-title">
         <header><div><span class="eyebrow">ADMIN IDENTITY</span><h2 id="user-editor-title">{{ editingUser ? '编辑管理账号' : '新建管理账号' }}</h2><p>{{ editingUser ? `资源版本 ${editingUser.version}` : '创建后即可使用后台登录' }}</p></div><button type="button" aria-label="关闭" @click="editorOpen = false"><X :size="17" /></button></header>
         <div class="editor-body">
           <label><span>用户名</span><input v-model="userForm.username" data-test="user-username" :disabled="Boolean(editingUser)" autocomplete="off" /></label>
@@ -365,16 +382,19 @@ onMounted(() => { void loadUsers() })
           <div class="role-note"><ShieldCheck :size="16" /><p><strong>{{ roleLabels[userForm.role] }}</strong><span v-if="userForm.role === 'super_admin'">可管理账号、会话和系统危险动作。</span><span v-else-if="userForm.role === 'maintainer'">可处理日常运营，但不能管理后台账号。</span><span v-else>仅查看授权范围内的脱敏数据。</span></p></div>
         </div>
         <footer><button type="button" @click="editorOpen = false">取消</button><button data-test="save-user" class="save-action" type="button" :disabled="saving" @click="saveUser">{{ saving ? '正在保存' : '保存账号' }}</button></footer>
-      </section>
-    </div>
+        </section>
+      </div>
+    </AppOverlayTransition>
 
-    <div v-if="confirmAction" class="dialog-layer" role="presentation">
-      <section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-user-title">
+    <AppOverlayTransition :show="Boolean(confirmAction)" variant="dialog">
+      <div class="dialog-layer" role="presentation">
+        <section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-user-title">
         <header><AlertTriangle :size="20" /><div><h2 id="confirm-user-title">{{ confirmTitle }}</h2><p>{{ confirmDescription }}</p></div></header>
         <label v-if="confirmAction === 'reset_password'"><span>新密码</span><input v-model="newPassword" data-test="new-password" type="password" autocomplete="new-password" /></label>
         <footer><button type="button" @click="closeConfirm">取消</button><button data-test="confirm-user-action" :class="{ 'danger-action': confirmAction !== 'enable_user' }" type="button" :disabled="confirming" @click="confirmUserAction">{{ confirming ? '正在处理' : '确认操作' }}</button></footer>
-      </section>
-    </div>
+        </section>
+      </div>
+    </AppOverlayTransition>
   </main>
 </template>
 

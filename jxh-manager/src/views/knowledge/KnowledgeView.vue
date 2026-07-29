@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   AlertTriangle, BookOpen, CheckCircle2, ChevronRight, Database, FilterX,
-  LoaderCircle, RefreshCw, Search, ShieldCheck, TriangleAlert, X,
+  LoaderCircle, RefreshCw, Search, ShieldCheck, TriangleAlert,
 } from '@lucide/vue'
 
 import { AdminApiError } from '@/api/client'
@@ -13,8 +13,12 @@ import type {
   KnowledgeConflict, KnowledgeEntry, KnowledgeEntrySummary, KnowledgeEntryType,
   KnowledgeReloadOperation, KnowledgeState, KnowledgeStatus,
 } from '@/api/types'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
+import AppTabBar, { type AppTabOption } from '@/components/navigation/AppTabBar.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
+import { vRiseOnChange } from '@/directives/motion'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -60,6 +64,18 @@ const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
 })
 
 const currentOperation = computed(() => acceptedOperation.value ?? status.value?.current_operation ?? null)
+const tabOptions = computed<readonly AppTabOption[]>(() => [
+  { value: 'entries', label: '词条', icon: BookOpen },
+  {
+    value: 'conflicts',
+    label: `冲突 ${status.value?.conflict_count ?? conflicts.value.length}`,
+    icon: TriangleAlert,
+  },
+])
+
+function selectTab(value: string): void {
+  activeTab.value = value as typeof activeTab.value
+}
 
 function boolFilter(value: '' | 'true' | 'false'): boolean | null {
   return value === '' ? null : value === 'true'
@@ -199,11 +215,12 @@ onBeforeUnmount(unsubscribe)
       <dl><div><dt>接受时间</dt><dd class="mono">{{ displayTime(currentOperation.started_at) }}</dd></div><div><dt>完成时间</dt><dd class="mono">{{ displayTime(currentOperation.completed_at) }}</dd></div></dl>
     </section>
 
-    <div v-if="operationResult" :class="['operation-result', `operation-result--${operationTone}`]" :role="operationTone === 'success' ? 'status' : 'alert'"><CheckCircle2 v-if="operationTone === 'success'" :size="18" /><AlertTriangle v-else :size="18" /><span>{{ operationResult }}</span><button type="button" aria-label="关闭提示" @click="operationResult = null"><X :size="15" /></button></div>
+    <OperationNotice :message="operationResult ?? ''" :tone="operationTone" :revision="operationResult" @close="operationResult = null" />
 
-    <nav class="view-tabs" aria-label="知识库视图"><button :class="{ active: activeTab === 'entries' }" type="button" @click="activeTab = 'entries'"><BookOpen :size="16" />词条</button><button :class="{ active: activeTab === 'conflicts' }" type="button" @click="activeTab = 'conflicts'"><TriangleAlert :size="16" />冲突 <span>{{ status?.conflict_count ?? conflicts.length }}</span></button></nav>
+    <AppTabBar :model-value="activeTab" :options="tabOptions" accessible-name="知识库视图" @update:model-value="selectTab" />
 
-    <template v-if="activeTab === 'entries'">
+    <div v-rise-on-change="activeTab" class="tab-content">
+      <template v-if="activeTab === 'entries'">
       <form class="filter-bar" @submit.prevent="loadEntries()">
         <label class="search-field"><span class="sr-only">搜索词条</span><Search :size="16" /><input v-model="entryFilters.query" placeholder="搜索标题、关键词或别名" /></label>
         <label><span class="sr-only">分类</span><input v-model="entryFilters.category" placeholder="分类" /></label>
@@ -237,21 +254,25 @@ onBeforeUnmount(unsubscribe)
           </template>
         </aside>
       </section>
-    </template>
+      </template>
 
-    <template v-else>
+      <template v-else>
       <form class="conflict-filter" @submit.prevent="loadConflicts()"><label class="search-field"><Search :size="16" /><input v-model="conflictFilters.query" placeholder="搜索冲突键或词条 ID" /></label><select v-model="conflictFilters.conflictType"><option value="">全部冲突类型</option><option v-for="(label, value) in conflictLabels" :key="value" :value="value">{{ label }}</option></select><button class="filter-submit" type="submit">应用筛选</button></form>
       <ResourceState v-if="conflictsLoading && !conflicts.length" state="loading" title="正在读取解析冲突" description="冲突不会自动覆盖任一词条。" />
       <ResourceState v-else-if="!conflicts.length" state="empty" title="当前没有解析冲突" description="关键词、别名和来源键均保持唯一。" />
       <section v-else class="conflict-list"><article v-for="conflict in conflicts" :key="conflict.conflict_id"><TriangleAlert :size="18" /><div><strong>{{ conflictLabels[conflict.type] }}冲突 · {{ conflict.key }}</strong><span class="mono">{{ conflict.conflict_id }}</span></div><div class="entry-ids"><span v-for="id in conflict.entry_ids" :key="id" class="mono">{{ id }}</span></div><time class="mono">{{ displayTime(conflict.detected_at) }}</time></article></section>
       <button v-if="conflictsHasMore" class="load-more" type="button" :disabled="conflictsLoading" @click="loadConflicts(false)">加载更多冲突</button>
-    </template>
+      </template>
+    </div>
 
-    <div v-if="reloadOpen" class="dialog-layer" role="presentation" @mousedown.self="reloadOpen = false"><section class="reload-dialog" role="dialog" aria-modal="true"><header><RefreshCw :size="19" /><div><h2>重载知识库索引</h2><p>从已配置的 WPS 数据源重新下载并构建索引。</p></div></header><div class="reload-notice"><ShieldCheck :size="17" /><span>下载为空、解析失败或没有有效词条时，当前有效索引不会被替换。</span></div><footer><button type="button" :disabled="reloading" @click="reloadOpen = false">取消</button><button data-test="confirm-reload" class="primary-action" type="button" :disabled="reloading" @click="confirmReload">确认重载</button></footer></section></div>
+    <AppOverlayTransition :show="reloadOpen" variant="dialog">
+      <div class="dialog-layer" role="presentation" @mousedown.self="reloadOpen = false"><section class="reload-dialog" role="dialog" aria-modal="true"><header><RefreshCw :size="19" /><div><h2>重载知识库索引</h2><p>从已配置的 WPS 数据源重新下载并构建索引。</p></div></header><div class="reload-notice"><ShieldCheck :size="17" /><span>下载为空、解析失败或没有有效词条时，当前有效索引不会被替换。</span></div><footer><button type="button" :disabled="reloading" @click="reloadOpen = false">取消</button><button data-test="confirm-reload" class="primary-action" type="button" :disabled="reloading" @click="confirmReload">确认重载</button></footer></section></div>
+    </AppOverlayTransition>
   </main>
 </template>
 
 <style scoped>
+.tab-content{display:grid;gap:14px}
 .knowledge-page{display:grid;gap:14px}.page-header,.primary-action,.status-strip,.state-cell,.reload-operation,.operation-result,.view-tabs,.view-tabs button,.search-field,.entry-list-pane article,.entry-detail>header,.entry-detail footer,.dialog-layer,.reload-dialog header,.reload-notice,.reload-dialog footer{display:flex;align-items:center}.page-header{justify-content:space-between;gap:16px}.page-header h1{font-size:24px;line-height:34px}.page-header p{color:var(--color-text-secondary);font-size:13px}.primary-action{min-height:38px;gap:7px;padding:0 12px;color:white;font-weight:600;background:var(--color-brand-action);border:1px solid var(--color-brand-action);border-radius:var(--radius-control)}.status-strip{display:grid;grid-template-columns:minmax(180px,1.2fr) repeat(4,minmax(130px,1fr));background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.status-strip>div{display:grid;min-height:68px;align-content:center;gap:3px;padding:10px 14px;border-right:1px solid var(--color-border)}.status-strip>div:last-child{border-right:0}.status-strip span{color:var(--color-text-secondary);font-size:10px}.status-strip strong{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.status-strip .state-cell{display:flex;gap:9px;color:var(--color-brand-ink)}.state-cell span{display:grid}.state--ready{color:var(--color-success)}.state--reloading{color:var(--color-brand-action)}.state--degraded{color:var(--color-warning)}.state--unavailable,.danger{color:var(--color-danger)}.reload-operation{display:grid;grid-template-columns:18px minmax(190px,1fr) auto;gap:9px;padding:10px 12px;color:var(--color-brand-ink);background:var(--color-brand-surface);border-left:3px solid var(--color-brand-500)}.reload-operation>div{display:grid}.reload-operation span{color:var(--color-text-secondary);font-size:10px}.reload-operation dl{display:flex;gap:20px;margin:0}.reload-operation dl div{display:grid}.reload-operation dt{color:var(--color-text-secondary);font-size:10px}.reload-operation dd{margin:0;font-size:11px}.operation-result{min-height:42px;gap:8px;padding:8px 11px;font-size:12px;border-left:3px solid currentcolor}.operation-result>span{min-width:0;flex:1}.operation-result button{display:grid;width:28px;height:28px;place-items:center;padding:0;background:transparent;border:0}.operation-result--success{color:var(--color-success);background:var(--color-success-surface)}.operation-result--warning{color:var(--color-warning);background:var(--color-warning-surface)}.operation-result--danger{color:var(--color-danger);background:var(--color-danger-surface)}.operation-result--unknown{color:var(--color-unknown);background:var(--color-unknown-surface)}.view-tabs{gap:4px;border-bottom:1px solid var(--color-border)}.view-tabs button{min-height:38px;gap:6px;padding:0 10px;color:var(--color-text-secondary);background:transparent;border:0;border-bottom:2px solid transparent}.view-tabs button.active{color:var(--color-brand-action);font-weight:600;border-color:var(--color-brand-action)}.view-tabs button span{padding:1px 5px;font-size:10px;background:var(--color-surface-subtle);border-radius:8px}.filter-bar{display:grid;grid-template-columns:minmax(220px,1.4fr) 120px repeat(3,minmax(110px,.7fr)) auto 38px;gap:7px}.filter-bar input,.filter-bar select,.conflict-filter input,.conflict-filter select{width:100%;height:38px;padding:0 9px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.search-field{display:grid;grid-template-columns:16px minmax(0,1fr);gap:7px;padding:0 10px;color:var(--color-text-secondary);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.search-field input{min-width:0;padding:0;background:transparent;border:0;outline:0}.filter-submit,.icon-button,.load-more{height:38px;justify-content:center;padding:0 11px;color:var(--color-brand-action);font-weight:600;background:var(--color-surface);border:1px solid var(--color-brand-border);border-radius:var(--radius-control)}.icon-button{width:38px;padding:0;color:var(--color-text-secondary);border-color:var(--color-border)}.entry-workspace{display:grid;min-width:0;grid-template-columns:minmax(360px,.85fr) minmax(500px,1.15fr);gap:12px;align-items:start}.entry-list-pane,.entry-detail{min-width:0;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.entry-list-pane article{display:grid;min-height:78px;grid-template-columns:minmax(0,1fr) auto 16px;gap:7px 9px;padding:11px 12px;cursor:pointer;border-bottom:1px solid var(--color-border)}.entry-list-pane article:hover{background:var(--color-surface-raised)}.entry-list-pane article.active{background:var(--color-brand-surface);box-shadow:inset 3px 0 var(--color-brand-500)}.entry-list-pane article>div{display:grid;min-width:0}.entry-list-pane article strong{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.entry-list-pane article div span,.entry-list-pane article p{color:var(--color-text-secondary);font-size:10px}.entry-list-pane article p{grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.conflict-badge{padding:2px 6px;color:var(--color-danger);font-size:10px;background:var(--color-danger-surface);border-radius:8px}.entry-list-pane .load-more{display:block;width:calc(100% - 24px);margin:12px}.detail-empty{display:grid;min-height:430px;place-items:center;align-content:center;gap:7px;padding:28px;color:var(--color-text-secondary);text-align:center}.detail-empty strong{color:var(--color-text-primary)}.detail-empty span{max-width:340px;font-size:12px}.entry-detail>header{justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid var(--color-border)}.eyebrow{color:var(--color-brand-ink);font-size:10px;font-weight:600}.entry-detail h2{font-size:18px}.enabled-badge{padding:2px 6px;color:var(--color-success);font-size:10px;background:var(--color-success-surface);border-radius:8px}.enabled-badge.disabled{color:var(--color-warning);background:var(--color-warning-surface)}.source-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0;padding:14px 18px;background:var(--color-surface-subtle);border-bottom:1px solid var(--color-border)}.source-meta div{display:grid}.source-meta dt{color:var(--color-text-secondary);font-size:10px}.source-meta dd{overflow-wrap:anywhere;margin:0;font-size:11px}.entry-detail>section{display:grid;gap:7px;padding:14px 18px;border-bottom:1px solid var(--color-border)}.entry-detail h3{font-size:12px}.entry-detail section p{font-size:13px;white-space:pre-wrap}.answer-text{line-height:1.7}.tag-list{display:flex;flex-wrap:wrap;gap:5px}.tag-list span{padding:3px 7px;color:var(--color-brand-ink);font-size:10px;background:var(--color-brand-surface);border-radius:8px}.tag-list span.alias{color:var(--color-info);background:var(--color-info-surface)}.entry-detail footer{gap:7px;padding:10px 18px;color:var(--color-text-secondary);font-size:11px;background:var(--color-surface-subtle)}.conflict-filter{display:grid;grid-template-columns:minmax(220px,1fr) 160px auto;gap:8px}.conflict-list{display:grid;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.conflict-list article{display:grid;grid-template-columns:18px minmax(180px,1fr) minmax(240px,1fr) auto;gap:10px;align-items:center;min-height:64px;padding:10px 13px;color:var(--color-danger);border-bottom:1px solid var(--color-border)}.conflict-list article:last-child{border-bottom:0}.conflict-list article>div{display:grid}.conflict-list article strong{color:var(--color-text-primary);font-size:12px}.conflict-list article div>span,.conflict-list time{color:var(--color-text-secondary);font-size:10px}.entry-ids{display:flex!important;flex-wrap:wrap;gap:5px}.entry-ids span{padding:2px 5px;background:var(--color-surface-subtle);border-radius:6px}.dialog-layer{position:fixed;z-index:80;inset:0;justify-content:center;padding:20px;background:rgb(34 37 36/36%)}.reload-dialog{width:min(470px,100%);padding:18px;background:var(--color-surface);border-radius:var(--radius-overlay);box-shadow:0 16px 44px rgb(34 37 36/18%)}.reload-dialog header{gap:10px;color:var(--color-brand-action)}.reload-dialog header h2{color:var(--color-text-primary);font-size:16px}.reload-dialog header p{color:var(--color-text-secondary);font-size:12px}.reload-notice{gap:8px;margin-top:16px;padding:9px 10px;color:var(--color-success);font-size:12px;background:var(--color-success-surface);border-left:3px solid var(--color-success)}.reload-dialog footer{justify-content:flex-end;gap:8px;margin-top:18px}.reload-dialog footer button{min-height:36px;padding:0 11px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.reload-dialog footer .primary-action{color:white;background:var(--color-brand-action);border-color:var(--color-brand-action)}.spin{animation:spin 700ms linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1050px){.status-strip{grid-template-columns:repeat(3,1fr)}.status-strip>div:nth-child(3){border-right:0}.status-strip>div:nth-child(n+4){border-top:1px solid var(--color-border)}.filter-bar{grid-template-columns:minmax(220px,1.4fr) repeat(2,minmax(110px,.7fr)) auto 38px}.filter-bar label:nth-of-type(4),.filter-bar label:nth-of-type(5){display:none}.entry-workspace{grid-template-columns:minmax(320px,.8fr) minmax(420px,1.2fr)}}
 @media(max-width:720px){.page-header{align-items:stretch;flex-direction:column}.primary-action{justify-content:center}.status-strip{grid-template-columns:1fr 1fr}.status-strip>div{border-top:1px solid var(--color-border);border-right:1px solid var(--color-border)}.status-strip>div:nth-child(even){border-right:0}.status-strip>div:first-child{grid-column:1/-1;border-top:0;border-right:0}.reload-operation{grid-template-columns:18px 1fr}.reload-operation dl{grid-column:1/-1}.filter-bar{grid-template-columns:1fr 1fr}.search-field{grid-column:1/-1}.filter-bar label:nth-of-type(2){display:none}.icon-button{justify-self:end}.entry-workspace{grid-template-columns:1fr}.entry-detail{order:-1}.detail-empty{min-height:220px}.source-meta{grid-template-columns:1fr}.conflict-filter{grid-template-columns:1fr}.conflict-list article{grid-template-columns:18px 1fr}.entry-ids,.conflict-list time{grid-column:2}.dialog-layer{align-items:center}.reload-dialog{align-self:center}}

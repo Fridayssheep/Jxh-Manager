@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { groupsApi } from '@/api/groups'
 import { scheduledJobsApi } from '@/api/scheduled-jobs'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import { makeScheduledJob, makeScheduledJobRun } from '@/test/scheduled-job-fixture'
@@ -63,5 +65,15 @@ describe('ScheduledJobsView', () => {
     expect(testSend).toHaveBeenCalledWith('job-1', 7)
     expect(wrapper.text()).toContain('结果未知')
     expect(wrapper.text()).toContain(originalTime!.slice(0, 10))
+  })
+
+  it('animates both the task drawer and secondary confirmation', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(
+      wrapper.findAllComponents(AppOverlayTransition).map((overlay) => overlay.props('variant')),
+    ).toEqual(['drawer', 'dialog'])
+    expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
   })
 })

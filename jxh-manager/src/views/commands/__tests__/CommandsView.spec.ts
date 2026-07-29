@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { commandsApi } from '@/api/commands'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import { makeCommand } from '@/test/command-fixture'
@@ -69,5 +70,6 @@ describe('CommandsView', () => {
 
     expect(update).toHaveBeenCalledWith('cmd-1', { enabled: true }, 7)
     expect(wrapper.text()).toContain('已启用')
+    expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
   })
 })

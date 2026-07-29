@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminApiError } from '@/api/client'
 import { joinRequestsApi } from '@/api/join-requests'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import {
@@ -199,5 +200,6 @@ describe('JoinRequestsView', () => {
 
     expect(wrapper.text()).toContain('处理结果未知')
     expect(wrapper.text()).toContain('不要重复提交')
+    expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
   })
 })
