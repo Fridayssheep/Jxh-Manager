@@ -14,8 +14,22 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   const sizes = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
+    overflowers: Array.from(document.querySelectorAll<HTMLElement>('body *'))
+      .map((element) => {
+        const rect = element.getBoundingClientRect()
+        return {
+          element: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''}${Array.from(element.classList).map((name) => `.${name}`).join('')}`,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          scrollWidth: element.scrollWidth,
+        }
+      })
+      .filter(({ left, right }) => left < -0.5 || right > document.documentElement.clientWidth + 0.5)
+      .slice(0, 8),
   }))
-  expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
+  expect(sizes.scrollWidth, JSON.stringify(sizes.overflowers, null, 2))
+    .toBeLessThanOrEqual(sizes.clientWidth)
 }
 
 async function expectNamedControls(page: Page): Promise<void> {
@@ -60,6 +74,21 @@ async function expectResponsiveShell(page: Page, projectName: string): Promise<v
 }
 
 async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await page.evaluate(async () => {
+    const animations = document.getAnimations().filter((animation) => {
+      const endTime = animation.effect?.getComputedTiming().endTime
+      return animation.playState !== 'finished' && Number.isFinite(Number(endTime))
+    })
+    await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)))
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  })
+
+  expect(await page.evaluate(() =>
+    document.getAnimations().filter((animation) => {
+      const endTime = animation.effect?.getComputedTiming().endTime
+      return animation.playState !== 'finished' && Number.isFinite(Number(endTime))
+    }).length,
+  )).toBe(0)
   const path = testInfo.outputPath(`${name}.png`)
   await page.screenshot({ path, fullPage: true })
   await testInfo.attach(name, { path, contentType: 'image/png' })
@@ -178,6 +207,39 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expectCsrf(request); expectIdempotencyKey(request)
     expect(request.headers['if-match']).toBe('"7"')
     expect(request.body).toEqual({ action: 'approve', reason: '信息完整' })
+  })
+
+  test('入群队列使用十条游标分页并保持活动高亮对齐', async ({ page }) => {
+    const api = await installAdminApi(page)
+    await page.goto('/join-requests')
+    const firstRow = page.locator('[data-test="request-row-flag-10001"]')
+    await expect(firstRow).toBeVisible()
+
+    const firstRequest = api.requests.find((request) => request.path === '/join-requests')
+    expect(firstRequest?.url).toContain('limit=10')
+    await firstRow.click()
+    await expect
+      .poll(() => page.evaluate(() => {
+        const row = document.querySelector('[data-test="request-row-flag-10001"]')
+          ?.getBoundingClientRect()
+        const highlight = document.querySelector('[data-test="request-row-highlight"]')
+          ?.getBoundingClientRect()
+        if (!row || !highlight) return false
+        return Math.abs(row.top - highlight.top) < 0.5
+          && Math.abs(row.height - highlight.height) < 0.5
+      }))
+      .toBe(true)
+
+    await page.locator('[data-test="cursor-next"]').click()
+    await expect(page.locator('[data-test="request-row-flag-page-2"]')).toBeVisible()
+    await expect(firstRow).toHaveCount(0)
+    expect(api.requests.find((request) => request.url.includes('cursor=join-cursor-2'))?.url)
+      .toContain('limit=10')
+
+    await page.locator('[data-test="cursor-previous"]').click()
+    await expect(page.locator('[data-test="request-row-flag-10001"]')).toBeVisible()
+    await expect(page.locator('[data-test="request-row-flag-page-2"]')).toHaveCount(0)
+    await expect(page.locator('[data-test="request-scroll"]')).toHaveCSS('overflow-y', 'auto')
   })
 
   test('命令草稿验证只调用无副作用端点', async ({ page }) => {
@@ -429,7 +491,13 @@ test('应用壳和关键页面适配当前 viewport', async ({ page }, testInfo)
     await expect(page.locator(route.ready)).toBeVisible()
     await expectNoHorizontalOverflow(page)
     await expectNamedControls(page)
+    await expect(page.locator('select')).toHaveCount(0)
   }
+
+  await page.goto('/join-requests')
+  await expect(page.locator('[data-test="request-row-flag-10001"]')).toBeVisible()
+  await expect(page.locator('[data-test="cursor-pager"]')).toBeVisible()
+  await attachScreenshot(page, testInfo, `join-requests-${testInfo.project.name}`)
 
   await page.goto('/audit-logs')
   await page.locator('[data-test="audit-row-audit-1"]').click()
