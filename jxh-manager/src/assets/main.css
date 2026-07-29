@@ -89,3 +89,74 @@ a {
     transform: translateY(0);
   }
 }
+
+.app-dialog-enter-active,
+.app-dialog-leave-active,
+.app-drawer-enter-active,
+.app-drawer-leave-active {
+  transition: opacity var(--duration-overlay) ease;
+}
+
+.app-dialog-enter-active > [role='dialog'],
+.app-dialog-enter-active > [role='alertdialog'],
+.app-dialog-leave-active > [role='dialog'],
+.app-dialog-leave-active > [role='alertdialog'],
+.app-drawer-enter-active > [role='dialog'],
+.app-drawer-enter-active > [role='alertdialog'],
+.app-drawer-leave-active > [role='dialog'],
+.app-drawer-leave-active > [role='alertdialog'] {
+  transition:
+    opacity var(--duration-overlay) ease,
+    transform var(--duration-overlay) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.app-dialog-enter-from,
+.app-dialog-leave-to,
+.app-drawer-enter-from,
+.app-drawer-leave-to {
+  opacity: 0;
+}
+
+.app-dialog-enter-from > [role='dialog'],
+.app-dialog-enter-from > [role='alertdialog'],
+.app-dialog-leave-to > [role='dialog'],
+.app-dialog-leave-to > [role='alertdialog'] {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+}
+
+.app-drawer-enter-from > [role='dialog'],
+.app-drawer-enter-from > [role='alertdialog'],
+.app-drawer-leave-to > [role='dialog'],
+.app-drawer-leave-to > [role='alertdialog'] {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-dialog-enter-active,
+  .app-dialog-leave-active,
+  .app-drawer-enter-active,
+  .app-drawer-leave-active,
+  .app-dialog-enter-active > [role='dialog'],
+  .app-dialog-enter-active > [role='alertdialog'],
+  .app-dialog-leave-active > [role='dialog'],
+  .app-dialog-leave-active > [role='alertdialog'],
+  .app-drawer-enter-active > [role='dialog'],
+  .app-drawer-enter-active > [role='alertdialog'],
+  .app-drawer-leave-active > [role='dialog'],
+  .app-drawer-leave-active > [role='alertdialog'] {
+    transition-duration: 0.01ms;
+  }
+
+  .app-dialog-enter-from > [role='dialog'],
+  .app-dialog-enter-from > [role='alertdialog'],
+  .app-dialog-leave-to > [role='dialog'],
+  .app-dialog-leave-to > [role='alertdialog'],
+  .app-drawer-enter-from > [role='dialog'],
+  .app-drawer-enter-from > [role='alertdialog'],
+  .app-drawer-leave-to > [role='dialog'],
+  .app-drawer-leave-to > [role='alertdialog'] {
+    transform: none;
+  }
+}
