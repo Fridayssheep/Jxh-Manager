@@ -1,14 +1,22 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { commandsApi } from '@/api/commands'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppSelect from '@/components/form/AppSelect.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import { makeCommand } from '@/test/command-fixture'
 import CommandsView from '../CommandsView.vue'
+
+async function selectValue(wrapper: VueWrapper, name: string, value: string): Promise<void> {
+  const select = wrapper.findAllComponents(AppSelect).find((item) => item.props('name') === name)
+  if (!select) throw new Error(`AppSelect ${name} was not rendered`)
+  select.vm.$emit('update:modelValue', value)
+  await wrapper.vm.$nextTick()
+}
 
 async function mountView() {
   const pinia = createPinia()
@@ -41,9 +49,9 @@ describe('CommandsView', () => {
     await flushPromises()
 
     await wrapper.get('input[name=query]').setValue('welcome')
-    await wrapper.get('select[name=status]').setValue('draft')
-    await wrapper.get('select[name=scope_type]').setValue('groups')
-    await wrapper.get('select[name=trigger_permission]').setValue('group_admin')
+    await selectValue(wrapper, 'status', 'draft')
+    await selectValue(wrapper, 'scope_type', 'groups')
+    await selectValue(wrapper, 'trigger_permission', 'group_admin')
     await wrapper.get('[data-test=command-filters]').trigger('submit')
     await flushPromises()
 

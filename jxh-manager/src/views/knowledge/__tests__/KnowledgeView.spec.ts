@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { knowledgeApi } from '@/api/knowledge'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppSelect from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import AppTabBar from '@/components/navigation/AppTabBar.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -42,7 +43,10 @@ describe('KnowledgeView', () => {
     expect(sources).toHaveLength(1)
     expect(sources[0]?.text()).toContain('WPS 知识源')
     expect(wrapper.text()).not.toMatch(/本地知识库|AI 知识库|手动知识库/)
-    expect(wrapper.get('select').text()).toContain('仅 AI 检索')
+    const entryType = wrapper.findAllComponents(AppSelect)
+      .find((select) => select.props('dataTest') === 'knowledge-entry-type')
+    expect(entryType?.props('options')).toContainEqual({ value: 'ai_knowledge', label: '仅 AI 检索' })
+    expect(wrapper.find('select').exists()).toBe(false)
   })
 
   it('renders the last successful reload in the browser local timezone', async () => {

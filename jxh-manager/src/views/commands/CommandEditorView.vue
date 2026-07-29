@@ -30,6 +30,7 @@ import ActionEditor from '@/components/commands/ActionEditor.vue'
 import ParameterEditor from '@/components/commands/ParameterEditor.vue'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
 import { serializeCommandDefinition, validateCommandDefinition } from './command-draft'
@@ -95,6 +96,17 @@ const runLabels: Record<CommandRunResult, string> = {
   partial: '部分成功',
   unknown: '结果未知',
 }
+const permissionOptions: readonly AppSelectOption[] = Object.entries(permissionLabels)
+  .map(([value, label]) => ({ value, label }))
+const senderRoleOptions: readonly AppSelectOption[] = [
+  { value: 'member', label: '成员' },
+  { value: 'admin', label: '管理员' },
+  { value: 'owner', label: '群主' },
+]
+const runResultOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部结果' },
+  ...Object.entries(runLabels).map(([value, label]) => ({ value, label })),
+]
 
 const actionLabels = {
   reply_text: '回复文本',
@@ -111,6 +123,18 @@ const hasCrossGroupAction = computed(() =>
 const definitionLocked = computed(
   () => !canWrite.value || (!canConfigureCrossGroup.value && hasCrossGroupAction.value),
 )
+
+function setTriggerPermission(value: string): void {
+  draft.value.trigger_permission = value as CommandTriggerPermission
+}
+
+function setSenderRole(value: string): void {
+  sample.sender_role = value as typeof sample.sender_role
+}
+
+function setRunResult(value: string): void {
+  runResultFilter.value = value as CommandRunResult | ''
+}
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit',
@@ -375,7 +399,7 @@ onMounted(async () => {
       <section class="editor-section">
         <header><span class="section-number mono">03</span><div><h2>权限与范围</h2><p>限制谁能触发命令，以及命令在哪些群中生效。</p></div></header>
         <div class="permission-grid">
-          <label><span>触发权限</span><select v-model="draft.trigger_permission" :disabled="definitionLocked"><option v-for="(label, value) in permissionLabels" :key="value" :value="value">{{ label }}</option></select></label>
+          <label><span>触发权限</span><AppSelect :model-value="draft.trigger_permission" :options="permissionOptions" accessible-name="触发权限" data-test="command-trigger-permission" :disabled="definitionLocked" @update:model-value="setTriggerPermission" /></label>
           <fieldset>
             <legend>作用范围</legend>
             <label><input type="radio" name="scope" value="global" :checked="draft.scope.type === 'global'" :disabled="definitionLocked" @change="setScope('global')" />全局</label>
@@ -398,7 +422,7 @@ onMounted(async () => {
         <div class="sample-grid">
           <label><span>样例群号</span><input v-model="sample.group_id" data-test="sample-group" maxlength="64" /></label>
           <label><span>发送者 QQ</span><input v-model="sample.sender_qq" data-test="sample-sender" maxlength="32" /></label>
-          <label><span>发送者角色</span><select v-model="sample.sender_role"><option value="member">成员</option><option value="admin">管理员</option><option value="owner">群主</option></select></label>
+          <label><span>发送者角色</span><AppSelect :model-value="sample.sender_role" :options="senderRoleOptions" accessible-name="发送者角色" data-test="sample-sender-role" @update:model-value="setSenderRole" /></label>
           <label class="sample-message"><span>完整样例消息</span><input v-model="sample.message" data-test="sample-message" maxlength="2000" placeholder="/welcome @24680135" /></label>
         </div>
         <div class="validation-actions">
@@ -417,7 +441,7 @@ onMounted(async () => {
 
       <section v-if="!isNew" class="editor-section runs-section">
         <header><span class="section-number mono">06</span><div><h2>执行记录</h2><p>仅展示结果与步骤元数据，不保存自由文本参数内容。</p></div></header>
-        <div class="run-toolbar"><select v-model="runResultFilter" aria-label="执行结果" @change="loadRuns(true)"><option value="">全部结果</option><option v-for="(label, value) in runLabels" :key="value" :value="value">{{ label }}</option></select></div>
+        <div class="run-toolbar"><AppSelect class="run-result-select" :model-value="runResultFilter" :options="runResultOptions" accessible-name="执行结果" data-test="command-run-result" @update:model-value="setRunResult" @change="loadRuns(true)" /></div>
         <p v-if="runsLoading && !runs.length" class="runs-empty">正在读取执行记录...</p>
         <p v-else-if="!runs.length" class="runs-empty">暂无执行记录。</p>
         <div v-else class="run-list">
@@ -512,6 +536,7 @@ textarea { padding-block: 8px; resize: vertical; }
 .preview-grid ol { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 20px; font-size: 12px; }
 .preview-grid li span { margin-right: 7px; color: var(--color-brand-ink); font-weight: 600; }
 .run-toolbar { display: flex; justify-content: flex-end; }
+.run-result-select { width: 160px; }
 .run-toolbar select { width: 160px; }
 .run-list { display: grid; gap: 7px; }
 .run-list article { display: grid; gap: 8px; padding: 11px 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-panel); }

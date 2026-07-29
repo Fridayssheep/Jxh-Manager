@@ -15,6 +15,7 @@ import type {
 } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import AppTabBar, { type AppTabOption } from '@/components/navigation/AppTabBar.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
@@ -59,6 +60,24 @@ const typeLabels: Record<KnowledgeEntryType, string> = {
 }
 const operationLabels = { accepted: '已接受', running: '执行中', succeeded: '已完成', failed: '失败' }
 const conflictLabels = { source_key: '来源键', keyword: '关键词', alias: '别名' }
+const entryTypeOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部类型' },
+  ...Object.entries(typeLabels).map(([value, label]) => ({ value, label })),
+]
+const enabledOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部启停' },
+  { value: 'true', label: '已启用' },
+  { value: 'false', label: '已停用' },
+]
+const conflictStateOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部冲突' },
+  { value: 'true', label: '存在冲突' },
+  { value: 'false', label: '无冲突' },
+]
+const conflictTypeOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部冲突类型' },
+  ...Object.entries(conflictLabels).map(([value, label]) => ({ value, label })),
+]
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
 })
@@ -75,6 +94,13 @@ const tabOptions = computed<readonly AppTabOption[]>(() => [
 
 function selectTab(value: string): void {
   activeTab.value = value as typeof activeTab.value
+}
+
+function setEntryType(value: string): void { entryFilters.entryType = value as KnowledgeEntryType | '' }
+function setEnabled(value: string): void { entryFilters.enabled = value as '' | 'true' | 'false' }
+function setHasConflict(value: string): void { entryFilters.hasConflict = value as '' | 'true' | 'false' }
+function setConflictType(value: string): void {
+  conflictFilters.conflictType = value as typeof conflictFilters.conflictType
 }
 
 function boolFilter(value: '' | 'true' | 'false'): boolean | null {
@@ -224,9 +250,9 @@ onBeforeUnmount(unsubscribe)
       <form class="filter-bar" @submit.prevent="loadEntries()">
         <label class="search-field"><span class="sr-only">搜索词条</span><Search :size="16" /><input v-model="entryFilters.query" placeholder="搜索标题、关键词或别名" /></label>
         <label><span class="sr-only">分类</span><input v-model="entryFilters.category" placeholder="分类" /></label>
-        <label><span class="sr-only">词条类型</span><select v-model="entryFilters.entryType"><option value="">全部类型</option><option v-for="(label, value) in typeLabels" :key="value" :value="value">{{ label }}</option></select></label>
-        <label><span class="sr-only">启用状态</span><select v-model="entryFilters.enabled"><option value="">全部启停</option><option value="true">已启用</option><option value="false">已停用</option></select></label>
-        <label><span class="sr-only">冲突状态</span><select v-model="entryFilters.hasConflict"><option value="">全部冲突</option><option value="true">存在冲突</option><option value="false">无冲突</option></select></label>
+        <label><span class="sr-only">词条类型</span><AppSelect :model-value="entryFilters.entryType" :options="entryTypeOptions" accessible-name="词条类型" data-test="knowledge-entry-type" @update:model-value="setEntryType" /></label>
+        <label><span class="sr-only">启用状态</span><AppSelect :model-value="entryFilters.enabled" :options="enabledOptions" accessible-name="启用状态" data-test="knowledge-enabled" @update:model-value="setEnabled" /></label>
+        <label><span class="sr-only">冲突状态</span><AppSelect :model-value="entryFilters.hasConflict" :options="conflictStateOptions" accessible-name="冲突状态" data-test="knowledge-conflict-state" @update:model-value="setHasConflict" /></label>
         <button class="filter-submit" type="submit">应用筛选</button><button class="icon-button" type="button" title="清除筛选" aria-label="清除筛选" @click="resetEntryFilters"><FilterX :size="16" /></button>
       </form>
 
@@ -257,7 +283,7 @@ onBeforeUnmount(unsubscribe)
       </template>
 
       <template v-else>
-      <form class="conflict-filter" @submit.prevent="loadConflicts()"><label class="search-field"><Search :size="16" /><input v-model="conflictFilters.query" placeholder="搜索冲突键或词条 ID" /></label><select v-model="conflictFilters.conflictType"><option value="">全部冲突类型</option><option v-for="(label, value) in conflictLabels" :key="value" :value="value">{{ label }}</option></select><button class="filter-submit" type="submit">应用筛选</button></form>
+      <form class="conflict-filter" @submit.prevent="loadConflicts()"><label class="search-field"><Search :size="16" /><input v-model="conflictFilters.query" placeholder="搜索冲突键或词条 ID" /></label><AppSelect :model-value="conflictFilters.conflictType" :options="conflictTypeOptions" accessible-name="冲突类型" data-test="knowledge-conflict-type" @update:model-value="setConflictType" /><button class="filter-submit" type="submit">应用筛选</button></form>
       <ResourceState v-if="conflictsLoading && !conflicts.length" state="loading" title="正在读取解析冲突" description="冲突不会自动覆盖任一词条。" />
       <ResourceState v-else-if="!conflicts.length" state="empty" title="当前没有解析冲突" description="关键词、别名和来源键均保持唯一。" />
       <section v-else class="conflict-list"><article v-for="conflict in conflicts" :key="conflict.conflict_id"><TriangleAlert :size="18" /><div><strong>{{ conflictLabels[conflict.type] }}冲突 · {{ conflict.key }}</strong><span class="mono">{{ conflict.conflict_id }}</span></div><div class="entry-ids"><span v-for="id in conflict.entry_ids" :key="id" class="mono">{{ id }}</span></div><time class="mono">{{ displayTime(conflict.detected_at) }}</time></article></section>

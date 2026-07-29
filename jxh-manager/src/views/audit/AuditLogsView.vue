@@ -15,6 +15,7 @@ import {
 import { auditApi, type AuditLogListQuery } from '@/api/audit'
 import type { AuditLog, AuditLogSummary, RedactedAuditValue } from '@/api/types'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 
 type FlatAuditValue = Record<string, string>
@@ -35,6 +36,14 @@ const filter = reactive({
 
 const resultLabels = { success: '成功', failed: '失败', unknown: '未知' }
 const actorTypeLabels = { admin_user: '管理账号', qq_user: 'QQ 用户', system: '系统' }
+const actorTypeOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部操作者' },
+  ...Object.entries(actorTypeLabels).map(([value, label]) => ({ value, label })),
+]
+const resultOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部结果' },
+  ...Object.entries(resultLabels).map(([value, label]) => ({ value, label })),
+]
 const sourceLabels = { web: '管理端', qq: 'QQ', system: '系统' }
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -48,6 +57,14 @@ function listQuery(cursor: string | null): AuditLogListQuery {
     cursor,
     limit: 30,
   }
+}
+
+function setActorType(value: string): void {
+  filter.actorType = value as AuditLogListQuery['actorType']
+}
+
+function setResult(value: string): void {
+  filter.result = value as AuditLogListQuery['result']
 }
 
 async function load(reset = true): Promise<void> {
@@ -122,11 +139,11 @@ onMounted(() => { void load() })
 
     <form data-test="audit-filters" class="audit-filters" @submit.prevent="load()">
       <label class="search-field"><Search :size="15" /><span class="sr-only">操作者账号 ID</span><input v-model.trim="filter.actorUserId" name="actor_user_id" placeholder="操作者账号 ID" /></label>
-      <label><span class="sr-only">操作者类型</span><select v-model="filter.actorType" name="actor_type"><option value="">全部操作者</option><option value="admin_user">管理账号</option><option value="qq_user">QQ 用户</option><option value="system">系统</option></select></label>
+      <label><span class="sr-only">操作者类型</span><AppSelect :model-value="filter.actorType" :options="actorTypeOptions" accessible-name="操作者类型" name="actor_type" data-test="audit-actor-type" @update:model-value="setActorType" /></label>
       <label><span class="sr-only">动作</span><input v-model.trim="filter.action" name="action" placeholder="动作，如 settings.update" /></label>
       <label><span class="sr-only">目标类型</span><input v-model.trim="filter.targetType" name="target_type" placeholder="目标类型" /></label>
       <label><span class="sr-only">目标 ID</span><input v-model.trim="filter.targetId" name="target_id" placeholder="目标 ID" /></label>
-      <label><span class="sr-only">结果</span><select v-model="filter.result" name="result"><option value="">全部结果</option><option value="success">成功</option><option value="failed">失败</option><option value="unknown">未知</option></select></label>
+      <label><span class="sr-only">结果</span><AppSelect :model-value="filter.result" :options="resultOptions" accessible-name="结果" name="result" data-test="audit-result" @update:model-value="setResult" /></label>
       <label><span class="sr-only">开始日期</span><input v-model="filter.from" name="from" type="date" title="开始日期" /></label>
       <label><span class="sr-only">结束日期</span><input v-model="filter.to" name="to" type="date" title="结束日期" /></label>
       <button class="filter-submit" type="submit">应用筛选</button>

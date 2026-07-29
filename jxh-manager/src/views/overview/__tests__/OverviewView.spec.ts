@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { describe, expect, it, vi } from 'vitest'
 
 import { overviewApi } from '@/api/overview'
+import AppSelect from '@/components/form/AppSelect.vue'
 import { makeOverview } from '@/test/overview-fixture'
 import OverviewView from '../OverviewView.vue'
 
@@ -54,9 +55,11 @@ describe('OverviewView', () => {
     const wrapper = mount(OverviewView, { global: { plugins: [pinia, router] } })
     await flushPromises()
 
-    await wrapper.get('select[name=range]').setValue('30d')
+    wrapper.getComponent(AppSelect).vm.$emit('update:modelValue', '30d')
+    wrapper.getComponent(AppSelect).vm.$emit('change', '30d')
     await flushPromises()
 
     expect(getOverview).toHaveBeenLastCalledWith({ range: '30d', groupId: null })
+    expect(wrapper.find('select').exists()).toBe(false)
   })
 })

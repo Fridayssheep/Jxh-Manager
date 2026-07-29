@@ -26,6 +26,7 @@ import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import DecisionDialog from '@/components/join-requests/DecisionDialog.vue'
 import JoinRequestDetail from '@/components/join-requests/JoinRequestDetail.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
 
@@ -96,6 +97,28 @@ const aiLabels = {
   failed: '解析失败',
   skipped: '未解析',
 }
+const decisionOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部决策' },
+  ...Object.entries(decisionLabels).map(([value, label]) => ({ value, label })),
+]
+const observedOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部观察状态' },
+  { value: 'pending', label: '尚未核对' },
+  { value: 'checked', label: '已经核对' },
+]
+const aiStatusOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部 AI 状态' },
+  ...Object.entries(aiLabels).map(([value, label]) => ({ value, label })),
+]
+const sourceOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部来源' },
+  { value: 'event', label: '实时事件' },
+  { value: 'system', label: '系统轮询' },
+]
+const sortOptions: readonly AppSelectOption[] = [
+  { value: 'requested_at_desc', label: '最新申请优先' },
+  { value: 'requested_at_asc', label: '最早申请优先' },
+]
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit',
@@ -113,6 +136,14 @@ const dialogCount = computed(() => (dialog.scope === 'bulk' ? selectedItems.valu
 const dialogGroupName = computed(() =>
   dialog.scope === 'bulk' ? selectionGroupName.value : detail.value?.group.name ?? '',
 )
+
+function setDecisionStatus(value: string): void { filters.decisionStatus = value }
+function setObservedStatus(value: string): void { filters.observedStatus = value }
+function setAiParseStatus(value: string): void { filters.aiParseStatus = value }
+function setSource(value: string): void { filters.source = value }
+function setSort(value: string): void {
+  filters.sort = value as typeof filters.sort
+}
 
 function listQuery(cursor: string | null): JoinRequestListQuery {
   return {
@@ -352,40 +383,23 @@ onBeforeUnmount(unsubscribe)
       </label>
       <label>
         <span class="sr-only">决策状态</span>
-        <select v-model="filters.decisionStatus" name="decision_status">
-          <option value="">全部决策</option>
-          <option v-for="(label, value) in decisionLabels" :key="value" :value="value">{{ label }}</option>
-        </select>
+        <AppSelect :model-value="filters.decisionStatus" :options="decisionOptions" accessible-name="决策状态" name="decision_status" data-test="join-decision-status" @update:model-value="setDecisionStatus" />
       </label>
       <label>
         <span class="sr-only">观察状态</span>
-        <select v-model="filters.observedStatus" name="observed_status">
-          <option value="">全部观察状态</option>
-          <option value="pending">尚未核对</option>
-          <option value="checked">已经核对</option>
-        </select>
+        <AppSelect :model-value="filters.observedStatus" :options="observedOptions" accessible-name="观察状态" name="observed_status" data-test="join-observed-status" @update:model-value="setObservedStatus" />
       </label>
       <label>
         <span class="sr-only">AI 解析状态</span>
-        <select v-model="filters.aiParseStatus" name="ai_parse_status">
-          <option value="">全部 AI 状态</option>
-          <option v-for="(label, value) in aiLabels" :key="value" :value="value">{{ label }}</option>
-        </select>
+        <AppSelect :model-value="filters.aiParseStatus" :options="aiStatusOptions" accessible-name="AI 解析状态" name="ai_parse_status" data-test="join-ai-status" @update:model-value="setAiParseStatus" />
       </label>
       <label class="source-filter">
         <span class="sr-only">采集来源</span>
-        <select v-model="filters.source" name="source">
-          <option value="">全部来源</option>
-          <option value="event">实时事件</option>
-          <option value="system">系统轮询</option>
-        </select>
+        <AppSelect :model-value="filters.source" :options="sourceOptions" accessible-name="采集来源" name="source" data-test="join-source" @update:model-value="setSource" />
       </label>
       <label class="sort-filter">
         <span class="sr-only">申请排序</span>
-        <select v-model="filters.sort" name="sort">
-          <option value="requested_at_desc">最新申请优先</option>
-          <option value="requested_at_asc">最早申请优先</option>
-        </select>
+        <AppSelect :model-value="filters.sort" :options="sortOptions" accessible-name="申请排序" name="sort" data-test="join-sort" @update:model-value="setSort" />
       </label>
       <label class="date-field">
         <span>从</span><input v-model="filters.requestedFrom" type="date" name="requested_from" />

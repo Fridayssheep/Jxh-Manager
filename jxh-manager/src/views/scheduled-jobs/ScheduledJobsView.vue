@@ -14,6 +14,7 @@ import type {
 } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
@@ -54,6 +55,23 @@ const statusLabels: Record<ScheduledJobStatus, string> = {
 const resultLabels: Record<RunResult, string> = {
   success: '成功', failed: '失败', unknown: '结果未知', skipped: '已跳过',
 }
+const typeOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部类型' },
+  { value: 'daily', label: '每日' },
+  { value: 'once', label: '单次' },
+]
+const statusOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部状态' },
+  ...Object.entries(statusLabels).map(([value, label]) => ({ value, label })),
+]
+const resultOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部结果' },
+  ...Object.entries(resultLabels).map(([value, label]) => ({ value, label })),
+]
+const jobStatusOptions: readonly AppSelectOption[] = [
+  { value: 'active', label: '运行中' },
+  { value: 'paused', label: '暂停' },
+]
 
 const availableGroups = computed(() => {
   const result = [...groups.value]
@@ -63,6 +81,13 @@ const availableGroups = computed(() => {
   }
   return result
 })
+const groupOptions = computed<readonly AppSelectOption[]>(() => [
+  { value: '', label: '请选择' },
+  ...availableGroups.value.map((group) => ({
+    value: group.group_id,
+    label: `${group.name} · ${group.group_id}`,
+  })),
+])
 
 function displayTime(value: string | null): string {
   return value ? value.replace('T', ' ').replace('Z', '').slice(0, 16) : '尚无'
@@ -71,6 +96,12 @@ function displayTime(value: string | null): string {
 function listQuery(cursor: string | null): ScheduledJobListQuery {
   return { groupId: filters.groupId.trim(), type: filters.type, status: filters.status, runResult: filters.runResult, cursor }
 }
+
+function setTypeFilter(value: string): void { filters.type = value as ScheduledJobType | '' }
+function setStatusFilter(value: string): void { filters.status = value as ScheduledJobStatus | '' }
+function setResultFilter(value: string): void { filters.runResult = value as RunResult | '' }
+function setGroupId(value: string): void { form.groupId = value }
+function setJobStatus(value: string): void { form.status = value as 'active' | 'paused' }
 
 async function load(reset = true): Promise<void> {
   if (reset) loading.value = true
@@ -267,9 +298,9 @@ onBeforeUnmount(unsubscribe)
 
     <form class="filter-bar" @submit.prevent="load()">
       <label><span class="sr-only">群号</span><input v-model="filters.groupId" placeholder="完整群号" /></label>
-      <label><span class="sr-only">任务类型</span><select v-model="filters.type"><option value="">全部类型</option><option value="daily">每日</option><option value="once">单次</option></select></label>
-      <label><span class="sr-only">任务状态</span><select v-model="filters.status"><option value="">全部状态</option><option v-for="(label, value) in statusLabels" :key="value" :value="value">{{ label }}</option></select></label>
-      <label><span class="sr-only">最近结果</span><select v-model="filters.runResult"><option value="">全部结果</option><option v-for="(label, value) in resultLabels" :key="value" :value="value">{{ label }}</option></select></label>
+      <label><span class="sr-only">任务类型</span><AppSelect :model-value="filters.type" :options="typeOptions" accessible-name="任务类型" data-test="jobs-type-filter" @update:model-value="setTypeFilter" /></label>
+      <label><span class="sr-only">任务状态</span><AppSelect :model-value="filters.status" :options="statusOptions" accessible-name="任务状态" data-test="jobs-status-filter" @update:model-value="setStatusFilter" /></label>
+      <label><span class="sr-only">最近结果</span><AppSelect :model-value="filters.runResult" :options="resultOptions" accessible-name="最近结果" data-test="jobs-result-filter" @update:model-value="setResultFilter" /></label>
       <button class="filter-submit" type="submit">应用筛选</button>
       <button class="icon-button" type="button" title="清除筛选" aria-label="清除筛选" @click="resetFilters"><FilterX :size="16" aria-hidden="true" /></button>
     </form>
@@ -303,12 +334,12 @@ onBeforeUnmount(unsubscribe)
         <header><div><h2 id="job-editor-title">{{ editingJob ? '编辑任务' : '新建任务' }}</h2><p>{{ editingJob ? `版本 ${editingJob.version}` : '创建后按启用状态进入调度器' }}</p></div><button type="button" aria-label="关闭" @click="editorOpen = false"><X :size="17" /></button></header>
         <div class="editor-body">
           <label><span>任务名称</span><input v-model="form.name" data-test="job-name" maxlength="100" /></label>
-          <label><span>目标群</span><select v-model="form.groupId"><option value="">请选择</option><option v-for="group in availableGroups" :key="group.group_id" :value="group.group_id">{{ group.name }} · {{ group.group_id }}</option></select></label>
+          <label><span>目标群</span><AppSelect :model-value="form.groupId" :options="groupOptions" accessible-name="目标群" data-test="job-group" @update:model-value="setGroupId" /></label>
           <label><span>发送消息</span><textarea v-model="form.message" rows="5" maxlength="2000" /></label>
           <fieldset><legend>调度类型</legend><label><input v-model="form.scheduleType" type="radio" value="daily" />每日</label><label><input v-model="form.scheduleType" type="radio" value="once" />单次</label></fieldset>
           <label v-if="form.scheduleType === 'daily'"><span>每天时间</span><input v-model="form.dailyTime" type="time" /></label>
           <label v-else><span>执行时间</span><input v-model="form.runAt" type="datetime-local" /></label>
-          <label v-if="editingJob" class="status-field"><span>任务状态</span><select v-model="form.status"><option value="active">运行中</option><option value="paused">暂停</option></select></label>
+          <label v-if="editingJob" class="status-field"><span>任务状态</span><AppSelect :model-value="form.status" :options="jobStatusOptions" accessible-name="任务状态" data-test="job-status" @update:model-value="setJobStatus" /></label>
           <label v-else class="check-field"><input v-model="form.enabled" type="checkbox" /><span>创建后立即启用</span></label>
           <section v-if="editingJob" class="history-section"><h3>执行记录</h3><p v-if="runsLoading">正在读取...</p><p v-else-if="!runs.length">暂无记录</p><article v-for="run in runs" :key="run.run_id"><span :class="`run-result--${run.result}`">{{ run.kind === 'test' ? '测试' : '正式' }} · {{ resultLabels[run.result] }}</span><time class="mono">{{ displayTime(run.started_at) }}</time><small>{{ run.duration_ms }} ms{{ run.error_message ? ` · ${run.error_message}` : '' }}</small></article></section>
         </div>

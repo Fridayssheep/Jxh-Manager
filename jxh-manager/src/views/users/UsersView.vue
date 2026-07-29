@@ -13,6 +13,7 @@ import type {
 } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import AppTabBar, { type AppTabOption } from '@/components/navigation/AppTabBar.vue'
 import { vRiseOnChange } from '@/directives/motion'
@@ -59,6 +60,26 @@ const roleLabels: Record<AdminRole, string> = {
 const sessionStatusLabels: Record<SessionStatus, string> = {
   active: '活跃', expired: '已过期', revoked: '已撤销',
 }
+const roleOptions: readonly AppSelectOption[] = Object.entries(roleLabels)
+  .map(([value, label]) => ({ value, label }))
+const roleFilterOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部角色' },
+  ...roleOptions,
+]
+const accountStatusOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部状态' },
+  { value: 'true', label: '正常' },
+  { value: 'false', label: '已停用' },
+]
+const sessionStatusOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部状态' },
+  ...Object.entries(sessionStatusLabels).map(([value, label]) => ({ value, label })),
+]
+const currentSessionOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部会话' },
+  { value: 'true', label: '仅当前会话' },
+  { value: 'false', label: '排除当前会话' },
+]
 const tabOptions = computed<readonly AppTabOption[]>(() => [
   { value: 'users', label: '管理账号', icon: UserCog, dataTest: 'users-tab' },
   ...(auth.hasPermission('sessions:manage')
@@ -100,6 +121,12 @@ function sessionListQuery(cursor: string | null): AdminSessionListQuery {
     current: sessionFilters.current === '' ? null : sessionFilters.current === 'true', cursor,
   }
 }
+
+function setUserRoleFilter(value: string): void { userFilters.role = value as AdminRole | '' }
+function setUserEnabledFilter(value: string): void { userFilters.enabled = value as '' | 'true' | 'false' }
+function setSessionStatus(value: string): void { sessionFilters.status = value as SessionStatus | '' }
+function setCurrentSession(value: string): void { sessionFilters.current = value as '' | 'true' | 'false' }
+function setUserRole(value: string): void { userForm.role = value as AdminRole }
 
 async function loadUsers(reset = true): Promise<void> {
   if (reset) usersLoading.value = true
@@ -313,8 +340,8 @@ onMounted(() => { void loadUsers() })
       <template v-if="activeTab === 'users'">
       <form data-test="user-filters" class="filter-bar" @submit.prevent="loadUsers()">
         <label class="search-field"><Search :size="15" /><span class="sr-only">搜索账号</span><input v-model="userFilters.query" placeholder="用户名、显示名称或完整 QQ" /></label>
-        <label><span class="sr-only">账号角色</span><select v-model="userFilters.role"><option value="">全部角色</option><option v-for="(label, value) in roleLabels" :key="value" :value="value">{{ label }}</option></select></label>
-        <label><span class="sr-only">账号状态</span><select v-model="userFilters.enabled"><option value="">全部状态</option><option value="true">正常</option><option value="false">已停用</option></select></label>
+        <label><span class="sr-only">账号角色</span><AppSelect :model-value="userFilters.role" :options="roleFilterOptions" accessible-name="账号角色" data-test="users-role-filter" @update:model-value="setUserRoleFilter" /></label>
+        <label><span class="sr-only">账号状态</span><AppSelect :model-value="userFilters.enabled" :options="accountStatusOptions" accessible-name="账号状态" data-test="users-enabled-filter" @update:model-value="setUserEnabledFilter" /></label>
         <button class="filter-submit" type="submit">应用筛选</button>
         <button class="filter-reset" type="button" title="清除筛选" aria-label="清除筛选" @click="resetUserFilters"><FilterX :size="16" /></button>
       </form>
@@ -345,8 +372,8 @@ onMounted(() => { void loadUsers() })
       <template v-else>
       <form data-test="session-filters" class="filter-bar session-filters" @submit.prevent="loadSessions()">
         <label><span class="sr-only">账号 ID</span><input v-model="sessionFilters.userId" placeholder="账号 ID" /></label>
-        <label><span class="sr-only">会话状态</span><select v-model="sessionFilters.status" name="session_status"><option value="">全部状态</option><option v-for="(label, value) in sessionStatusLabels" :key="value" :value="value">{{ label }}</option></select></label>
-        <label><span class="sr-only">当前会话</span><select v-model="sessionFilters.current"><option value="">全部会话</option><option value="true">仅当前会话</option><option value="false">排除当前会话</option></select></label>
+        <label><span class="sr-only">会话状态</span><AppSelect :model-value="sessionFilters.status" :options="sessionStatusOptions" accessible-name="会话状态" name="session_status" data-test="users-session-status" @update:model-value="setSessionStatus" /></label>
+        <label><span class="sr-only">当前会话</span><AppSelect :model-value="sessionFilters.current" :options="currentSessionOptions" accessible-name="当前会话" data-test="users-current-session" @update:model-value="setCurrentSession" /></label>
         <button class="filter-submit" type="submit">应用筛选</button>
         <button class="filter-reset" type="button" title="清除筛选" aria-label="清除筛选" @click="resetSessionFilters"><FilterX :size="16" /></button>
       </form>
@@ -376,7 +403,7 @@ onMounted(() => { void loadUsers() })
         <div class="editor-body">
           <label><span>用户名</span><input v-model="userForm.username" data-test="user-username" :disabled="Boolean(editingUser)" autocomplete="off" /></label>
           <label><span>显示名称</span><input v-model="userForm.displayName" data-test="user-display-name" maxlength="100" /></label>
-          <label><span>角色</span><select v-model="userForm.role" data-test="user-role"><option v-for="(label, value) in roleLabels" :key="value" :value="value">{{ label }}</option></select></label>
+          <label><span>角色</span><AppSelect :model-value="userForm.role" :options="roleOptions" accessible-name="角色" data-test="user-role" @update:model-value="setUserRole" /></label>
           <label><span>QQ 维护身份（可选）</span><input v-model="userForm.qqUserId" data-test="user-qq" inputmode="numeric" /></label>
           <label v-if="!editingUser"><span>初始密码</span><input v-model="userForm.password" data-test="user-password" type="password" autocomplete="new-password" /></label>
           <div class="role-note"><ShieldCheck :size="16" /><p><strong>{{ roleLabels[userForm.role] }}</strong><span v-if="userForm.role === 'super_admin'">可管理账号、会话和系统危险动作。</span><span v-else-if="userForm.role === 'maintainer'">可处理日常运营，但不能管理后台账号。</span><span v-else>仅查看授权范围内的脱敏数据。</span></p></div>

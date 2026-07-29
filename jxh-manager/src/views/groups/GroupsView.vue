@@ -8,6 +8,7 @@ import { groupsApi, type GroupListQuery } from '@/api/groups'
 import type { FeatureKey, Group, GroupRole, GroupSyncResult } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import SettingsAreaNav from '@/components/settings/SettingsAreaNav.vue'
 import { FEATURE_META } from '@/components/settings/feature-settings'
 import { useAuthStore } from '@/stores/auth'
@@ -43,6 +44,24 @@ const roleLabels: Record<GroupRole, string> = {
   member: '成员',
   unknown: '未知',
 }
+const roleOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部角色' },
+  ...Object.entries(roleLabels).map(([value, label]) => ({ value, label })),
+]
+const snapshotOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部快照' },
+  { value: 'fresh', label: '最新快照' },
+  { value: 'stale', label: '陈旧快照' },
+]
+const featureOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部功能' },
+  ...Object.entries(FEATURE_META).map(([value, meta]) => ({ value, label: meta.label })),
+]
+const enabledOptions: readonly AppSelectOption[] = [
+  { value: '', label: '全部状态' },
+  { value: 'true', label: '已启用' },
+  { value: 'false', label: '已停用' },
+]
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit',
@@ -61,6 +80,14 @@ function query(cursor: string | null): GroupListQuery {
     cursor,
   }
 }
+
+function setBotRole(value: string): void { filters.botRole = value as GroupRole | '' }
+function setSnapshotState(value: string): void { filters.snapshotState = value as 'fresh' | 'stale' | '' }
+function setFeatureKey(value: string): void {
+  filters.featureKey = value as FeatureKey | ''
+  if (!value) filters.featureEnabled = ''
+}
+function setFeatureEnabled(value: string): void { filters.featureEnabled = value as '' | 'true' | 'false' }
 
 async function load(reset = true): Promise<void> {
   if (reset) loading.value = true
@@ -137,36 +164,19 @@ onMounted(() => load())
       </label>
       <label>
         <span class="sr-only">Bot 群角色</span>
-        <select v-model="filters.botRole" name="bot_role">
-          <option value="">全部角色</option>
-          <option value="owner">群主</option>
-          <option value="admin">管理员</option>
-          <option value="member">成员</option>
-          <option value="unknown">未知</option>
-        </select>
+        <AppSelect :model-value="filters.botRole" :options="roleOptions" accessible-name="Bot 群角色" name="bot_role" data-test="groups-bot-role" @update:model-value="setBotRole" />
       </label>
       <label>
         <span class="sr-only">快照状态</span>
-        <select v-model="filters.snapshotState" name="snapshot_state">
-          <option value="">全部快照</option>
-          <option value="fresh">最新快照</option>
-          <option value="stale">陈旧快照</option>
-        </select>
+        <AppSelect :model-value="filters.snapshotState" :options="snapshotOptions" accessible-name="快照状态" name="snapshot_state" data-test="groups-snapshot-state" @update:model-value="setSnapshotState" />
       </label>
       <label>
         <span class="sr-only">功能</span>
-        <select v-model="filters.featureKey" name="feature_key">
-          <option value="">全部功能</option>
-          <option v-for="(meta, key) in FEATURE_META" :key="key" :value="key">{{ meta.label }}</option>
-        </select>
+        <AppSelect :model-value="filters.featureKey" :options="featureOptions" accessible-name="功能" name="feature_key" data-test="groups-feature" @update:model-value="setFeatureKey" />
       </label>
       <label>
         <span class="sr-only">功能状态</span>
-        <select v-model="filters.featureEnabled" name="feature_enabled" :disabled="!filters.featureKey">
-          <option value="">全部状态</option>
-          <option value="true">已启用</option>
-          <option value="false">已停用</option>
-        </select>
+        <AppSelect :model-value="filters.featureEnabled" :options="enabledOptions" accessible-name="功能状态" name="feature_enabled" data-test="groups-feature-enabled" :disabled="!filters.featureKey" @update:model-value="setFeatureEnabled" />
       </label>
       <button class="filter-submit" type="submit">应用筛选</button>
       <button class="icon-action" type="button" title="清除筛选" aria-label="清除筛选" @click="resetFilters">
