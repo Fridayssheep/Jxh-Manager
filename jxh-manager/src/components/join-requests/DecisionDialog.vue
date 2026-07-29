@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CheckCircle2, LoaderCircle, X, XCircle } from '@lucide/vue'
 
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
@@ -16,6 +16,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{ cancel: []; confirm: [reason: string | undefined] }>()
 const reason = ref('')
+const normalizedReason = computed(() => reason.value.trim())
+const normalizedReasonLength = computed(() => [...normalizedReason.value].length)
+const reasonError = computed(() => {
+  if (props.action === 'reject' && !normalizedReason.value) return '拒绝消息不能为空'
+  if (normalizedReasonLength.value > 500) return '处理原因不能超过 500 个字符'
+  return null
+})
+const canConfirm = computed(() => !props.busy && !reasonError.value)
 
 watch(
   () => props.open,
@@ -25,7 +33,8 @@ watch(
 )
 
 function confirm(): void {
-  emit('confirm', reason.value.trim() || undefined)
+  if (!canConfirm.value) return
+  emit('confirm', normalizedReason.value || undefined)
 }
 </script>
 
@@ -52,15 +61,35 @@ function confirm(): void {
       </div>
 
       <label class="reason-field">
-        <span>处理原因 <small>选填</small></span>
+        <span>
+          {{ action === 'reject' ? '拒绝消息' : '处理原因' }}
+          <small>{{ action === 'reject' ? '必填' : '选填' }}</small>
+        </span>
         <textarea
           v-model="reason"
           data-test="decision-reason"
           rows="3"
-          maxlength="500"
-          placeholder="用于审计记录，不会发送给申请人"
+          :placeholder="action === 'reject' ? '填写发送给申请人的拒绝原因' : '用于审计记录，不会发送给申请人'"
           :disabled="busy"
+          :required="action === 'reject'"
+          :aria-invalid="Boolean(reasonError)"
+          aria-describedby="decision-reason-hint"
         />
+        <span
+          id="decision-reason-hint"
+          class="reason-hint reason-guidance"
+        >
+          <span>{{ action === 'reject' ? '将通过 NapCat 发送给申请人' : '仅写入决策审计记录' }}</span>
+          <span class="mono">{{ normalizedReasonLength }}/500</span>
+        </span>
+        <span
+          class="reason-hint reason-hint--error"
+          :class="{ 'reason-hint--visible': reasonError }"
+          :aria-hidden="!reasonError"
+          role="alert"
+        >
+          {{ reasonError || '&nbsp;' }}
+        </span>
       </label>
 
       <footer>
@@ -69,7 +98,7 @@ function confirm(): void {
           data-test="confirm-decision"
           :class="['confirm-button', `confirm-button--${action}`]"
           type="button"
-          :disabled="busy"
+          :disabled="!canConfirm"
           @click="confirm"
         >
           <LoaderCircle v-if="busy" class="spin" :size="16" aria-hidden="true" />
@@ -166,12 +195,44 @@ header p {
   font-weight: 400;
 }
 
+.reason-hint {
+  min-height: 18px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.reason-hint--error {
+  color: var(--color-danger);
+  visibility: hidden;
+}
+
+.reason-hint--visible {
+  visibility: visible;
+}
+
+.reason-guidance {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 textarea {
   width: 100%;
   padding: 9px 10px;
   resize: vertical;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
+}
+
+textarea[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.confirm-button:disabled {
+  color: var(--color-text-disabled);
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
 }
 
 footer {

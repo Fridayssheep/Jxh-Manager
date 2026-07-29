@@ -36,6 +36,15 @@ export function makeJoinRequestSummary(
     version: 7,
     last_decision_id: null,
     ...overrides,
+    student_id_assessment: overrides.student_id_assessment ?? {
+      status: 'unconfigured',
+      rule_version: 1,
+      enrollment_year: null,
+      major_code: null,
+      expected_major: null,
+      major_matches: null,
+      warnings: [],
+    },
   }
 }
 

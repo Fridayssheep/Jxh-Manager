@@ -11,7 +11,12 @@ import {
   XCircle,
 } from '@lucide/vue'
 
-import type { JoinDecision, JoinRequest, JoinRequestPolicy } from '@/api/types'
+import type {
+  JoinDecision,
+  JoinRequest,
+  JoinRequestPolicy,
+  JoinRequestPolicyPatch,
+} from '@/api/types'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 
 const props = defineProps<{
@@ -27,7 +32,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   approve: []
   reject: []
-  policyChange: [enabled: boolean]
+  policyChange: [patch: JoinRequestPolicyPatch]
 }>()
 
 const decisionLabels = {
@@ -120,20 +125,46 @@ const canAct = computed(
 
       <section v-if="policy" class="detail-section policy-section">
         <header>
-          <div class="section-title"><ShieldCheck :size="17" aria-hidden="true" /><h3>自动批准策略</h3></div>
-          <label class="policy-switch">
-            <input
-              type="checkbox"
-              :checked="policy.enabled"
-              :disabled="!canManagePolicy || policyBusy"
-              :aria-label="`自动批准：${policy.enabled ? '已启用' : '已停用'}`"
-              @change="emit('policyChange', ($event.target as HTMLInputElement).checked)"
-            />
-            <span aria-hidden="true" />
-            <b>{{ policy.enabled ? '已启用' : '已停用' }}</b>
-          </label>
+          <div class="section-title"><ShieldCheck :size="17" aria-hidden="true" /><h3>自动处理策略</h3></div>
         </header>
-        <p>仅当学号、姓名、专业均完整且格式有效时自动批准。系统绝不自动拒绝申请。</p>
+        <div class="policy-options">
+          <label class="policy-row">
+            <span class="policy-copy">
+              <strong>自动批准</strong>
+              <small>AI 字段完整且格式有效时批准。</small>
+            </span>
+            <span class="policy-switch">
+              <input
+                type="checkbox"
+                data-test="policy-enabled"
+                :checked="policy.enabled"
+                :disabled="!canManagePolicy || policyBusy"
+                :aria-label="`自动批准：${policy.enabled ? '已启用' : '已停用'}`"
+                @change="emit('policyChange', { enabled: ($event.target as HTMLInputElement).checked })"
+              />
+              <span aria-hidden="true" />
+              <b>{{ policy.enabled ? '已启用' : '已停用' }}</b>
+            </span>
+          </label>
+          <label class="policy-row">
+            <span class="policy-copy">
+              <strong>自动拒绝</strong>
+              <small>AI 字段无效时使用全局拒绝消息。</small>
+            </span>
+            <span class="policy-switch">
+              <input
+                type="checkbox"
+                data-test="policy-auto-reject"
+                :checked="policy.auto_reject"
+                :disabled="!canManagePolicy || policyBusy"
+                :aria-label="`自动拒绝：${policy.auto_reject ? '已启用' : '已停用'}`"
+                @change="emit('policyChange', { auto_reject: ($event.target as HTMLInputElement).checked })"
+              />
+              <span aria-hidden="true" />
+              <b>{{ policy.auto_reject ? '已启用' : '已停用' }}</b>
+            </span>
+          </label>
+        </div>
       </section>
 
       <section class="detail-section timeline-section">
@@ -283,6 +314,39 @@ blockquote {
   margin-top: 8px;
   color: var(--color-text-secondary);
   font-size: 11px;
+}
+
+.policy-options {
+  display: grid;
+  margin-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.policy-row {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.policy-row:last-child {
+  border-bottom: 0;
+}
+
+.policy-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.policy-copy strong {
+  font-size: 12px;
+}
+
+.policy-copy small {
+  color: var(--color-text-secondary);
+  font-size: 10px;
 }
 
 .ai-status--succeeded {

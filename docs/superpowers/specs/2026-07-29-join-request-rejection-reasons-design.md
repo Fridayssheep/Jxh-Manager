@@ -92,7 +92,7 @@ JoinRequestGlobalSettings:
 
 ## 数据库迁移
 
-新增迁移 `010_enable_automatic_join_rejection.sql`：
+学号规则功能已占用迁移 010，因此新增迁移 `011_enable_automatic_join_rejection.sql`：
 
 - 删除 `chk_group_join_policies_auto_reject` 约束。
 - 保留所有现有记录的 `auto_reject=false`，迁移本身不会启用任何自动拒绝。
@@ -121,7 +121,7 @@ JoinRequestGlobalSettings:
 
 ## 测试与验收
 
-- 数据库：009 到 010 迁移、重复迁移保护、全新初始化和已有策略数据保持关闭。
+- 数据库：010 到 011 迁移、重复迁移保护、全新初始化和已有策略数据保持关闭。
 - 设置：默认消息、全局读写、版本冲突、JSON 向后读取、运行时原子更新和审计快照。
 - 策略：读写 `auto_reject`、权限、版本冲突和候选查询。
 - Worker：有效字段自动批准、无效字段自动拒绝、解析失败不处理、全局消息进入决策与网关。

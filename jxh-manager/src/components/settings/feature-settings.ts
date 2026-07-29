@@ -1,6 +1,7 @@
 import type {
   FeatureKey,
   FeatureSettings,
+  GlobalSettings,
   GlobalSettingsPatch,
   GroupSettings,
   GroupSettingsPatch,
@@ -15,6 +16,11 @@ export type FeatureDraftItem = {
 }
 
 export type FeatureSettingsDraft = Record<FeatureKey, FeatureDraftItem>
+
+export type GlobalSettingsDraft = {
+  features: FeatureSettingsDraft
+  autoRejectReason: string
+}
 
 export const FEATURE_KEYS: FeatureKey[] = [
   'keyword_reply',
@@ -49,6 +55,13 @@ export function cloneGlobalDraft(settings: FeatureSettings): FeatureSettingsDraf
   ) as FeatureSettingsDraft
 }
 
+export function cloneGlobalSettingsDraft(settings: GlobalSettings): GlobalSettingsDraft {
+  return {
+    features: cloneGlobalDraft(settings.features),
+    autoRejectReason: settings.join_requests.auto_reject_reason,
+  }
+}
+
 export function cloneGroupDraft(settings: GroupSettings): FeatureSettingsDraft {
   return Object.fromEntries(
     FEATURE_KEYS.map((key) => {
@@ -70,19 +83,20 @@ export function cloneGroupDraft(settings: GroupSettings): FeatureSettingsDraft {
   ) as FeatureSettingsDraft
 }
 
-export function toGlobalSettingsPatch(draft: FeatureSettingsDraft): GlobalSettingsPatch {
+export function toGlobalSettingsPatch(draft: GlobalSettingsDraft): GlobalSettingsPatch {
   return {
     features: {
-      keyword_reply: { enabled: draft.keyword_reply.mode === 'enabled' },
-      ai_qa: { enabled: draft.ai_qa.mode === 'enabled' },
-      quote: { enabled: draft.quote.mode === 'enabled' },
-      link_cleaner: { enabled: draft.link_cleaner.mode === 'enabled' },
+      keyword_reply: { enabled: draft.features.keyword_reply.mode === 'enabled' },
+      ai_qa: { enabled: draft.features.ai_qa.mode === 'enabled' },
+      quote: { enabled: draft.features.quote.mode === 'enabled' },
+      link_cleaner: { enabled: draft.features.link_cleaner.mode === 'enabled' },
       welcome: {
-        enabled: draft.welcome.mode === 'enabled',
-        message_template: draft.welcome.messageTemplate,
+        enabled: draft.features.welcome.mode === 'enabled',
+        message_template: draft.features.welcome.messageTemplate,
       },
-      custom_commands: { enabled: draft.custom_commands.mode === 'enabled' },
+      custom_commands: { enabled: draft.features.custom_commands.mode === 'enabled' },
     },
+    join_requests: { auto_reject_reason: draft.autoRejectReason.trim() },
   }
 }
 
