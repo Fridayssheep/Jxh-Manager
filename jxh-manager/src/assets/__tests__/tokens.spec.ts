@@ -38,4 +38,13 @@ describe('design tokens', () => {
     expect(mainCss).not.toContain('max-width: 1280px')
     expect(baseCss).toContain('@media (prefers-reduced-motion: reduce)')
   })
+
+  it('keeps filter text and icon actions stable under grid pressure', () => {
+    expect(mainCss).toMatch(
+      /button\.filter-submit\s*\{[^}]*min-inline-size: 84px[^}]*white-space: nowrap[^}]*}/s,
+    )
+    expect(mainCss).toMatch(
+      /button:is\(\.filter-reset, \.icon-action, \.icon-button\)\s*\{[^}]*display: grid[^}]*inline-size: 38px[^}]*place-items: center[^}]*}/s,
+    )
+  })
 })
