@@ -173,7 +173,24 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
     }
 
     if (method === 'GET' && path === '/join-requests') {
-      await route.fulfill({ json: { items: [makeJoinRequestSummary()], next_cursor: null, has_more: false } }); return
+      const cursor = new URL(recorded.url).searchParams.get('cursor')
+      if (cursor === 'join-cursor-2') {
+        await route.fulfill({ json: {
+          items: [makeJoinRequestSummary({
+            request_id: 'flag-page-2',
+            applicant_qq: '11223344',
+            applicant_nickname: '第二页申请人',
+            version: 2,
+          })],
+          next_cursor: null,
+          has_more: false,
+        } }); return
+      }
+      await route.fulfill({ json: {
+        items: [makeJoinRequestSummary()],
+        next_cursor: 'join-cursor-2',
+        has_more: true,
+      } }); return
     }
     if (method === 'GET' && path === '/join-requests/flag-10001/decisions') {
       await route.fulfill({ json: { items: [], next_cursor: null, has_more: false } }); return

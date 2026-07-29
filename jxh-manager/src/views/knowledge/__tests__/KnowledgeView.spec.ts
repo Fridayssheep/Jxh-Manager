@@ -86,7 +86,12 @@ describe('KnowledgeView', () => {
     const wrapper = await mountView()
     await flushPromises()
     const content = wrapper.get('.tab-content').element as HTMLElement
-    const animate = vi.fn(() => ({ cancel: vi.fn(), onfinish: null, oncancel: null }))
+    const animation = {
+      cancel: vi.fn<() => void>(),
+      onfinish: null,
+      oncancel: null,
+    } as unknown as Animation
+    const animate = vi.fn<() => Animation>(() => animation)
     Object.defineProperty(content, 'animate', { configurable: true, value: animate })
 
     expect(wrapper.findComponent(AppTabBar).props('modelValue')).toBe('entries')
