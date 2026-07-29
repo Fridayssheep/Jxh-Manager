@@ -440,6 +440,27 @@ export interface paths {
         patch: operations["updateGroupSettings"];
         trace?: never;
     };
+    "/join-request-rules/student-id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取全局学号辅助判断规则 */
+        get: operations["getStudentIdRule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 修改全局学号辅助判断规则
+         * @description 规则只生成风险提示，不修改 AI 提取结果，也不影响自动批准或拒绝。
+         */
+        patch: operations["updateStudentIdRule"];
+        trace?: never;
+    };
     "/groups/{group_id}/join-request-policy": {
         parameters: {
             query?: never;
@@ -449,7 +470,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** 获取群自动批准策略 */
+        /** 获取群自动处理策略 */
         get: operations["getJoinRequestPolicy"];
         put?: never;
         post?: never;
@@ -457,8 +478,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * 修改群自动批准策略
-         * @description 仅超级管理员可以调用。系统只自动批准，绝不自动拒绝。
+         * 修改群自动处理策略
+         * @description 仅超级管理员可以调用。自动批准和自动拒绝是两个独立且默认关闭的群级开关。
          */
         patch: operations["updateJoinRequestPolicy"];
         trace?: never;
@@ -1068,12 +1089,17 @@ export interface components {
         };
         GlobalSettings: {
             features: components["schemas"]["FeatureSettings"];
+            join_requests: components["schemas"]["JoinRequestGlobalSettings"];
             version: number;
             updated_at: components["schemas"]["Timestamp"];
             updated_by: components["schemas"]["AuditActor"] | null;
         };
         GlobalSettingsPatch: {
-            features: components["schemas"]["FeatureSettingsPatch"];
+            features?: components["schemas"]["FeatureSettingsPatch"];
+            join_requests?: components["schemas"]["JoinRequestGlobalSettings"];
+        };
+        JoinRequestGlobalSettings: {
+            auto_reject_reason: string;
         };
         BasicFeatureOverride: {
             enabled: boolean;
@@ -1138,16 +1164,55 @@ export interface components {
             mode: "ai_fields_complete";
             required_fields: components["schemas"]["JoinPolicyField"][];
             /**
-             * @description 系统绝不根据该策略自动拒绝申请。
-             * @constant
+             * @description AI 解析成功但申请字段无效时，使用全局拒绝消息自动拒绝。
+             * @default false
              */
-            auto_reject: false;
+            auto_reject: boolean;
             version: number;
             updated_at: components["schemas"]["Timestamp"];
             updated_by: components["schemas"]["AuditActor"] | null;
         };
         JoinRequestPolicyPatch: {
+            enabled?: boolean;
+            auto_reject?: boolean;
+        };
+        /** @description 字段区间必须完全位于 12 位学号范围内。 */
+        StudentIdSegment: {
+            /** @description 在 12 位学号中的零基起始位置。 */
+            offset: number;
+            length: number;
+        };
+        /** @description 固定四位的入学年份字段，区间必须完全位于 12 位学号范围内。 */
+        StudentIdEnrollmentYearSegment: {
+            /** @description 在 12 位学号中的零基起始位置。 */
+            offset: number;
+            /** @constant */
+            length: 4;
+        };
+        StudentMajorMapping: {
+            enrollment_year: number;
+            major_code: string;
+            major_name: string;
+            aliases: string[];
+        };
+        /** @description 入学年份段与专业代码段不得重叠；启用时两个字段段和至少一条映射必须完整配置。 */
+        StudentIdRule: {
             enabled: boolean;
+            /** @constant */
+            student_id_length: 12;
+            enrollment_year_segment: components["schemas"]["StudentIdEnrollmentYearSegment"] | null;
+            major_code_segment: components["schemas"]["StudentIdSegment"] | null;
+            mappings: components["schemas"]["StudentMajorMapping"][];
+            version: number;
+            updated_at: components["schemas"]["Timestamp"];
+            updated_by: components["schemas"]["AuditActor"] | null;
+        };
+        /** @description 部分更新；字段段不得重叠，mappings 出现时整体替换现有映射。 */
+        StudentIdRulePatch: {
+            enabled?: boolean;
+            enrollment_year_segment?: components["schemas"]["StudentIdEnrollmentYearSegment"] | null;
+            major_code_segment?: components["schemas"]["StudentIdSegment"] | null;
+            mappings?: components["schemas"]["StudentMajorMapping"][];
         };
         /** @enum {string} */
         JoinDecisionStatus: "pending" | "processing" | "approved" | "rejected" | "external_processed" | "unknown";
@@ -1172,6 +1237,19 @@ export interface components {
             error_code: string | null;
             completed_at: components["schemas"]["Timestamp"] | null;
         };
+        /** @enum {string} */
+        StudentIdAssessmentStatus: "unconfigured" | "matched" | "warning";
+        /** @enum {string} */
+        StudentIdWarning: "student_id_missing" | "student_id_not_numeric" | "student_id_length_mismatch" | "enrollment_year_unmapped" | "major_code_unmapped" | "major_missing" | "major_mismatch";
+        StudentIdAssessment: {
+            status: components["schemas"]["StudentIdAssessmentStatus"];
+            rule_version: number;
+            enrollment_year: number | null;
+            major_code: string | null;
+            expected_major: string | null;
+            major_matches: boolean | null;
+            warnings: components["schemas"]["StudentIdWarning"][];
+        };
         JoinRequestSummary: {
             request_id: components["schemas"]["JoinRequestIdentifier"];
             group: components["schemas"]["GroupReference"];
@@ -1188,6 +1266,7 @@ export interface components {
             decision_status: components["schemas"]["JoinDecisionStatus"];
             decision_source: components["schemas"]["JoinDecisionSource"] | null;
             ai_parse: components["schemas"]["AIParseResult"];
+            student_id_assessment: components["schemas"]["StudentIdAssessment"];
             requested_at: components["schemas"]["Timestamp"];
             overdue: boolean;
             version: number;
@@ -1224,8 +1303,13 @@ export interface components {
             has_more: boolean;
         };
         JoinDecisionRequest: {
-            action: components["schemas"]["JoinDecisionAction"];
+            /** @constant */
+            action: "approve";
             reason?: string;
+        } | {
+            /** @constant */
+            action: "reject";
+            reason: string;
         };
         JoinDecisionResult: {
             join_request: components["schemas"]["JoinRequest"];
@@ -1237,8 +1321,15 @@ export interface components {
         };
         BulkJoinDecisionRequest: {
             group_id: components["schemas"]["Identifier"];
-            action: components["schemas"]["JoinDecisionAction"];
+            /** @constant */
+            action: "approve";
             reason?: string;
+            items: components["schemas"]["BulkJoinDecisionItem"][];
+        } | {
+            group_id: components["schemas"]["Identifier"];
+            /** @constant */
+            action: "reject";
+            reason: string;
             items: components["schemas"]["BulkJoinDecisionItem"][];
         };
         BulkJoinDecisionItemResult: {
@@ -2940,6 +3031,64 @@ export interface operations {
             428: components["responses"]["PreconditionRequired"];
         };
     };
+    getStudentIdRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前生效或待配置的全局学号规则 */
+            200: {
+                headers: {
+                    /** @description 当前规则版本，更新时原样传入 If-Match。 */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentIdRule"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateStudentIdRule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 资源 version 的带双引号十进制表示，例如 "7" */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentIdRulePatch"];
+            };
+        };
+        responses: {
+            /** @description 更新后的规则 */
+            200: {
+                headers: {
+                    /** @description 更新后的规则版本。 */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentIdRule"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            428: components["responses"]["PreconditionRequired"];
+        };
+    };
     getJoinRequestPolicy: {
         parameters: {
             query?: never;
@@ -2951,7 +3100,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 当前群自动批准策略 */
+            /** @description 当前群自动处理策略 */
             200: {
                 headers: {
                     [name: string]: unknown;

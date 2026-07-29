@@ -22,7 +22,7 @@ tags:
   - name: Settings
     description: 全局与群级功能设置
   - name: Join Requests
-    description: 入群申请、决策和自动批准策略
+    description: 入群申请、决策和自动处理策略
   - name: Commands
     description: 受控自定义命令
   - name: Scheduled Jobs
@@ -936,18 +936,83 @@ paths:
           $ref: '#/components/responses/Conflict'
         '428':
           $ref: '#/components/responses/PreconditionRequired'
+  /join-request-rules/student-id:
+    get:
+      tags: [Join Requests]
+      summary: 获取全局学号辅助判断规则
+      operationId: getStudentIdRule
+      x-stage: phase_2
+      x-status: implemented
+      responses:
+        '200':
+          description: 当前生效或待配置的全局学号规则
+          headers:
+            ETag:
+              description: 当前规则版本，更新时原样传入 If-Match。
+              schema:
+                type: string
+                example: '"3"'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentIdRule'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      tags: [Join Requests]
+      summary: 修改全局学号辅助判断规则
+      description: 规则只生成风险提示，不修改 AI 提取结果，也不影响自动批准或拒绝。
+      operationId: updateStudentIdRule
+      x-stage: phase_2
+      x-status: implemented
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentIdRulePatch'
+      responses:
+        '200':
+          description: 更新后的规则
+          headers:
+            ETag:
+              description: 更新后的规则版本。
+              schema:
+                type: string
+                example: '"4"'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentIdRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
   /groups/{group_id}/join-request-policy:
     parameters:
       - $ref: '#/components/parameters/GroupId'
     get:
       tags: [Join Requests]
-      summary: 获取群自动批准策略
+      summary: 获取群自动处理策略
       operationId: getJoinRequestPolicy
       x-stage: phase_2
       x-status: implemented
       responses:
         '200':
-          description: 当前群自动批准策略
+          description: 当前群自动处理策略
           content:
             application/json:
               schema:
@@ -960,8 +1025,8 @@ paths:
           $ref: '#/components/responses/NotFound'
     patch:
       tags: [Join Requests]
-      summary: 修改群自动批准策略
-      description: 仅超级管理员可以调用。系统只自动批准，绝不自动拒绝。
+      summary: 修改群自动处理策略
+      description: 仅超级管理员可以调用。自动批准和自动拒绝是两个独立且默认关闭的群级开关。
       operationId: updateJoinRequestPolicy
       x-stage: phase_2
       x-status: implemented
@@ -2869,10 +2934,12 @@ components:
     GlobalSettings:
       type: object
       additionalProperties: false
-      required: [features, version, updated_at, updated_by]
+      required: [features, join_requests, version, updated_at, updated_by]
       properties:
         features:
           $ref: '#/components/schemas/FeatureSettings'
+        join_requests:
+          $ref: '#/components/schemas/JoinRequestGlobalSettings'
         version:
           type: integer
           minimum: 1
@@ -2885,10 +2952,21 @@ components:
     GlobalSettingsPatch:
       type: object
       additionalProperties: false
-      required: [features]
+      minProperties: 1
       properties:
         features:
           $ref: '#/components/schemas/FeatureSettingsPatch'
+        join_requests:
+          $ref: '#/components/schemas/JoinRequestGlobalSettings'
+    JoinRequestGlobalSettings:
+      type: object
+      additionalProperties: false
+      required: [auto_reject_reason]
+      properties:
+        auto_reject_reason:
+          type: string
+          minLength: 1
+          maxLength: 500
     BasicFeatureOverride:
       type: object
       additionalProperties: false
@@ -3055,8 +3133,8 @@ components:
             $ref: '#/components/schemas/JoinPolicyField'
         auto_reject:
           type: boolean
-          const: false
-          description: 系统绝不根据该策略自动拒绝申请。
+          default: false
+          description: AI 解析成功但申请字段无效时，使用全局拒绝消息自动拒绝。
         version:
           type: integer
           minimum: 1
@@ -3069,10 +3147,127 @@ components:
     JoinRequestPolicyPatch:
       type: object
       additionalProperties: false
-      required: [enabled]
+      minProperties: 1
       properties:
         enabled:
           type: boolean
+        auto_reject:
+          type: boolean
+    StudentIdSegment:
+      type: object
+      description: 字段区间必须完全位于 12 位学号范围内。
+      additionalProperties: false
+      required: [offset, length]
+      properties:
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 11
+          description: 在 12 位学号中的零基起始位置。
+        length:
+          type: integer
+          minimum: 1
+          maximum: 12
+    StudentIdEnrollmentYearSegment:
+      type: object
+      description: 固定四位的入学年份字段，区间必须完全位于 12 位学号范围内。
+      additionalProperties: false
+      required: [offset, length]
+      properties:
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 8
+          description: 在 12 位学号中的零基起始位置。
+        length:
+          type: integer
+          const: 4
+    StudentMajorMapping:
+      type: object
+      additionalProperties: false
+      required: [enrollment_year, major_code, major_name, aliases]
+      properties:
+        enrollment_year:
+          type: integer
+          minimum: 1000
+          maximum: 9999
+        major_code:
+          type: string
+          pattern: '^[0-9]{1,12}$'
+        major_name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+    StudentIdRule:
+      type: object
+      description: 入学年份段与专业代码段不得重叠；启用时两个字段段和至少一条映射必须完整配置。
+      additionalProperties: false
+      required:
+        - enabled
+        - student_id_length
+        - enrollment_year_segment
+        - major_code_segment
+        - mappings
+        - version
+        - updated_at
+        - updated_by
+      properties:
+        enabled:
+          type: boolean
+        student_id_length:
+          type: integer
+          const: 12
+        enrollment_year_segment:
+          oneOf:
+            - $ref: '#/components/schemas/StudentIdEnrollmentYearSegment'
+            - type: 'null'
+        major_code_segment:
+          oneOf:
+            - $ref: '#/components/schemas/StudentIdSegment'
+            - type: 'null'
+        mappings:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/StudentMajorMapping'
+        version:
+          type: integer
+          minimum: 1
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_by:
+          oneOf:
+            - $ref: '#/components/schemas/AuditActor'
+            - type: 'null'
+    StudentIdRulePatch:
+      type: object
+      description: 部分更新；字段段不得重叠，mappings 出现时整体替换现有映射。
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        enabled:
+          type: boolean
+        enrollment_year_segment:
+          oneOf:
+            - $ref: '#/components/schemas/StudentIdEnrollmentYearSegment'
+            - type: 'null'
+        major_code_segment:
+          oneOf:
+            - $ref: '#/components/schemas/StudentIdSegment'
+            - type: 'null'
+        mappings:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/StudentMajorMapping'
     JoinDecisionStatus:
       type: string
       enum: [pending, processing, approved, rejected, external_processed, unknown]
@@ -3127,6 +3322,53 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
+    StudentIdAssessmentStatus:
+      type: string
+      enum: [unconfigured, matched, warning]
+    StudentIdWarning:
+      type: string
+      enum:
+        - student_id_missing
+        - student_id_not_numeric
+        - student_id_length_mismatch
+        - enrollment_year_unmapped
+        - major_code_unmapped
+        - major_missing
+        - major_mismatch
+    StudentIdAssessment:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - rule_version
+        - enrollment_year
+        - major_code
+        - expected_major
+        - major_matches
+        - warnings
+      properties:
+        status:
+          $ref: '#/components/schemas/StudentIdAssessmentStatus'
+        rule_version:
+          type: integer
+          minimum: 1
+        enrollment_year:
+          type: [integer, 'null']
+          minimum: 1000
+          maximum: 9999
+        major_code:
+          type: [string, 'null']
+          pattern: '^[0-9]{1,12}$'
+        expected_major:
+          type: [string, 'null']
+          maxLength: 128
+        major_matches:
+          type: [boolean, 'null']
+        warnings:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/StudentIdWarning'
     JoinRequestSummary:
       type: object
       additionalProperties: false
@@ -3142,6 +3384,7 @@ components:
         - decision_status
         - decision_source
         - ai_parse
+        - student_id_assessment
         - requested_at
         - overdue
         - version
@@ -3179,6 +3422,8 @@ components:
             - type: 'null'
         ai_parse:
           $ref: '#/components/schemas/AIParseResult'
+        student_id_assessment:
+          $ref: '#/components/schemas/StudentIdAssessment'
         requested_at:
           $ref: '#/components/schemas/Timestamp'
         overdue:
@@ -3282,15 +3527,29 @@ components:
         has_more:
           type: boolean
     JoinDecisionRequest:
-      type: object
-      additionalProperties: false
-      required: [action]
-      properties:
-        action:
-          $ref: '#/components/schemas/JoinDecisionAction'
-        reason:
-          type: string
-          maxLength: 500
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [action]
+          properties:
+            action:
+              type: string
+              const: approve
+            reason:
+              type: string
+              minLength: 1
+              maxLength: 500
+        - type: object
+          additionalProperties: false
+          required: [action, reason]
+          properties:
+            action:
+              type: string
+              const: reject
+            reason:
+              type: string
+              minLength: 1
+              maxLength: 500
     JoinDecisionResult:
       type: object
       additionalProperties: false
@@ -3311,24 +3570,47 @@ components:
           type: integer
           minimum: 1
     BulkJoinDecisionRequest:
-      type: object
-      additionalProperties: false
-      required: [group_id, action, items]
-      properties:
-        group_id:
-          $ref: '#/components/schemas/Identifier'
-        action:
-          $ref: '#/components/schemas/JoinDecisionAction'
-        reason:
-          type: string
-          maxLength: 500
-        items:
-          type: array
-          minItems: 1
-          maxItems: 20
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/BulkJoinDecisionItem'
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [group_id, action, items]
+          properties:
+            group_id:
+              $ref: '#/components/schemas/Identifier'
+            action:
+              type: string
+              const: approve
+            reason:
+              type: string
+              minLength: 1
+              maxLength: 500
+            items:
+              type: array
+              minItems: 1
+              maxItems: 20
+              uniqueItems: true
+              items:
+                $ref: '#/components/schemas/BulkJoinDecisionItem'
+        - type: object
+          additionalProperties: false
+          required: [group_id, action, reason, items]
+          properties:
+            group_id:
+              $ref: '#/components/schemas/Identifier'
+            action:
+              type: string
+              const: reject
+            reason:
+              type: string
+              minLength: 1
+              maxLength: 500
+            items:
+              type: array
+              minItems: 1
+              maxItems: 20
+              uniqueItems: true
+              items:
+                $ref: '#/components/schemas/BulkJoinDecisionItem'
     BulkJoinDecisionItemResult:
       type: object
       additionalProperties: false

@@ -10,16 +10,16 @@ import VersionConflict from '@/components/feedback/VersionConflict.vue'
 import FeatureSettingsForm from '@/components/settings/FeatureSettingsForm.vue'
 import SettingsAreaNav from '@/components/settings/SettingsAreaNav.vue'
 import {
-  cloneGlobalDraft,
+  cloneGlobalSettingsDraft,
   findUnknownTemplateVariables,
   toGlobalSettingsPatch,
-  type FeatureSettingsDraft,
+  type GlobalSettingsDraft,
 } from '@/components/settings/feature-settings'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const resource = ref<GlobalSettings | null>(null)
-const draft = ref<FeatureSettingsDraft | null>(null)
+const draft = ref<GlobalSettingsDraft | null>(null)
 const initialDraft = ref('')
 const loading = ref(false)
 const saving = ref(false)
@@ -32,22 +32,32 @@ const serverCopy = ref<GlobalSettings | null>(null)
 
 const dirty = computed(() => Boolean(draft.value && JSON.stringify(draft.value) !== initialDraft.value))
 const unknownVariables = computed(() =>
-  draft.value ? findUnknownTemplateVariables(draft.value.welcome.messageTemplate) : [],
+  draft.value ? findUnknownTemplateVariables(draft.value.features.welcome.messageTemplate) : [],
 )
 
-const changedFeatureCount = computed(() => {
+const autoRejectReasonError = computed(() => {
+  const reason = draft.value?.autoRejectReason.trim() ?? ''
+  if (!reason) return '拒绝消息不能为空'
+  if ([...reason].length > 500) return '拒绝消息不能超过 500 个字符'
+  return null
+})
+
+const autoRejectReasonLength = computed(() => [...(draft.value?.autoRejectReason.trim() ?? '')].length)
+
+const changedSettingCount = computed(() => {
   if (!serverCopy.value || !draft.value) return 0
-  const serverDraft = cloneGlobalDraft(serverCopy.value.features)
-  return Object.keys(draft.value).filter(
+  const serverDraft = cloneGlobalSettingsDraft(serverCopy.value)
+  const changedFeatures = Object.keys(draft.value.features).filter(
     (key) =>
-      JSON.stringify(draft.value?.[key as keyof FeatureSettingsDraft]) !==
-      JSON.stringify(serverDraft[key as keyof FeatureSettingsDraft]),
+      JSON.stringify(draft.value?.features[key as keyof GlobalSettingsDraft['features']]) !==
+      JSON.stringify(serverDraft.features[key as keyof GlobalSettingsDraft['features']]),
   ).length
+  return changedFeatures + Number(draft.value.autoRejectReason !== serverDraft.autoRejectReason)
 })
 
 function acceptResource(value: GlobalSettings): void {
   resource.value = value
-  draft.value = cloneGlobalDraft(value.features)
+  draft.value = cloneGlobalSettingsDraft(value)
   initialDraft.value = JSON.stringify(draft.value)
   conflict.value = false
   serverCopy.value = null
@@ -67,7 +77,7 @@ async function load(): Promise<void> {
 }
 
 async function save(): Promise<void> {
-  if (!resource.value || !draft.value || unknownVariables.value.length) return
+  if (!resource.value || !draft.value || unknownVariables.value.length || autoRejectReasonError.value) return
   saving.value = true
   saveError.value = null
   saved.value = false
@@ -134,7 +144,7 @@ onMounted(load)
         @compare="compareWithServer"
         @reload="load"
       >
-        <p v-if="serverCopy">当前草稿与服务器版本有 {{ changedFeatureCount }} 项功能设置不同。</p>
+        <p v-if="serverCopy">当前草稿与服务器版本有 {{ changedSettingCount }} 项设置不同。</p>
       </VersionConflict>
 
       <section class="settings-workspace">
@@ -147,16 +157,43 @@ onMounted(load)
         </header>
 
         <FeatureSettingsForm
-          v-model="draft"
+          v-model="draft.features"
           mode="global"
           :disabled="saving || !auth.hasPermission('settings:write')"
         />
+
+        <section class="join-request-settings">
+          <header>
+            <div>
+              <h3>入群申请</h3>
+              <p>AI 自动拒绝消息</p>
+            </div>
+            <span class="scope-label">全局</span>
+          </header>
+          <label class="reject-reason-field">
+            <span>拒绝消息</span>
+            <textarea
+              v-model="draft.autoRejectReason"
+              data-test="auto-reject-reason"
+              rows="3"
+              maxlength="500"
+              :disabled="saving || !auth.hasPermission('settings:write')"
+              :aria-invalid="Boolean(autoRejectReasonError)"
+            />
+          </label>
+          <div class="field-meta">
+            <span v-if="autoRejectReasonError" class="field-error" role="alert">{{ autoRejectReasonError }}</span>
+            <span v-else>通过 NapCat 发送给申请人</span>
+            <span class="mono">{{ autoRejectReasonLength }}/500</span>
+          </div>
+        </section>
 
         <footer class="save-bar">
           <div>
             <span v-if="saved" class="save-success" role="status"><Check :size="15" aria-hidden="true" />设置已保存</span>
             <span v-else-if="saveError" class="save-error" role="alert">{{ saveError }}</span>
             <span v-else-if="unknownVariables.length" class="save-error" role="alert">修正未知模板变量后才能保存。</span>
+            <span v-else-if="autoRejectReasonError" class="save-error" role="alert">{{ autoRejectReasonError }}</span>
             <span v-else class="save-hint">保存后会生成新的运行时设置快照。</span>
           </div>
           <button
@@ -164,7 +201,7 @@ onMounted(load)
             data-test="save-settings"
             class="save-button"
             type="button"
-            :disabled="saving || !dirty || Boolean(unknownVariables.length)"
+            :disabled="saving || !dirty || Boolean(unknownVariables.length) || Boolean(autoRejectReasonError)"
             @click="save"
           >
             <Save :size="16" aria-hidden="true" />
@@ -222,6 +259,75 @@ onMounted(load)
 .section-header h2 {
   font-size: 16px;
   line-height: 24px;
+}
+
+.join-request-settings {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+
+.join-request-settings > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.join-request-settings h3 {
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.join-request-settings header p,
+.field-meta {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.scope-label {
+  padding: 3px 7px;
+  color: var(--color-brand-action);
+  font-size: 11px;
+  background: var(--color-brand-surface);
+  border-radius: 8px;
+}
+
+.reject-reason-field {
+  display: grid;
+  gap: 6px;
+}
+
+.reject-reason-field > span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reject-reason-field textarea {
+  width: 100%;
+  min-height: 82px;
+  padding: 9px 10px;
+  resize: vertical;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+}
+
+.reject-reason-field textarea[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.field-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 18px;
+}
+
+.field-error {
+  color: var(--color-danger);
 }
 
 .dirty-indicator {

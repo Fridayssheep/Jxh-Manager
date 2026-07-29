@@ -22,6 +22,7 @@ const features = {
 
 const globalSettings = {
   features,
+  join_requests: { auto_reject_reason: 'Please complete your student ID and apply again.' },
   version: 7,
   updated_at: '2026-07-28T05:00:00Z',
   updated_by: null,

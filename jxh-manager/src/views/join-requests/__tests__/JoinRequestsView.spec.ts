@@ -98,6 +98,64 @@ describe('JoinRequestsView', () => {
     expect(wrapper.text()).toContain('已确认批准')
   })
 
+  it('sends the trimmed rejection message for one request', async () => {
+    const decide = vi.spyOn(joinRequestsApi, 'decide').mockResolvedValue(makeJoinDecisionResult())
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=request-row-flag-10001]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test=reject-request]').trigger('click')
+    await wrapper.get('[data-test=decision-reason]').setValue('  信息不完整，请重新申请。  ')
+    await wrapper.get('[data-test=confirm-decision]').trigger('click')
+    await flushPromises()
+
+    expect(decide).toHaveBeenCalledWith(
+      'flag-10001',
+      { action: 'reject', reason: '信息不完整，请重新申请。' },
+      7,
+    )
+  })
+
+  it('updates automatic approval and rejection independently', async () => {
+    const updatePolicy = vi.spyOn(joinRequestsApi, 'updatePolicy')
+    updatePolicy
+      .mockResolvedValueOnce({
+        group_id: '10001',
+        enabled: true,
+        mode: 'ai_fields_complete',
+        required_fields: ['student_id', 'name', 'major'],
+        auto_reject: false,
+        version: 2,
+        updated_at: '2026-07-29T09:00:00Z',
+        updated_by: null,
+      })
+      .mockResolvedValueOnce({
+        group_id: '10001',
+        enabled: true,
+        mode: 'ai_fields_complete',
+        required_fields: ['student_id', 'name', 'major'],
+        auto_reject: true,
+        version: 3,
+        updated_at: '2026-07-29T09:01:00Z',
+        updated_by: null,
+      })
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=request-row-flag-10001]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('自动处理策略')
+
+    await wrapper.get('[data-test=policy-enabled]').setValue(true)
+    await flushPromises()
+    expect(updatePolicy).toHaveBeenNthCalledWith(1, '10001', { enabled: true }, 1)
+
+    await wrapper.get('[data-test=policy-auto-reject]').setValue(true)
+    await flushPromises()
+    expect(updatePolicy).toHaveBeenNthCalledWith(2, '10001', { auto_reject: true }, 2)
+  })
+
   it('keeps request details visible when the group policy does not exist', async () => {
     vi.mocked(joinRequestsApi.getPolicy).mockRejectedValue(
       new AdminApiError(404, {
@@ -153,6 +211,36 @@ describe('JoinRequestsView', () => {
       ],
     })
     expect(wrapper.text()).toContain('确认 2，失败 0，未知 0')
+  })
+
+  it('uses one required rejection message for a bulk decision', async () => {
+    const bulkDecide = vi.spyOn(joinRequestsApi, 'bulkDecide').mockResolvedValue({
+      group_id: '10001',
+      action: 'reject',
+      items: [],
+      confirmed_count: 2,
+      failed_count: 0,
+      unknown_count: 0,
+    })
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=select-flag-10001]').setValue(true)
+    await wrapper.get('[data-test=select-flag-10002]').setValue(true)
+    await wrapper.get('[data-test=bulk-reject]').trigger('click')
+    await wrapper.get('[data-test=decision-reason]').setValue('  请完善验证信息后重新申请。  ')
+    await wrapper.get('[data-test=confirm-decision]').trigger('click')
+    await flushPromises()
+
+    expect(bulkDecide).toHaveBeenCalledWith({
+      group_id: '10001',
+      action: 'reject',
+      reason: '请完善验证信息后重新申请。',
+      items: [
+        { request_id: 'flag-10001', version: 7 },
+        { request_id: 'flag-10002', version: 4 },
+      ],
+    })
   })
 
   it('submits the observed status and ordering filters', async () => {

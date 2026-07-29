@@ -17,8 +17,10 @@ import type {
   BulkJoinDecisionResult,
   JoinDecision,
   JoinDecisionAction,
+  JoinDecisionRequest,
   JoinRequest,
   JoinRequestPolicy,
+  JoinRequestPolicyPatch,
   JoinRequestSummary,
 } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
@@ -326,13 +328,18 @@ function showBulkResult(result: BulkJoinDecisionResult): void {
 }
 
 async function confirmDecision(reason: string | undefined): Promise<void> {
+  if (dialog.action === 'reject' && !reason) return
   decisionBusy.value = true
   operationResult.value = null
+  const decision: JoinDecisionRequest =
+    dialog.action === 'reject'
+      ? { action: 'reject', reason: reason ?? '' }
+      : { action: 'approve', ...(reason ? { reason } : {}) }
   try {
     if (dialog.scope === 'single' && detail.value) {
       const result = await joinRequestsApi.decide(
         detail.value.request_id,
-        { action: dialog.action, reason },
+        decision,
         detail.value.version,
       )
       detail.value = result.join_request
@@ -346,8 +353,7 @@ async function confirmDecision(reason: string | undefined): Promise<void> {
     } else if (dialog.scope === 'bulk' && selectedItems.value.length && selectionGroupId.value) {
       const result = await joinRequestsApi.bulkDecide({
         group_id: selectionGroupId.value,
-        action: dialog.action,
-        reason,
+        ...decision,
         items: selectedItems.value.map((item) => ({
           request_id: item.request_id,
           version: item.version,
@@ -374,22 +380,24 @@ async function confirmDecision(reason: string | undefined): Promise<void> {
   }
 }
 
-async function updatePolicy(enabled: boolean): Promise<void> {
+async function updatePolicy(patch: JoinRequestPolicyPatch): Promise<void> {
   if (!policy.value) return
   policyBusy.value = true
   try {
     policy.value = await joinRequestsApi.updatePolicy(
       policy.value.group_id,
-      { enabled },
+      patch,
       policy.value.version,
     )
+    const automaticRejection = 'auto_reject' in patch
+    const enabled = automaticRejection ? patch.auto_reject : patch.enabled
     operationTone.value = 'success'
-    operationResult.value = `自动批准策略已${enabled ? '启用' : '停用'}。`
+    operationResult.value = `${automaticRejection ? '自动拒绝' : '自动批准'}策略已${enabled ? '启用' : '停用'}。`
   } catch (reason) {
     operationTone.value = reason instanceof AdminApiError && reason.status === 409 ? 'warning' : 'danger'
     operationResult.value =
       reason instanceof AdminApiError && reason.status === 409
-        ? '自动批准策略已被其他管理员修改，请重新打开申请详情。'
+        ? '自动处理策略已被其他管理员修改，请重新打开申请详情。'
         : reason instanceof AdminApiError
           ? reason.message
           : '策略更新失败。'
