@@ -258,6 +258,35 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expect(request.url).toContain('metric=group_message_count')
   })
 
+  test('presents analytics as an operational dashboard instead of a card wall', async ({
+    page,
+  }) => {
+    const api = await installAdminApi(page)
+    await page.setViewportSize({ width: 1339, height: 662 })
+    await page.goto('/analytics')
+
+    await expect(page.locator('[data-test="analytics-core-metrics"]')).toBeVisible()
+    await expect(page.locator('[data-test^="analytics-kpi-"]')).toHaveCount(4)
+    await expect(page.locator('[data-test="analytics-metric-group"]')).toHaveCount(3)
+    await expect(page.locator('[data-test^="analytics-metric-row-"]')).toHaveCount(12)
+    await expect(page.locator('.analytics-card')).toHaveCount(2)
+    await expect(page.locator('.analytics-card').first()).toHaveCSS('padding', '16px')
+    await expect(page.locator('.analytics-card').first()).toHaveCSS('border-radius', '6px')
+    await expectNoHorizontalOverflow(page)
+
+    const requestCount = (path: string) => api.requests.filter((request) => request.path === path).length
+    expect(requestCount('/analytics/summary')).toBe(1)
+    expect(requestCount('/analytics/timeseries')).toBe(1)
+    expect(requestCount('/analytics/rankings')).toBe(1)
+
+    await page.locator('select[name="metric"]').selectOption('quote_failure_count')
+    await expect(page).toHaveURL(/metric=quote_failure_count/)
+    await expect.poll(() => requestCount('/analytics/timeseries')).toBe(2)
+    await expect.poll(() => requestCount('/analytics/rankings')).toBe(2)
+    expect(requestCount('/analytics/summary')).toBe(1)
+    expect(api.consoleErrors).toEqual([])
+  })
+
   test('撤销单个会话必须确认并携带幂等键', async ({ page }) => {
     const api = await installAdminApi(page)
     await page.goto('/users')
