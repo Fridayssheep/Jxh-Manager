@@ -2,9 +2,7 @@
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
-  AlertTriangle,
   ArrowRight,
-  CheckCircle2,
   FilterX,
   LoaderCircle,
   Plus,
@@ -21,6 +19,7 @@ import type {
   CommandStatus,
   CommandTriggerPermission,
 } from '@/api/types'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
@@ -210,12 +209,7 @@ onBeforeUnmount(unsubscribe)
       </button>
     </form>
 
-    <div v-if="operationResult" :class="['operation-result', `operation-result--${operationTone}`]" :role="operationTone === 'success' ? 'status' : 'alert'">
-      <CheckCircle2 v-if="operationTone === 'success'" :size="18" aria-hidden="true" />
-      <AlertTriangle v-else :size="18" aria-hidden="true" />
-      <span>{{ operationResult }}</span>
-      <button type="button" aria-label="关闭提示" @click="operationResult = null">×</button>
-    </div>
+    <OperationNotice :message="operationResult ?? ''" :tone="operationTone" :revision="operationResult" @close="operationResult = null" />
 
     <ResourceState v-if="loading" state="loading" title="正在读取自定义命令" description="正在获取命令定义与最新版本。" />
     <ResourceState v-else-if="error" state="error" title="命令列表读取失败" description="筛选条件已保留，可以直接重试。" @retry="load()" />

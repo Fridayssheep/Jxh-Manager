@@ -2,6 +2,8 @@
 import { ref, watch } from 'vue'
 import { CheckCircle2, LoaderCircle, X, XCircle } from '@lucide/vue'
 
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
+
 import type { JoinDecisionAction } from '@/api/types'
 
 const props = defineProps<{
@@ -28,8 +30,9 @@ function confirm(): void {
 </script>
 
 <template>
-  <div v-if="open" class="dialog-layer" role="presentation" @mousedown.self="emit('cancel')">
-    <section class="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
+  <AppOverlayTransition :show="open" variant="dialog">
+    <div class="dialog-layer" role="presentation" @mousedown.self="emit('cancel')">
+      <section class="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
       <header>
         <div :class="['dialog-icon', `dialog-icon--${action}`]">
           <CheckCircle2 v-if="action === 'approve'" :size="20" aria-hidden="true" />
@@ -73,8 +76,9 @@ function confirm(): void {
           {{ busy ? '正在提交' : action === 'approve' ? `批准 ${count} 条申请` : `拒绝 ${count} 条申请` }}
         </button>
       </footer>
-    </section>
-  </div>
+      </section>
+    </div>
+  </AppOverlayTransition>
 </template>
 
 <style scoped>

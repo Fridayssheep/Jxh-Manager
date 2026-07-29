@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   AlertTriangle, CheckCircle2, Database, KeyRound,
-  Power, Radio, RefreshCw, ServerCog, Settings2, ShieldAlert, X, Zap,
+  Power, Radio, RefreshCw, ServerCog, Settings2, ShieldAlert, Zap,
 } from '@lucide/vue'
 
 import { AdminApiError } from '@/api/client'
@@ -11,8 +11,10 @@ import type {
   DependencyHealth, DependencyKey, DependencyStatus, SystemHealth, SystemOperation,
   SystemOperationStatus,
 } from '@/api/types'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 import ConfigurationEditor from '@/components/system/ConfigurationEditor.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
 import { useRuntimeStore } from '@/stores/runtime'
@@ -136,9 +138,7 @@ onBeforeUnmount(unsubscribe)
         <div><span>快照生成时间</span><strong class="mono">{{ displayTime(health.generated_at) }}</strong></div>
       </section>
 
-      <div v-if="operationResult" :class="['operation-result', `operation-result--${operationTone}`]" :role="operationTone === 'success' ? 'status' : 'alert'">
-        <CheckCircle2 v-if="operationTone === 'success'" :size="17" /><AlertTriangle v-else :size="17" /><span>{{ operationResult }}</span><button type="button" aria-label="关闭提示" @click="operationResult = null"><X :size="15" /></button>
-      </div>
+      <OperationNotice :message="operationResult ?? ''" :tone="operationTone" :revision="operationResult" @close="operationResult = null" />
 
       <section class="dependency-section">
         <header><div><h2>关键依赖</h2><p>固定顺序便于值班时快速比较；配置状态不包含任何密钥值。</p></div><ServerCog :size="19" /></header>
@@ -185,14 +185,16 @@ onBeforeUnmount(unsubscribe)
 
     <ConfigurationEditor :can-write="auth.hasPermission('config:write')" />
 
-    <div v-if="restartOpen" class="dialog-layer" role="presentation">
-      <section class="restart-dialog" role="alertdialog" aria-modal="true" aria-labelledby="restart-title">
+    <AppOverlayTransition :show="restartOpen" variant="dialog">
+      <div class="dialog-layer" role="presentation">
+        <section class="restart-dialog" role="alertdialog" aria-modal="true" aria-labelledby="restart-title">
         <header><ShieldAlert :size="22" /><div><span class="eyebrow">DANGEROUS OPERATION</span><h2 id="restart-title">重启 NapCat</h2><p>重启期间依赖 OneBot 的审批、发送和群操作会暂时不可用。</p></div></header>
         <label><span>确认文本</span><input v-model="restartConfirmation" data-test="restart-confirmation" autocomplete="off" spellcheck="false" /><small>请输入小写 ASCII：<code>restart</code></small></label>
         <label><span>操作原因（可选）</span><textarea v-model="restartReason" data-test="restart-reason" rows="3" maxlength="500" /></label>
         <footer><button type="button" @click="restartOpen = false">取消</button><button data-test="confirm-restart" class="danger-action" type="button" :disabled="!restartConfirmationValid || restartPending" @click="restartNapCat"><KeyRound :size="14" />{{ restartPending ? '正在提交' : '确认重启' }}</button></footer>
-      </section>
-    </div>
+        </section>
+      </div>
+    </AppOverlayTransition>
   </main>
 </template>
 

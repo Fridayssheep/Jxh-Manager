@@ -3,6 +3,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usersApi } from '@/api/users'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
+import AppTabBar from '@/components/navigation/AppTabBar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import {
@@ -120,5 +123,16 @@ describe('UsersView', () => {
     await wrapper.get('[data-test=revoke-session-session-2]').trigger('click')
     await wrapper.get('[data-test=confirm-user-action]').trigger('click'); await flushPromises()
     expect(revoke).toHaveBeenCalledWith('session-2')
+  })
+
+  it('uses sliding tabs and animates the editor and confirmation layers', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.findComponent(AppTabBar).exists()).toBe(true)
+    expect(
+      wrapper.findAllComponents(AppOverlayTransition).map((overlay) => overlay.props('variant')),
+    ).toEqual(['drawer', 'dialog'])
+    expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
   })
 })

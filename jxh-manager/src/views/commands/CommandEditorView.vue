@@ -5,14 +5,12 @@ import {
   AlertTriangle,
   Archive,
   ArrowLeft,
-  CheckCircle2,
   FlaskConical,
   History,
   LoaderCircle,
   RefreshCw,
   Save,
   ShieldAlert,
-  X,
 } from '@lucide/vue'
 
 import { AdminApiError } from '@/api/client'
@@ -30,7 +28,9 @@ import type {
 } from '@/api/types'
 import ActionEditor from '@/components/commands/ActionEditor.vue'
 import ParameterEditor from '@/components/commands/ParameterEditor.vue'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
 import { serializeCommandDefinition, validateCommandDefinition } from './command-draft'
 
@@ -345,10 +345,7 @@ onMounted(async () => {
     <ResourceState v-else-if="loadError" state="error" title="命令读取失败" description="请恢复连接后重试。" @retry="loadCommand" />
 
     <template v-else>
-      <div v-if="operationResult" :class="['operation-result', `operation-result--${operationTone}`]" :role="operationTone === 'success' ? 'status' : 'alert'">
-        <CheckCircle2 v-if="operationTone === 'success'" :size="18" aria-hidden="true" /><AlertTriangle v-else :size="18" aria-hidden="true" />
-        <span>{{ operationResult }}</span><button type="button" aria-label="关闭提示" @click="operationResult = null"><X :size="15" aria-hidden="true" /></button>
-      </div>
+      <OperationNotice :message="operationResult ?? ''" :tone="operationTone" :revision="operationResult" @close="operationResult = null" />
 
       <div v-if="versionConflict" class="version-conflict" role="alert">
         <div><AlertTriangle :size="18" aria-hidden="true" /><span><strong>版本冲突</strong> 当前输入未被清除。重新读取会以服务端版本替换编辑器内容。</span></div>
@@ -439,12 +436,14 @@ onMounted(async () => {
       </section>
     </template>
 
-    <div v-if="archiveOpen" class="dialog-layer" role="presentation" @mousedown.self="archiveOpen = false">
-      <section class="archive-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-title">
+    <AppOverlayTransition :show="archiveOpen" variant="dialog">
+      <div class="dialog-layer" role="presentation" @mousedown.self="archiveOpen = false">
+        <section class="archive-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-title">
         <header><Archive :size="19" aria-hidden="true" /><div><h2 id="archive-title">归档 {{ command?.name }}</h2><p>该命令将停止触发，历史记录不会删除。</p></div></header>
         <footer><button type="button" :disabled="archiveBusy" @click="archiveOpen = false">取消</button><button data-test="confirm-archive" class="danger-action" type="button" :disabled="archiveBusy" @click="archiveCommand">确认归档</button></footer>
-      </section>
-    </div>
+        </section>
+      </div>
+    </AppOverlayTransition>
   </main>
 </template>
 

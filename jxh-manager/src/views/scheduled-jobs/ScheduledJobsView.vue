@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
-  AlertTriangle, Archive, CalendarClock, CheckCircle2, FilterX,
+  Archive, CalendarClock, FilterX,
   FlaskConical, LoaderCircle, Pause, Pencil, Play, Plus, RefreshCw, Send, X,
 } from '@lucide/vue'
 
@@ -12,7 +12,9 @@ import type {
   Group, RunResult, ScheduledJob, ScheduledJobCreateRequest, ScheduledJobRun,
   ScheduledJobStatus, ScheduledJobType,
 } from '@/api/types'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
 
@@ -272,9 +274,7 @@ onBeforeUnmount(unsubscribe)
       <button class="icon-button" type="button" title="清除筛选" aria-label="清除筛选" @click="resetFilters"><FilterX :size="16" aria-hidden="true" /></button>
     </form>
 
-    <div v-if="operationResult" :class="['operation-result', `operation-result--${operationTone}`]" :role="operationTone === 'success' ? 'status' : 'alert'">
-      <CheckCircle2 v-if="operationTone === 'success'" :size="18" aria-hidden="true" /><AlertTriangle v-else :size="18" aria-hidden="true" /><span>{{ operationResult }}</span><button type="button" aria-label="关闭提示" @click="operationResult = null"><X :size="15" /></button>
-    </div>
+    <OperationNotice :message="operationResult ?? ''" :tone="operationTone" :revision="operationResult" @close="operationResult = null" />
 
     <ResourceState v-if="loading" state="loading" title="正在读取定时任务" description="正在获取下一次运行和最近执行结果。" />
     <ResourceState v-else-if="error" state="error" title="任务列表读取失败" description="筛选条件已保留，可以直接重试。" @retry="load()" />
@@ -297,8 +297,9 @@ onBeforeUnmount(unsubscribe)
     </section>
     <button v-if="hasMore" class="load-more" type="button" :disabled="loadingMore" @click="load(false)"><RefreshCw :class="{ spin: loadingMore }" :size="16" />{{ loadingMore ? '正在读取' : '加载更多任务' }}</button>
 
-    <div v-if="editorOpen" class="drawer-layer" role="presentation" @mousedown.self="editorOpen = false">
-      <section class="job-editor" role="dialog" aria-modal="true" aria-labelledby="job-editor-title">
+    <AppOverlayTransition :show="editorOpen" variant="drawer">
+      <div class="drawer-layer" role="presentation" @mousedown.self="editorOpen = false">
+        <section class="job-editor" role="dialog" aria-modal="true" aria-labelledby="job-editor-title">
         <header><div><h2 id="job-editor-title">{{ editingJob ? '编辑任务' : '新建任务' }}</h2><p>{{ editingJob ? `版本 ${editingJob.version}` : '创建后按启用状态进入调度器' }}</p></div><button type="button" aria-label="关闭" @click="editorOpen = false"><X :size="17" /></button></header>
         <div class="editor-body">
           <label><span>任务名称</span><input v-model="form.name" data-test="job-name" maxlength="100" /></label>
@@ -312,12 +313,15 @@ onBeforeUnmount(unsubscribe)
           <section v-if="editingJob" class="history-section"><h3>执行记录</h3><p v-if="runsLoading">正在读取...</p><p v-else-if="!runs.length">暂无记录</p><article v-for="run in runs" :key="run.run_id"><span :class="`run-result--${run.result}`">{{ run.kind === 'test' ? '测试' : '正式' }} · {{ resultLabels[run.result] }}</span><time class="mono">{{ displayTime(run.started_at) }}</time><small>{{ run.duration_ms }} ms{{ run.error_message ? ` · ${run.error_message}` : '' }}</small></article></section>
         </div>
         <footer><button v-if="editingJob" class="archive-action" type="button" @click="askConfirm('archive', editingJob)"><Archive :size="15" />归档</button><span /><button type="button" @click="editorOpen = false">取消</button><button v-if="auth.hasPermission('scheduled_jobs:write')" data-test="save-job" class="save-action" type="button" :disabled="saving" @click="saveJob"><LoaderCircle v-if="saving" class="spin" :size="15" /><Send v-else :size="15" />保存任务</button></footer>
-      </section>
-    </div>
+        </section>
+      </div>
+    </AppOverlayTransition>
 
-    <div v-if="confirmMode" class="dialog-layer" role="presentation" @mousedown.self="confirmMode = null">
-      <section class="confirm-dialog" role="dialog" aria-modal="true"><header><component :is="confirmMode === 'test' ? FlaskConical : Archive" :size="19" /><div><h2>{{ confirmMode === 'test' ? '测试发送' : '归档任务' }}</h2><p>{{ pendingJob?.name }} · {{ pendingJob?.group.name }}</p></div></header><p>{{ confirmMode === 'test' ? '立即发送一次，但不会修改正式任务的上次运行和下次运行时间。' : '归档后任务停止调度，历史记录继续保留。' }}</p><footer><button type="button" :disabled="confirming" @click="confirmMode = null">取消</button><button :data-test="confirmMode === 'test' ? 'confirm-test-send' : 'confirm-archive-job'" :class="confirmMode === 'archive' ? 'danger-action' : 'save-action'" type="button" :disabled="confirming" @click="confirmAction">确认{{ confirmMode === 'test' ? '发送' : '归档' }}</button></footer></section>
-    </div>
+    <AppOverlayTransition :show="Boolean(confirmMode)" variant="dialog">
+      <div class="dialog-layer" role="presentation" @mousedown.self="confirmMode = null">
+        <section class="confirm-dialog" role="dialog" aria-modal="true"><header><component :is="confirmMode === 'test' ? FlaskConical : Archive" :size="19" /><div><h2>{{ confirmMode === 'test' ? '测试发送' : '归档任务' }}</h2><p>{{ pendingJob?.name }} · {{ pendingJob?.group.name }}</p></div></header><p>{{ confirmMode === 'test' ? '立即发送一次，但不会修改正式任务的上次运行和下次运行时间。' : '归档后任务停止调度，历史记录继续保留。' }}</p><footer><button type="button" :disabled="confirming" @click="confirmMode = null">取消</button><button :data-test="confirmMode === 'test' ? 'confirm-test-send' : 'confirm-archive-job'" :class="confirmMode === 'archive' ? 'danger-action' : 'save-action'" type="button" :disabled="confirming" @click="confirmAction">确认{{ confirmMode === 'test' ? '发送' : '归档' }}</button></footer></section>
+      </div>
+    </AppOverlayTransition>
   </main>
 </template>
 

@@ -15,6 +15,7 @@ import {
 import { auditApi, type AuditLogListQuery } from '@/api/audit'
 import type { AuditLog, AuditLogSummary, RedactedAuditValue } from '@/api/types'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 
 type FlatAuditValue = Record<string, string>
 type AuditDiffRow = { path: string; before: string; after: string; changed: boolean }
@@ -149,8 +150,9 @@ onMounted(() => { void load() })
       <button v-if="hasMore" class="load-more" type="button" :disabled="loadingMore" @click="load(false)">{{ loadingMore ? '正在加载' : '加载更多' }}</button>
     </section>
 
-    <div v-if="detail || detailLoading" class="drawer-layer" @click.self="detail = null">
-      <aside class="audit-detail" aria-label="审计详情">
+    <AppOverlayTransition :show="Boolean(detail || detailLoading)" variant="drawer">
+      <div class="drawer-layer" @click.self="detail = null">
+        <aside class="audit-detail" role="dialog" aria-modal="true" aria-label="审计详情">
         <header><div><span class="eyebrow">AUDIT DETAIL</span><h2>{{ detail?.action || '正在读取详情' }}</h2><p class="mono">{{ detail?.audit_log_id }}</p></div><button type="button" aria-label="关闭详情" @click="detail = null"><X :size="17" /></button></header>
         <ResourceState v-if="detailLoading" state="loading" title="正在读取审计详情" description="正在加载脱敏字段变化。" />
         <template v-else-if="detail">
@@ -164,8 +166,9 @@ onMounted(() => { void load() })
           <section class="diff-section"><header><h3>字段变化</h3><span>{{ diffRows.filter((row) => row.changed).length }} 项变化</span></header><div class="diff-table"><div class="diff-heading"><span>字段</span><span>之前</span><span>之后</span></div><div v-for="row in diffRows" :key="row.path" :class="['diff-row', { changed: row.changed }]"><strong class="mono">{{ row.path }}</strong><span data-label="之前">{{ row.before }}</span><span data-label="之后">{{ row.after }}</span></div></div></section>
           <section class="metadata-section"><h3>元数据</h3><dl><div v-for="[path, value] in metadataRows" :key="path"><dt class="mono">{{ path }}</dt><dd>{{ value }}</dd></div></dl></section>
         </template>
-      </aside>
-    </div>
+        </aside>
+      </div>
+    </AppOverlayTransition>
   </main>
 </template>
 

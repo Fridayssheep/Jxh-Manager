@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  AlertTriangle,
   CheckCircle2,
   ChevronRight,
   Clock3,
@@ -23,6 +22,7 @@ import type {
   JoinRequestPolicy,
   JoinRequestSummary,
 } from '@/api/types'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import DecisionDialog from '@/components/join-requests/DecisionDialog.vue'
 import JoinRequestDetail from '@/components/join-requests/JoinRequestDetail.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
@@ -402,16 +402,7 @@ onBeforeUnmount(unsubscribe)
       </button>
     </form>
 
-    <div
-      v-if="operationResult"
-      :class="['operation-result', `operation-result--${operationTone}`]"
-      :role="operationTone === 'success' ? 'status' : 'alert'"
-    >
-      <CheckCircle2 v-if="operationTone === 'success'" :size="18" aria-hidden="true" />
-      <AlertTriangle v-else :size="18" aria-hidden="true" />
-      <span>{{ operationResult }}</span>
-      <button type="button" aria-label="关闭提示" @click="operationResult = null">×</button>
-    </div>
+    <OperationNotice :message="operationResult ?? ''" :tone="operationTone" :revision="operationResult" @close="operationResult = null" />
 
     <div v-if="selectedItems.length" class="bulk-bar">
       <span>已选 {{ selectedItems.length }} 条 · {{ selectionGroupName }}</span>

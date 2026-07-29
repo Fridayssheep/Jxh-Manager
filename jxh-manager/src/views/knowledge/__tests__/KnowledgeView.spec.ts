@@ -3,6 +3,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { knowledgeApi } from '@/api/knowledge'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
+import AppTabBar from '@/components/navigation/AppTabBar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import { makeKnowledgeConflict, makeKnowledgeEntry, makeKnowledgeEntrySummary, makeKnowledgeStatus } from '@/test/knowledge-fixture'
@@ -66,5 +69,29 @@ describe('KnowledgeView', () => {
     expect(reload).toHaveBeenCalledOnce()
     expect(wrapper.text()).toContain('reload-1')
     expect(wrapper.text()).toContain('已接受')
+  })
+
+  it('animates the reload confirmation', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.findComponent(AppOverlayTransition).props('variant')).toBe('dialog')
+  })
+
+  it('uses shared sliding tabs, content motion and operation feedback', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+    const content = wrapper.get('.tab-content').element as HTMLElement
+    const animate = vi.fn(() => ({ cancel: vi.fn(), onfinish: null, oncancel: null }))
+    Object.defineProperty(content, 'animate', { configurable: true, value: animate })
+
+    expect(wrapper.findComponent(AppTabBar).props('modelValue')).toBe('entries')
+    expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
+
+    wrapper.findComponent(AppTabBar).vm.$emit('update:modelValue', 'conflicts')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findComponent(AppTabBar).props('modelValue')).toBe('conflicts')
+    expect(animate).toHaveBeenCalled()
   })
 })

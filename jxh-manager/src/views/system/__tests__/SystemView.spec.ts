@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { systemApi } from '@/api/system'
 import type { Permission, SystemConfiguration } from '@/api/types'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRuntimeStore } from '@/stores/runtime'
 import { makeAuthContext } from '@/test/auth-fixture'
@@ -85,5 +87,13 @@ describe('SystemView', () => {
 
     expect(wrapper.text()).toContain('重启结果未知')
     expect(wrapper.text()).toContain('不要重复提交')
+  })
+
+  it('animates the NapCat restart confirmation', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.findComponent(AppOverlayTransition).props('variant')).toBe('dialog')
+    expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
   })
 })

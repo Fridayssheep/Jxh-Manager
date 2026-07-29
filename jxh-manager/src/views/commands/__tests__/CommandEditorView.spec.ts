@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { commandsApi } from '@/api/commands'
 import { groupsApi } from '@/api/groups'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
+import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import { makeCommand, makeCommandRun, makeCommandValidationResult } from '@/test/command-fixture'
@@ -92,5 +94,19 @@ describe('CommandEditorView', () => {
 
     expect(archive).toHaveBeenCalledWith('cmd-1', 7)
     expect(router.currentRoute.value.fullPath).toBe('/commands')
+  })
+
+  it('animates archive confirmation layers', async () => {
+    vi.spyOn(commandsApi, 'get').mockResolvedValue(makeCommand())
+    vi.spyOn(commandsApi, 'listRuns').mockResolvedValue({
+      items: [],
+      next_cursor: null,
+      has_more: false,
+    })
+    const { wrapper } = await mountEditor('/commands/cmd-1')
+    await flushPromises()
+
+    expect(wrapper.findComponent(AppOverlayTransition).props('variant')).toBe('dialog')
+    expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
   })
 })
