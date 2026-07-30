@@ -187,7 +187,7 @@ async function updateJoinPolicy(group: Group, patch: JoinRequestPolicyPatch): Pr
   } catch (reason) {
     if (reason instanceof AdminApiError && reason.status === 409) {
       policyNoticeTone.value = 'warning'
-      policyNotice.value = '策略已被其他操作更新，已刷新当前列表。'
+      policyNotice.value = '该群自动审核策略已被其他管理员修改，已重新加载。'
       await load()
     } else {
       policyNoticeTone.value = 'danger'
