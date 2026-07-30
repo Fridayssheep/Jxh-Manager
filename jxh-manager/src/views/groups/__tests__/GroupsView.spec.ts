@@ -96,6 +96,7 @@ describe('GroupsView', () => {
 
   it('updates independent policies with the current server version', async () => {
     vi.spyOn(groupsApi, 'list').mockResolvedValue(structuredClone(groupPage))
+    const getPolicy = vi.spyOn(joinRequestsApi, 'getPolicy')
     const updatePolicy = vi
       .spyOn(joinRequestsApi, 'updatePolicy')
       .mockResolvedValueOnce({
@@ -132,16 +133,22 @@ describe('GroupsView', () => {
 
     expect(updatePolicy).toHaveBeenNthCalledWith(1, '10001', { enabled: true }, 3)
     expect(updatePolicy).toHaveBeenNthCalledWith(2, '10001', { auto_reject: true }, 4)
+    expect(getPolicy).not.toHaveBeenCalled()
     expect(wrapper.get<HTMLInputElement>('[data-test=join-policy-enabled]').element.checked).toBe(true)
     expect(wrapper.get<HTMLInputElement>('[data-test=join-policy-auto-reject]').element.checked).toBe(true)
   })
 
   it('keeps policy controls read-only without write permission', async () => {
-    vi.spyOn(groupsApi, 'list').mockResolvedValue(structuredClone(groupPage))
+    const readOnlyPage = structuredClone(groupPage)
+    readOnlyPage.items[0]!.join_request_policy.enabled = true
+    vi.spyOn(groupsApi, 'list').mockResolvedValue(readOnlyPage)
     const wrapper = await mountGroups(['groups:read', 'settings:read'])
     await flushPromises()
 
-    expect(wrapper.getComponent(GroupJoinPolicyControls).get('fieldset').attributes('disabled')).toBeDefined()
+    const controls = wrapper.getComponent(GroupJoinPolicyControls)
+    expect(controls.get('fieldset').attributes('disabled')).toBeDefined()
+    expect(controls.get<HTMLInputElement>('[data-test=join-policy-enabled]').element.checked).toBe(true)
+    expect(controls.get<HTMLInputElement>('[data-test=join-policy-auto-reject]').element.checked).toBe(false)
   })
 
   it('marks only the saving group as busy', async () => {
@@ -168,6 +175,12 @@ describe('GroupsView', () => {
 
     expect(wrapper.get('[data-group-id="10001"]').attributes('aria-busy')).toBe('true')
     expect(wrapper.get('[data-group-id="10002"]').attributes('aria-busy')).toBe('false')
+    const savingInputs = wrapper.get('[data-group-id="10001"]').findAll('input')
+    const idleInputs = wrapper.get('[data-group-id="10002"]').findAll('input')
+    expect(savingInputs).toHaveLength(2)
+    expect(idleInputs).toHaveLength(2)
+    expect(savingInputs.every((input) => input.element.matches(':disabled'))).toBe(true)
+    expect(idleInputs.every((input) => input.element.matches(':enabled'))).toBe(true)
 
     resolveUpdate({
       group_id: '10001',
@@ -206,6 +219,7 @@ describe('GroupsView', () => {
 
     expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ query: '10001', cursor: null }))
     expect(wrapper.findAllComponents(OperationNotice)[1]!.props('tone')).toBe('warning')
+    expect(wrapper.text()).toContain('该群自动审核策略已被其他管理员修改，已重新加载。')
 
     updatePolicy.mockRejectedValueOnce(new Error('offline'))
     await wrapper.get<HTMLInputElement>('[data-test=join-policy-enabled]').setValue(true)
