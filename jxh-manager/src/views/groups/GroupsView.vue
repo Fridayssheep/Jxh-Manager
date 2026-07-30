@@ -181,7 +181,9 @@ async function updateJoinPolicy(group: Group, patch: JoinRequestPolicyPatch): Pr
         : item,
     )
     policyNoticeTone.value = 'success'
-    policyNotice.value = `已更新 ${group.name} 的自动审核策略。`
+    const policyName = 'enabled' in patch ? '自动批准' : '自动拒绝'
+    const enabled = 'enabled' in patch ? patch.enabled : patch.auto_reject
+    policyNotice.value = `已${enabled ? '启用' : '停用'} ${group.name}的${policyName}。`
   } catch (reason) {
     if (reason instanceof AdminApiError && reason.status === 409) {
       policyNoticeTone.value = 'warning'
@@ -591,33 +593,7 @@ onMounted(() => load())
   }
 }
 
-@media (max-width: 720px) {
-  .page-header {
-    flex-direction: column;
-  }
-
-  .primary-action {
-    width: 100%;
-  }
-
-  .filter-bar {
-    grid-template-columns: 1fr 1fr 38px;
-  }
-
-  .search-field {
-    grid-column: 1 / -1;
-  }
-
-  .filter-bar label:nth-of-type(3) {
-    display: block;
-  }
-
-  .filter-bar label:nth-of-type(2),
-  .filter-bar label:nth-of-type(4),
-  .filter-bar label:nth-of-type(5) {
-    display: none;
-  }
-
+@media (max-width: 980px) {
   .directory-heading.group-grid {
     display: none;
   }
@@ -665,6 +641,34 @@ onMounted(() => load())
 
   .row-action {
     align-self: end;
+  }
+}
+
+@media (max-width: 720px) {
+  .page-header {
+    flex-direction: column;
+  }
+
+  .primary-action {
+    width: 100%;
+  }
+
+  .filter-bar {
+    grid-template-columns: 1fr 1fr 38px;
+  }
+
+  .search-field {
+    grid-column: 1 / -1;
+  }
+
+  .filter-bar label:nth-of-type(3) {
+    display: block;
+  }
+
+  .filter-bar label:nth-of-type(2),
+  .filter-bar label:nth-of-type(4),
+  .filter-bar label:nth-of-type(5) {
+    display: none;
   }
 }
 </style>

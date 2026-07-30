@@ -48,6 +48,7 @@ const group = {
   bot_role: 'admin' as const, snapshot_state: 'fresh' as const,
   last_synced_at: '2026-07-28T05:00:00Z',
   features: [{ key: 'ai_qa' as const, enabled: true, source: 'group_override' as const }],
+  join_request_policy: { enabled: false, auto_reject: false, version: 1 },
 }
 
 const auditSummary = makeAuditLogSummary({
@@ -111,6 +112,7 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
   const consoleErrors: string[] = []
   let authenticated = options.authenticated ?? true
   let systemConfiguration = { ...initialSystemConfiguration }
+  let joinRequestPolicy = { ...group.join_request_policy }
 
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text())
@@ -143,7 +145,11 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
       await route.fulfill({ json: makeOverview() }); return
     }
     if (method === 'GET' && path === '/groups') {
-      await route.fulfill({ json: { items: [group], next_cursor: null, has_more: false } }); return
+      await route.fulfill({ json: {
+        items: [{ ...group, join_request_policy: { ...joinRequestPolicy } }],
+        next_cursor: null,
+        has_more: false,
+      } }); return
     }
     if (method === 'POST' && path === '/groups/sync') {
       await route.fulfill({ json: { synced_at: '2026-07-28T08:30:00Z', added_count: 1, updated_count: 2, removed_count: 0, total_count: 23 } }); return
@@ -163,13 +169,25 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
       } }); return
     }
     if (method === 'GET' && path === '/groups/10001') {
-      await route.fulfill({ json: group }); return
+      await route.fulfill({ json: { ...group, join_request_policy: { ...joinRequestPolicy } } }); return
     }
     if (method === 'GET' && path === '/settings') {
-      await route.fulfill({ json: { features, version: 7, updated_at: '2026-07-28T05:00:00Z', updated_by: null } }); return
+      await route.fulfill({ json: {
+        features,
+        join_requests: { auto_reject_reason: '申请信息不完整，请重新申请。' },
+        version: 7,
+        updated_at: '2026-07-28T05:00:00Z',
+        updated_by: null,
+      } }); return
     }
     if (method === 'PATCH' && path === '/settings') {
-      await route.fulfill({ json: { features, version: 8, updated_at: '2026-07-28T08:31:00Z', updated_by: null } }); return
+      await route.fulfill({ json: {
+        features,
+        join_requests: { auto_reject_reason: '申请信息不完整，请重新申请。' },
+        version: 8,
+        updated_at: '2026-07-28T08:31:00Z',
+        updated_by: null,
+      } }); return
     }
 
     if (method === 'GET' && path === '/join-requests') {
@@ -203,9 +221,22 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
     }
     if (method === 'GET' && path === '/groups/10001/join-request-policy') {
       await route.fulfill({ json: {
-        group_id: '10001', enabled: false, mode: 'ai_fields_complete',
-        required_fields: ['student_id', 'name', 'major'], auto_reject: false,
-        version: 1, updated_at: '2026-07-28T05:00:00Z', updated_by: null,
+        group_id: '10001', enabled: joinRequestPolicy.enabled, mode: 'ai_fields_complete',
+        required_fields: ['student_id', 'name', 'major'], auto_reject: joinRequestPolicy.auto_reject,
+        version: joinRequestPolicy.version, updated_at: '2026-07-28T05:00:00Z', updated_by: null,
+      } }); return
+    }
+    if (method === 'PATCH' && path === '/groups/10001/join-request-policy') {
+      const patch = recorded.body as { enabled?: boolean; auto_reject?: boolean }
+      joinRequestPolicy = {
+        enabled: patch.enabled ?? joinRequestPolicy.enabled,
+        auto_reject: patch.auto_reject ?? joinRequestPolicy.auto_reject,
+        version: joinRequestPolicy.version + 1,
+      }
+      await route.fulfill({ json: {
+        group_id: '10001', enabled: joinRequestPolicy.enabled, mode: 'ai_fields_complete',
+        required_fields: ['student_id', 'name', 'major'], auto_reject: joinRequestPolicy.auto_reject,
+        version: joinRequestPolicy.version, updated_at: '2026-07-28T05:01:00Z', updated_by: null,
       } }); return
     }
 
