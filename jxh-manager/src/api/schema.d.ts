@@ -1043,6 +1043,7 @@ export interface components {
             snapshot_state: "fresh" | "stale";
             last_synced_at: components["schemas"]["Timestamp"];
             features: components["schemas"]["GroupFeatureState"][];
+            join_request_policy: components["schemas"]["JoinRequestPolicySummary"];
         };
         GroupList: {
             items: components["schemas"]["Group"][];
@@ -1156,6 +1157,13 @@ export interface components {
         };
         /** @enum {string} */
         JoinPolicyField: "student_id" | "name" | "major";
+        JoinRequestPolicySummary: {
+            /** @default false */
+            enabled: boolean;
+            /** @default false */
+            auto_reject: boolean;
+            version: number;
+        };
         JoinRequestPolicy: {
             group_id: components["schemas"]["Identifier"];
             /** @default false */

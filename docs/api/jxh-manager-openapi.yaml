@@ -2805,6 +2805,7 @@ components:
         - snapshot_state
         - last_synced_at
         - features
+        - join_request_policy
       properties:
         group_id:
           $ref: '#/components/schemas/Identifier'
@@ -2828,6 +2829,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GroupFeatureState'
+        join_request_policy:
+          $ref: '#/components/schemas/JoinRequestPolicySummary'
     GroupList:
       type: object
       additionalProperties: false
@@ -3103,6 +3106,20 @@ components:
     JoinPolicyField:
       type: string
       enum: [student_id, name, major]
+    JoinRequestPolicySummary:
+      type: object
+      additionalProperties: false
+      required: [enabled, auto_reject, version]
+      properties:
+        enabled:
+          type: boolean
+          default: false
+        auto_reject:
+          type: boolean
+          default: false
+        version:
+          type: integer
+          minimum: 1
     JoinRequestPolicy:
       type: object
       additionalProperties: false
