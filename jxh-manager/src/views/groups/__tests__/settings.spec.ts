@@ -37,6 +37,7 @@ const group = {
   snapshot_state: 'fresh' as const,
   last_synced_at: '2026-07-28T05:00:00Z',
   features: [],
+  join_request_policy: { enabled: false, auto_reject: false, version: 1 },
 }
 
 async function mountWithRouter(component: typeof GlobalSettingsView | typeof GroupDetailView, path: string) {

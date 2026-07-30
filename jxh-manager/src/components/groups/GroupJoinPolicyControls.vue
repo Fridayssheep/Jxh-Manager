@@ -34,7 +34,7 @@ function changeAutoReject(event: Event): void {
   <fieldset
     class="join-policy-controls"
     :disabled="disabled || busy"
-    :aria-busy="String(busy)"
+    :aria-busy="busy"
     :aria-label="`${groupName}自动审核`"
   >
     <label class="policy-toggle">

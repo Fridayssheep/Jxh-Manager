@@ -83,18 +83,64 @@ async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): P
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   })
 
-  expect(await page.evaluate(() =>
+  const activeAnimations = await page.evaluate(() =>
     document.getAnimations().filter((animation) => {
       const endTime = animation.effect?.getComputedTiming().endTime
       return animation.playState !== 'finished' && Number.isFinite(Number(endTime))
-    }).length,
-  )).toBe(0)
+    }).map((animation) => {
+      const effect = animation.effect as KeyframeEffect | null
+      const target = effect?.target as Element | null
+      return {
+        target: target ? `${target.tagName.toLowerCase()}.${target.className}` : 'unknown',
+        playState: animation.playState,
+        currentTime: Number(animation.currentTime),
+        endTime: Number(effect?.getComputedTiming().endTime),
+        keyframes: effect?.getKeyframes(),
+      }
+    }),
+  )
+  expect(activeAnimations).toEqual([])
   const path = testInfo.outputPath(`${name}.png`)
   await page.screenshot({ path, fullPage: true })
   await testInfo.attach(name, { path, contentType: 'image/png' })
 }
 
 test.describe('管理端核心流程', { tag: '@desktop' }, () => {
+  test('updates group join policies with versioned minimal patches', async ({ page }) => {
+    const api = await installAdminApi(page)
+    await page.goto('/groups')
+
+    const approval = page.getByRole('checkbox', { name: '精弘网络维护群自动批准' })
+    const rejection = page.getByRole('checkbox', { name: '精弘网络维护群自动拒绝' })
+    await approval.click()
+    await expect(approval).toBeChecked()
+    await expect(page.getByText('已启用 精弘网络维护群的自动批准。')).toBeVisible()
+    await rejection.click()
+    await expect(rejection).toBeChecked()
+    await expect(page.getByText('已启用 精弘网络维护群的自动拒绝。')).toBeVisible()
+
+    const requests = api.requests.filter(
+      (request) => request.method === 'PATCH' && request.path === '/groups/10001/join-request-policy',
+    )
+    expect(requests).toHaveLength(2)
+    expect(requests[0]!.headers['if-match']).toBe('"1"')
+    expect(requests[0]!.body).toEqual({ enabled: true })
+    expectCsrf(requests[0]!)
+    expect(requests[1]!.headers['if-match']).toBe('"2"')
+    expect(requests[1]!.body).toEqual({ auto_reject: true })
+    expectCsrf(requests[1]!)
+  })
+
+  test('keeps group policy controls within a portrait tablet viewport', async ({ page }, testInfo) => {
+    await installAdminApi(page)
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await page.goto('/groups')
+
+    await expect(page.locator('[data-group-id="10001"]')).toBeVisible()
+    await expectNoHorizontalOverflow(page)
+    await attachScreenshot(page, testInfo, 'groups-portrait-tablet')
+  })
+
   test('keeps the navigation highlight aligned after route layout settles', async ({ page }) => {
     await installAdminApi(page)
     await page.setViewportSize({ width: 1339, height: 662 })
@@ -494,6 +540,11 @@ test('应用壳和关键页面适配当前 viewport', async ({ page }, testInfo)
     await expect(page.locator('select')).toHaveCount(0)
   }
 
+  await page.goto('/groups')
+  await expect(page.locator('[data-group-id="10001"]')).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+  await attachScreenshot(page, testInfo, `groups-${testInfo.project.name}`)
+
   await page.goto('/join-requests')
   await expect(page.locator('[data-test="request-row-flag-10001"]')).toBeVisible()
   await expect(page.locator('[data-test="cursor-pager"]')).toBeVisible()
@@ -511,7 +562,9 @@ test('应用壳和关键页面适配当前 viewport', async ({ page }, testInfo)
   await expect(page.getByRole('alertdialog', { name: '重启 NapCat' })).toBeVisible()
   await expectNoHorizontalOverflow(page)
   await expectNamedControls(page)
-  await page.getByRole('alertdialog').getByRole('button', { name: '取消' }).click()
+  const restartDialog = page.getByRole('alertdialog')
+  await restartDialog.getByRole('button', { name: '取消' }).click()
+  await expect(restartDialog).toBeHidden()
 
   expect(api.consoleErrors).toEqual([])
   await attachScreenshot(page, testInfo, `system-${testInfo.project.name}`)
