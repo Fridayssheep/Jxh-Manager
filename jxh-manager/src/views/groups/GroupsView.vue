@@ -5,10 +5,18 @@ import { ArrowRight, RefreshCw, RotateCw, Search, UsersRound, X } from '@lucide/
 
 import { AdminApiError } from '@/api/client'
 import { groupsApi, type GroupListQuery } from '@/api/groups'
-import type { FeatureKey, Group, GroupRole, GroupSyncResult } from '@/api/types'
+import { joinRequestsApi } from '@/api/join-requests'
+import type {
+  FeatureKey,
+  Group,
+  GroupRole,
+  GroupSyncResult,
+  JoinRequestPolicyPatch,
+} from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
+import GroupJoinPolicyControls from '@/components/groups/GroupJoinPolicyControls.vue'
 import SettingsAreaNav from '@/components/settings/SettingsAreaNav.vue'
 import { FEATURE_META } from '@/components/settings/feature-settings'
 import { useAuthStore } from '@/stores/auth'
@@ -23,6 +31,9 @@ const hasMore = ref(false)
 const syncing = ref(false)
 const syncResult = ref<GroupSyncResult | null>(null)
 const syncError = ref<string | null>(null)
+const policyBusyIds = ref<Set<string>>(new Set())
+const policyNotice = ref<string | null>(null)
+const policyNoticeTone = ref<'success' | 'warning' | 'danger'>('success')
 
 const filters = reactive<{
   query: string
@@ -131,6 +142,61 @@ async function syncGroups(): Promise<void> {
   }
 }
 
+function setPolicyBusy(groupId: string, busy: boolean): void {
+  const next = new Set(policyBusyIds.value)
+  if (busy) next.add(groupId)
+  else next.delete(groupId)
+  policyBusyIds.value = next
+}
+
+function restorePolicyView(groupId: string): void {
+  groups.value = groups.value.map((group) =>
+    group.group_id === groupId
+      ? { ...group, join_request_policy: { ...group.join_request_policy } }
+      : group,
+  )
+}
+
+async function updateJoinPolicy(group: Group, patch: JoinRequestPolicyPatch): Promise<void> {
+  if (!auth.hasPermission('join_policies:write') || policyBusyIds.value.has(group.group_id)) return
+
+  setPolicyBusy(group.group_id, true)
+  policyNotice.value = null
+  try {
+    const updated = await joinRequestsApi.updatePolicy(
+      group.group_id,
+      patch,
+      group.join_request_policy.version,
+    )
+    groups.value = groups.value.map((item) =>
+      item.group_id === group.group_id
+        ? {
+            ...item,
+            join_request_policy: {
+              enabled: updated.enabled,
+              auto_reject: updated.auto_reject,
+              version: updated.version,
+            },
+          }
+        : item,
+    )
+    policyNoticeTone.value = 'success'
+    policyNotice.value = `已更新 ${group.name} 的自动审核策略。`
+  } catch (reason) {
+    if (reason instanceof AdminApiError && reason.status === 409) {
+      policyNoticeTone.value = 'warning'
+      policyNotice.value = '策略已被其他操作更新，已刷新当前列表。'
+      await load()
+    } else {
+      policyNoticeTone.value = 'danger'
+      policyNotice.value = reason instanceof AdminApiError ? reason.message : '自动审核策略保存失败。'
+      restorePolicyView(group.group_id)
+    }
+  } finally {
+    setPolicyBusy(group.group_id, false)
+  }
+}
+
 onMounted(() => load())
 </script>
 
@@ -190,6 +256,12 @@ onMounted(() => load())
       :revision="syncResult?.synced_at ?? syncError"
       :closable="false"
     />
+    <OperationNotice
+      :message="policyNotice ?? ''"
+      :tone="policyNoticeTone"
+      :revision="policyNotice"
+      @close="policyNotice = null"
+    />
 
     <ResourceState
       v-if="loading"
@@ -218,6 +290,7 @@ onMounted(() => load())
         <span>Bot 角色</span>
         <span>快照</span>
         <span>功能</span>
+        <span>自动审核</span>
         <span>操作</span>
       </div>
       <article v-for="group in groups" :key="group.group_id" class="group-row group-grid">
@@ -240,6 +313,16 @@ onMounted(() => load())
           <span>{{ group.features.filter((feature) => feature.enabled).length }} / {{ group.features.length }} 启用</span>
           <small v-if="group.features.some((feature) => feature.source === 'group_override')">含群级覆盖</small>
         </div>
+        <GroupJoinPolicyControls
+          class="join-policy-cell"
+          :data-group-id="group.group_id"
+          :group-name="group.name"
+          :enabled="group.join_request_policy.enabled"
+          :auto-reject="group.join_request_policy.auto_reject"
+          :disabled="!auth.hasPermission('join_policies:write')"
+          :busy="policyBusyIds.has(group.group_id)"
+          @change="updateJoinPolicy(group, $event)"
+        />
         <RouterLink :to="`/groups/${group.group_id}`" class="row-action">
           查看详情 <ArrowRight :size="15" aria-hidden="true" />
         </RouterLink>
@@ -380,7 +463,7 @@ onMounted(() => load())
 
 .group-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1.5fr) 120px 100px 140px minmax(110px, 0.7fr) 92px;
+  grid-template-columns: minmax(220px, 1.5fr) 120px 100px 140px minmax(110px, 0.7fr) 170px 92px;
   gap: 14px;
   align-items: center;
 }
@@ -445,6 +528,10 @@ onMounted(() => load())
   font-size: 12px;
 }
 
+.join-policy-cell {
+  justify-self: start;
+}
+
 .status-badge {
   width: fit-content;
   padding: 2px 6px;
@@ -495,7 +582,7 @@ onMounted(() => load())
   }
 
   .group-grid {
-    grid-template-columns: minmax(220px, 1fr) 110px 100px 140px 92px;
+    grid-template-columns: minmax(220px, 1fr) 110px 100px 140px 170px 92px;
   }
 
   .directory-heading span:nth-child(5),
@@ -569,6 +656,11 @@ onMounted(() => load())
   .role-label,
   .feature-summary {
     display: none;
+  }
+
+  .join-policy-cell {
+    grid-column: 1 / -1;
+    justify-self: stretch;
   }
 
   .row-action {
