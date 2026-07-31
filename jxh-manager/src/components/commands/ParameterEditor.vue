@@ -72,13 +72,13 @@ function addOption(parameter: Extract<CommandParameter, { type: 'fixed_option' }
 <template>
   <div class="parameter-editor">
     <div class="editor-toolbar">
-      <p>参数按消息中的出现顺序解析，参数名仅允许小写 ASCII 字母、数字和下划线。</p>
+      <p>参数将按消息中的出现顺序解析，参数名仅允许小写字母、数字和下划线</p>
       <button type="button" :disabled="readonly" @click="addParameter">
         <Plus :size="15" aria-hidden="true" />添加参数
       </button>
     </div>
 
-    <p v-if="!parameters.length" class="empty-copy">此命令不接收参数。</p>
+    <p v-if="!parameters.length" class="empty-copy">这个命令没有配置接受的参数喵</p>
     <article v-for="(parameter, index) in parameters" :key="index" class="parameter-item">
       <header>
         <span class="item-index mono">{{ index + 1 }}</span>

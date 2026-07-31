@@ -114,7 +114,6 @@ onMounted(load)
     <header class="page-header">
       <div>
         <h1>群与设置</h1>
-        <p>配置所有群默认继承的功能开关与欢迎文案。</p>
       </div>
       <div v-if="resource" class="version-meta mono">版本 {{ resource.version }}</div>
     </header>

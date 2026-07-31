@@ -184,7 +184,6 @@ onBeforeUnmount(unsubscribe)
     <header class="page-header">
       <div>
         <h1>自定义命令</h1>
-        <p>通过受控参数和动作模板扩展群内能力，所有定义均由后端再次校验。</p>
       </div>
       <RouterLink v-if="auth.hasPermission('commands:write')" class="primary-action" to="/commands/new">
         <Plus :size="17" aria-hidden="true" />新建命令
@@ -223,7 +222,7 @@ onBeforeUnmount(unsubscribe)
 
     <ResourceState v-if="loading" state="loading" title="正在读取自定义命令" description="正在获取命令定义与最新版本。" />
     <ResourceState v-else-if="error" state="error" title="命令列表读取失败" description="筛选条件已保留，可以直接重试。" @retry="load()" />
-    <ResourceState v-else-if="!commands.length" state="empty" title="没有符合条件的命令" description="调整筛选，或创建一个默认停用的命令草稿。" />
+    <ResourceState v-else-if="!commands.length" state="empty" title="没有符合条件的命令" description="调整筛选，或单机“新建命令”创建一个" />
 
     <section v-else class="command-directory" aria-label="自定义命令列表">
       <div class="directory-heading command-grid" aria-hidden="true">

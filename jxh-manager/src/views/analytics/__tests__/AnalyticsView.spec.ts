@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { analyticsApi } from '@/api/analytics'
 import AnalyticsMetricBoard from '@/components/data/AnalyticsMetricBoard.vue'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import AppSelect from '@/components/form/AppSelect.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -145,5 +146,19 @@ describe('AnalyticsView', () => {
       }),
     )
     expect(createObjectUrl).toHaveBeenCalledOnce()
+  })
+
+  it('shows export failures as a danger notice', async () => {
+    vi.spyOn(analyticsApi, 'exportData').mockRejectedValue(new Error('network unavailable'))
+    const { wrapper } = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=export-analytics]').trigger('click')
+    await flushPromises()
+
+    const notice = wrapper.findComponent(OperationNotice)
+    expect(notice.exists()).toBe(true)
+    expect(notice.props('tone')).toBe('danger')
+    expect(notice.props('message')).toBe('统计数据导出失败。')
   })
 })

@@ -127,7 +127,7 @@ export const analyticsApi = {
     if (!response.ok) {
       throw new AdminApiError(response.status, {
         code: 'analytics_export_failed',
-        message: '统计数据导出失败。',
+        message: '统计数据导出失败',
         request_id: response.headers.get('X-Request-ID') ?? 'unknown',
         fields: {},
         retryable: response.status >= 500,

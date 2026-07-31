@@ -427,7 +427,6 @@ onBeforeUnmount(unsubscribe)
     <header class="page-header">
       <div>
         <h1>入群审批</h1>
-        <p>核对验证消息与 AI 提取字段，并将明确决策提交给 NapCat。</p>
       </div>
       <button class="refresh-button" type="button" :disabled="loading" @click="refreshCurrentPage">
         <RefreshCw :size="16" :class="{ spin: loading }" aria-hidden="true" />刷新队列

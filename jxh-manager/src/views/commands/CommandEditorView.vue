@@ -350,7 +350,7 @@ onMounted(async () => {
         <RouterLink to="/commands" class="back-link" aria-label="返回命令列表"><ArrowLeft :size="17" aria-hidden="true" /></RouterLink>
         <div>
           <h1>{{ isNew ? '新建自定义命令' : command?.name || '命令编辑器' }}</h1>
-          <p>{{ isNew ? '创建后保持停用草稿，验证通过后再明确启用。' : `资源版本 ${command?.version ?? '-'}` }}</p>
+          <p>{{ isNew ? '创建后请手动启用' : `资源版本 ${command?.version ?? '-'}` }}</p>
         </div>
       </div>
       <div class="page-actions">
@@ -382,7 +382,7 @@ onMounted(async () => {
       </div>
 
       <section class="editor-section">
-        <header><span class="section-number mono">01</span><div><h2>基础信息</h2><p>命令名必须完整包含 `/`，并且只能使用小写 ASCII 安全字符。</p></div></header>
+        <header><span class="section-number mono">01</span><div><h2>基础信息</h2><p>命令名以 `/`开头并填写小写字符</p></div></header>
         <div class="basic-grid">
           <label><span>命令名</span><input v-model="draft.name" data-test="command-name" maxlength="33" :disabled="definitionLocked" placeholder="/welcome" spellcheck="false" /></label>
           <label><span>显示名称</span><input v-model="draft.display_name" data-test="command-display-name" maxlength="100" :disabled="definitionLocked" /></label>
@@ -397,7 +397,7 @@ onMounted(async () => {
       </section>
 
       <section class="editor-section">
-        <header><span class="section-number mono">03</span><div><h2>权限与范围</h2><p>限制谁能触发命令，以及命令在哪些群中生效。</p></div></header>
+        <header><span class="section-number mono">03</span><div><h2>权限与范围</h2><p>限制命令触发范围</p></div></header>
         <div class="permission-grid">
           <label><span>触发权限</span><AppSelect :model-value="draft.trigger_permission" :options="permissionOptions" accessible-name="触发权限" data-test="command-trigger-permission" :disabled="definitionLocked" @update:model-value="setTriggerPermission" /></label>
           <fieldset>
@@ -413,12 +413,12 @@ onMounted(async () => {
       </section>
 
       <section class="editor-section">
-        <header><span class="section-number mono">04</span><div><h2>动作序列</h2><p>只允许回复、@成员、禁言和固定目标群发送四类内置动作。</p></div></header>
+        <header><span class="section-number mono">04</span><div><h2>动作序列</h2><p>配置收到消息后的动作</p></div></header>
         <ActionEditor v-model="draft.actions" :parameters="draft.parameters" :groups="groups" :can-configure-cross-group="canConfigureCrossGroup" :readonly="definitionLocked" />
       </section>
 
       <section class="editor-section validation-section">
-        <header><span class="section-number mono">05</span><div><h2>无副作用测试</h2><p>仅解析样例参数并渲染动作预览，不调用 NapCat，也不写执行记录。</p></div></header>
+        <header><span class="section-number mono">05</span><div><h2>预览执行结果（可选）</h2><p>输入一条模拟消息以检查响应</p></div></header>
         <div class="sample-grid">
           <label><span>样例群号</span><input v-model="sample.group_id" data-test="sample-group" maxlength="64" /></label>
           <label><span>发送者 QQ</span><input v-model="sample.sender_qq" data-test="sample-sender" maxlength="32" /></label>
@@ -440,7 +440,7 @@ onMounted(async () => {
       </section>
 
       <section v-if="!isNew" class="editor-section runs-section">
-        <header><span class="section-number mono">06</span><div><h2>执行记录</h2><p>仅展示结果与步骤元数据，不保存自由文本参数内容。</p></div></header>
+        <header><span class="section-number mono">06</span><div><h2>执行记录</h2></div></header>
         <div class="run-toolbar"><AppSelect class="run-result-select" :model-value="runResultFilter" :options="runResultOptions" accessible-name="执行结果" data-test="command-run-result" @update:model-value="setRunResult" @change="loadRuns(true)" /></div>
         <p v-if="runsLoading && !runs.length" class="runs-empty">正在读取执行记录...</p>
         <p v-else-if="!runs.length" class="runs-empty">暂无执行记录。</p>
@@ -455,7 +455,7 @@ onMounted(async () => {
       </section>
 
       <section v-if="!isNew && canWrite" class="danger-zone">
-        <div><h2>归档命令</h2><p>归档是软删除；命令名与历史记录会继续保留。</p></div>
+        <div><h2>归档命令</h2></div>
         <button data-test="archive-command" type="button" @click="archiveOpen = true"><Archive :size="16" aria-hidden="true" />归档</button>
       </section>
     </template>

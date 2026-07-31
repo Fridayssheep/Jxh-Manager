@@ -161,7 +161,7 @@ async function loadConflicts(reset = true): Promise<void> {
     conflictsHasMore.value = page.has_more
   } catch (reason) {
     operationTone.value = 'danger'
-    operationResult.value = reason instanceof AdminApiError ? reason.message : '冲突列表读取失败。'
+    operationResult.value = reason instanceof AdminApiError ? reason.message : '冲突列表读取失败'
   } finally {
     conflictsLoading.value = false
   }
@@ -173,7 +173,7 @@ async function openEntry(entry: KnowledgeEntrySummary): Promise<void> {
     detail.value = await knowledgeApi.getEntry(entry.entry_id)
   } catch (reason) {
     operationTone.value = 'danger'
-    operationResult.value = reason instanceof AdminApiError ? reason.message : '词条详情读取失败。'
+    operationResult.value = reason instanceof AdminApiError ? reason.message : '词条详情读取失败'
   } finally {
     detailLoading.value = false
   }
@@ -190,17 +190,17 @@ async function confirmReload(): Promise<void> {
   try {
     acceptedOperation.value = await knowledgeApi.reload()
     operationTone.value = 'success'
-    operationResult.value = `重载操作 ${acceptedOperation.value.operation_id} 已接受；旧索引在成功切换前继续有效。`
+    operationResult.value = `重载操作 ${acceptedOperation.value.operation_id} 已接受；旧索引在成功切换前继续有效`
     reloadOpen.value = false
     await loadStatus()
   } catch (reason) {
     reloadOpen.value = false
     if (reason instanceof TypeError) {
       operationTone.value = 'unknown'
-      operationResult.value = '重载请求结果未知。请先刷新知识库状态，不要重复触发。'
+      operationResult.value = '重载请求结果未知请先刷新知识库状态，不要重复触发'
     } else {
       operationTone.value = reason instanceof AdminApiError && reason.status === 409 ? 'warning' : 'danger'
-      operationResult.value = reason instanceof AdminApiError ? reason.message : '知识库重载启动失败。'
+      operationResult.value = reason instanceof AdminApiError ? reason.message : '知识库重载启动失败'
     }
   } finally {
     reloading.value = false
@@ -221,12 +221,12 @@ onBeforeUnmount(unsubscribe)
 <template>
   <main class="knowledge-page">
     <header class="page-header">
-      <div><h1>知识库</h1><p>查看 WPS 唯一数据源生成的只读索引、词条和解析冲突。</p></div>
+      <div><h1>知识库</h1><p>查看 WPS 词条和解析状态</p></div>
       <button v-if="auth.hasPermission('knowledge:reload')" data-test="reload-knowledge" class="primary-action" type="button" :disabled="reloading" @click="reloadOpen = true"><RefreshCw :class="{ spin: reloading }" :size="17" />手动重载</button>
     </header>
 
-    <ResourceState v-if="statusLoading && !status" state="loading" title="正在读取知识库状态" description="不会返回 WPS SID 或分享链接。" />
-    <ResourceState v-else-if="statusError && !status" state="error" title="知识库状态读取失败" description="词条列表仍可独立重试。" @retry="loadStatus" />
+    <ResourceState v-if="statusLoading && !status" state="loading" title="正在读取知识库状态" description="请稍后" />
+    <ResourceState v-else-if="statusError && !status" state="error" title="知识库状态读取失败" description="尝试重新加载" @retry="loadStatus" />
     <section v-else-if="status" class="status-strip" aria-label="知识库状态">
       <div class="state-cell" data-test="knowledge-source"><Database :size="19" /><span>WPS 知识源<strong :class="`state--${status.state}`">{{ stateLabels[status.state] }}</strong></span></div>
       <div><span>有效词条</span><strong class="mono">{{ status.entry_count }}</strong></div>
@@ -258,9 +258,9 @@ onBeforeUnmount(unsubscribe)
 
       <section class="entry-workspace">
         <div class="entry-list-pane">
-          <ResourceState v-if="entriesLoading && !entries.length" state="loading" title="正在读取词条" description="读取 WPS 索引快照中的只读摘要。" />
-          <ResourceState v-else-if="entriesError" state="error" title="词条读取失败" description="筛选条件已保留。" @retry="loadEntries()" />
-          <ResourceState v-else-if="!entries.length" state="empty" title="没有符合条件的词条" description="调整筛选条件后重试。" />
+          <ResourceState v-if="entriesLoading && !entries.length" state="loading" title="正在读取词条" description="读取 WPS 索引快照中的只读摘要" />
+          <ResourceState v-else-if="entriesError" state="error" title="词条读取失败" description="筛选条件已保留" @retry="loadEntries()" />
+          <ResourceState v-else-if="!entries.length" state="empty" title="没有符合条件的词条" description="调整筛选条件后重试" />
           <article v-for="entry in entries" :key="entry.entry_id" :data-test="`knowledge-entry-${entry.entry_id}`" :class="{ active: detail?.entry_id === entry.entry_id }" tabindex="0" @click="openEntry(entry)" @keydown.enter="openEntry(entry)">
             <div><strong>{{ entry.title }}</strong><span>{{ entry.category }} · {{ typeLabels[entry.entry_type] }}</span></div><span v-if="entry.has_conflict" class="conflict-badge">冲突</span><ChevronRight :size="16" />
             <p>{{ [...entry.keywords, ...entry.aliases].join(' · ') || '无关键词' }}</p>
@@ -269,14 +269,14 @@ onBeforeUnmount(unsubscribe)
         </div>
 
         <aside class="entry-detail" aria-label="词条详情">
-          <ResourceState v-if="detailLoading" state="loading" title="正在读取词条详情" description="仅从管理 API 获取只读内容。" />
-          <div v-else-if="!detail" class="detail-empty"><BookOpen :size="24" /><strong>选择词条查看只读详情</strong><span>来源键、问题、答案和索引状态会显示在这里。</span></div>
+          <ResourceState v-if="detailLoading" state="loading" title="正在读取词条详情" description="请等一下喵" />
+          <div v-else-if="!detail" class="detail-empty"><BookOpen :size="24" /><strong>选择词条查看详情</strong><span>来源键、问题、答案和索引状态会显示在这里</span></div>
           <template v-else>
             <header><div><span class="eyebrow">{{ detail.category }}</span><h2>{{ detail.title }}</h2></div><span :class="['enabled-badge', { disabled: !detail.enabled }]">{{ detail.enabled ? '已启用' : '已停用' }}</span></header>
             <dl class="source-meta"><div><dt>来源键</dt><dd class="mono">{{ detail.source_key }}</dd></div><div><dt>词条 ID</dt><dd class="mono">{{ detail.entry_id }}</dd></div><div><dt>索引时间</dt><dd class="mono">{{ displayTime(detail.indexed_at) }}</dd></div><div><dt>来源更新时间</dt><dd class="mono">{{ displayTime(detail.source_updated_at) }}</dd></div></dl>
             <section><h3>问题</h3><p>{{ detail.question }}</p></section><section><h3>答案</h3><p class="answer-text">{{ detail.answer }}</p></section>
             <section><h3>关键词与别名</h3><div class="tag-list"><span v-for="keyword in detail.keywords" :key="`k-${keyword}`">{{ keyword }}</span><span v-for="alias in detail.aliases" :key="`a-${alias}`" class="alias">{{ alias }}</span></div></section>
-            <footer><ShieldCheck :size="16" /><span>只读来源：所有修改必须在 WPS 中完成，再通过重载生成新索引。</span></footer>
+            <footer><ShieldCheck :size="16" /><span>只读来源：所有修改必须在 WPS 中完成，再通过重载生成新索引</span></footer>
           </template>
         </aside>
       </section>
@@ -284,15 +284,15 @@ onBeforeUnmount(unsubscribe)
 
       <template v-else>
       <form class="conflict-filter" @submit.prevent="loadConflicts()"><label class="search-field"><Search :size="16" /><input v-model="conflictFilters.query" placeholder="搜索冲突键或词条 ID" /></label><AppSelect :model-value="conflictFilters.conflictType" :options="conflictTypeOptions" accessible-name="冲突类型" data-test="knowledge-conflict-type" @update:model-value="setConflictType" /><button class="filter-submit" type="submit">应用筛选</button></form>
-      <ResourceState v-if="conflictsLoading && !conflicts.length" state="loading" title="正在读取解析冲突" description="冲突不会自动覆盖任一词条。" />
-      <ResourceState v-else-if="!conflicts.length" state="empty" title="当前没有解析冲突" description="关键词、别名和来源键均保持唯一。" />
+      <ResourceState v-if="conflictsLoading && !conflicts.length" state="loading" title="正在读取解析冲突" description="冲突不会自动覆盖任一词条" />
+      <ResourceState v-else-if="!conflicts.length" state="empty" title="当前没有解析冲突"/>
       <section v-else class="conflict-list"><article v-for="conflict in conflicts" :key="conflict.conflict_id"><TriangleAlert :size="18" /><div><strong>{{ conflictLabels[conflict.type] }}冲突 · {{ conflict.key }}</strong><span class="mono">{{ conflict.conflict_id }}</span></div><div class="entry-ids"><span v-for="id in conflict.entry_ids" :key="id" class="mono">{{ id }}</span></div><time class="mono">{{ displayTime(conflict.detected_at) }}</time></article></section>
       <button v-if="conflictsHasMore" class="load-more" type="button" :disabled="conflictsLoading" @click="loadConflicts(false)">加载更多冲突</button>
       </template>
     </div>
 
     <AppOverlayTransition :show="reloadOpen" variant="dialog">
-      <div class="dialog-layer" role="presentation" @mousedown.self="reloadOpen = false"><section class="reload-dialog" role="dialog" aria-modal="true"><header><RefreshCw :size="19" /><div><h2>重载知识库索引</h2><p>从已配置的 WPS 数据源重新下载并构建索引。</p></div></header><div class="reload-notice"><ShieldCheck :size="17" /><span>下载为空、解析失败或没有有效词条时，当前有效索引不会被替换。</span></div><footer><button type="button" :disabled="reloading" @click="reloadOpen = false">取消</button><button data-test="confirm-reload" class="primary-action" type="button" :disabled="reloading" @click="confirmReload">确认重载</button></footer></section></div>
+      <div class="dialog-layer" role="presentation" @mousedown.self="reloadOpen = false"><section class="reload-dialog" role="dialog" aria-modal="true"><header><RefreshCw :size="19" /><div><h2>重载知识库索引</h2><p>从已配置的 WPS 数据源重新下载并构建索引</p></div></header><div class="reload-notice"><ShieldCheck :size="17" /><span>下载为空、解析失败或没有有效词条时，当前有效索引不会被替换</span></div><footer><button type="button" :disabled="reloading" @click="reloadOpen = false">取消</button><button data-test="confirm-reload" class="primary-action" type="button" :disabled="reloading" @click="confirmReload">确认重载</button></footer></section></div>
     </AppOverlayTransition>
   </main>
 </template>

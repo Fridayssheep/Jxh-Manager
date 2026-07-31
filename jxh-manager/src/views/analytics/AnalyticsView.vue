@@ -22,6 +22,7 @@ import type {
 import AnalyticsMetricBoard from '@/components/data/AnalyticsMetricBoard.vue'
 import AnalyticsTrendChart from '@/components/data/AnalyticsTrendChart.vue'
 import RankingTable from '@/components/data/RankingTable.vue'
+import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
@@ -39,6 +40,7 @@ const summaryError = ref<unknown>(null)
 const analysisError = ref<unknown>(null)
 const exporting = ref(false)
 const exportResult = ref('')
+const exportTone = ref<'success' | 'danger'>('success')
 const summaryRevision = ref(0)
 const analysisRevision = ref(0)
 const globalFilter = reactive({
@@ -283,8 +285,10 @@ async function exportAnalytics(): Promise<void> {
     link.download = result.filename
     link.click()
     URL.revokeObjectURL(url)
+    exportTone.value = 'success'
     exportResult.value = result.rowCount === null ? `已导出 ${result.filename}` : `已导出 ${result.rowCount} 行 · ${result.filename}`
   } catch (reason) {
+    exportTone.value = 'danger'
     exportResult.value = reason instanceof AdminApiError ? reason.message : '统计数据导出失败。'
   } finally {
     exporting.value = false
@@ -323,7 +327,7 @@ watch(
 <template>
   <main class="analytics-page">
     <header class="page-header">
-      <div><h1>统计分析</h1><p>对比业务趋势、群与自动化排行，并下载当前筛选范围的数据。</p></div>
+      <div><h1>统计分析</h1><p>查看或下载当前筛选范围的数据</p></div>
       <div v-if="auth.hasPermission('analytics:export')" class="export-tools">
         <AppSelect
           :model-value="exportOptions.dataset"
@@ -337,11 +341,11 @@ watch(
           accessible-name="导出格式"
           @update:model-value="setExportFormat"
         />
-        <button data-test="export-analytics" type="button" :disabled="exporting" @click="exportAnalytics"><Download :size="16" />{{ exporting ? '导出中' : '导出' }}</button>
+        <button data-test="export-analytics" type="button" :disabled="exporting" @click="exportAnalytics"><Download :class="{ spin: exporting }" :size="17" />{{ exporting ? '导出中' : '导出' }}</button>
       </div>
     </header>
 
-    <p v-if="exportResult" class="export-result" role="status">{{ exportResult }}</p>
+    <OperationNotice :message="exportResult" :tone="exportTone" :revision="exportResult" @close="exportResult = ''" />
 
     <form data-test="analytics-filters" class="analytics-filters" @submit.prevent="applyFilters">
       <div class="filter-field filter-field--date-range">
@@ -379,11 +383,11 @@ watch(
       </div>
     </form>
 
-    <ResourceState v-if="summaryLoading && !summary" state="loading" title="正在汇总统计" description="正在读取指标、趋势和排行。" />
-    <ResourceState v-else-if="summaryError && !summary" state="error" title="统计读取失败" description="筛选条件已保留，可以重新尝试。" @retry="reloadAll" />
+    <ResourceState v-if="summaryLoading && !summary" state="loading" title="正在汇总统计" description="正在读取指标、趋势和排行……" />
+    <ResourceState v-else-if="summaryError && !summary" state="error" title="统计读取失败" @retry="reloadAll" />
 
     <template v-else-if="summary">
-      <div v-if="summaryError" class="stale-state"><RefreshCw :size="15" />刷新失败，当前仍显示上一次成功数据。</div>
+      <div v-if="summaryError" class="stale-state"><RefreshCw :size="15" />刷新失败，未更改上一次数据</div>
       <AnalyticsMetricBoard :metrics="summary.metrics" :revision="summaryRevision" />
 
       <section class="analytics-workspace">
@@ -517,7 +521,8 @@ watch(
   color: white;
   font-weight: 600;
   background: var(--color-brand-action);
-  border-color: var(--color-brand-action);
+  border: 1px solid var(--color-brand-action);
+  border-radius: var(--radius-control);
 }
 
 .export-tools button:hover:not(:disabled) {
@@ -525,16 +530,10 @@ watch(
   border-color: var(--color-brand-action-hover);
 }
 
-.export-result,
 .stale-state {
   padding: 9px 11px;
   font-size: 11px;
   border-left: 3px solid var(--color-success);
-}
-
-.export-result {
-  color: var(--color-success);
-  background: var(--color-success-surface);
 }
 
 .stale-state {

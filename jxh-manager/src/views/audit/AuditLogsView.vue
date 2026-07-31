@@ -133,7 +133,7 @@ onMounted(() => { void load() })
 <template>
   <main class="audit-page">
     <header class="page-header">
-      <div><h1>审计日志</h1><p>按请求 ID 追踪管理动作、目标、结果和脱敏后的字段变化。</p></div>
+      <div><h1>审计日志</h1><p>查看操作日志</p></div>
       <ShieldCheck :size="22" aria-hidden="true" />
     </header>
 
@@ -173,7 +173,6 @@ onMounted(() => { void load() })
         <header><div><span class="eyebrow">AUDIT DETAIL</span><h2>{{ detail?.action || '正在读取详情' }}</h2><p class="mono">{{ detail?.audit_log_id }}</p></div><button type="button" aria-label="关闭详情" @click="detail = null"><X :size="17" /></button></header>
         <ResourceState v-if="detailLoading" state="loading" title="正在读取审计详情" description="正在加载脱敏字段变化。" />
         <template v-else-if="detail">
-          <div v-if="detail.redacted" class="redacted-notice"><LockKeyhole :size="16" /><span><strong>内容已脱敏</strong>敏感字段只显示固定占位符，不包含原文或哈希。</span></div>
           <dl class="audit-meta">
             <div><dt>时间</dt><dd class="mono">{{ timeFormatter.format(new Date(detail.occurred_at)) }}</dd></div><div><dt>来源</dt><dd>{{ sourceLabels[detail.source] }}</dd></div>
             <div><dt>操作者</dt><dd>{{ detail.actor.display_name }}</dd></div><div><dt>结果</dt><dd>{{ resultLabels[detail.result] }}</dd></div>

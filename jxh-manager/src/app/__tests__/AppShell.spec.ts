@@ -44,6 +44,8 @@ describe('AppShell', () => {
     expect(wrapper.text()).not.toContain('账号与权限')
     expect(wrapper.text()).not.toContain('入群审批')
     expect(wrapper.find('[data-test=app-topbar]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('当前范围')
+    expect(wrapper.text()).not.toContain('全部群')
     expect(wrapper.get('[data-test=account-link]').attributes('href')).toBe('/account')
     expect(wrapper.findAll('[data-test=navigation-highlight]')).toHaveLength(1)
     for (const [href, label] of [

@@ -85,7 +85,7 @@ watch(
       <div class="brand-block">
         <img :src="logoAvatar" class="brand-avatar" width="40" height="40" alt="精小弘" />
         <div class="brand-copy">
-          <strong>精小弘</strong>
+          <strong>精小弘管理面板</strong>
           <span>JXH MANAGER</span>
         </div>
         <button class="sidebar-close" type="button" aria-label="关闭导航" @click="closeMobileMenu">
@@ -151,11 +151,6 @@ watch(
         >
           <Menu :size="20" aria-hidden="true" />
         </button>
-
-        <div class="scope-indicator" aria-label="当前范围">
-          <span>当前范围</span>
-          <strong>全部群</strong>
-        </div>
 
         <div class="topbar-actions">
           <button
@@ -360,26 +355,11 @@ watch(
   border-bottom: 1px solid var(--color-border);
 }
 
-.scope-indicator {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.scope-indicator span {
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-
-.scope-indicator strong {
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 
 .icon-button,
@@ -570,12 +550,6 @@ watch(
     place-items: center;
   }
 
-  .scope-indicator {
-    min-width: 0;
-    margin-right: auto;
-  }
-
-  .scope-indicator span,
   .account-name {
     display: none;
   }

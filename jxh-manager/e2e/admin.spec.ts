@@ -212,6 +212,22 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expect(api.consoleErrors).toEqual([])
   })
 
+  test('登录页使用品牌插画分栏和统一面板圆角', async ({ page }, testInfo) => {
+    await installAdminApi(page, { authenticated: false })
+    await page.goto('/login')
+
+    await expect(page.getByRole('heading', { name: '登录管理端' })).toBeVisible()
+    await expect(page.locator('[data-test="login-artwork"]')).toBeVisible()
+    await expect(page.locator('.login-shell')).toHaveCSS('border-radius', '8px')
+    await expect(page.locator('.brand-identity > div')).toHaveCSS('border-radius', '4px')
+    const brandFieldColor = await page.locator('.login-page').evaluate((element) =>
+      getComputedStyle(element, '::before').backgroundColor,
+    )
+    expect(brandFieldColor).toBe('rgb(240, 68, 100)')
+    await expectNoHorizontalOverflow(page)
+    await attachScreenshot(page, testInfo, 'login-desktop')
+  })
+
   test('总览同时呈现待处理和系统健康', async ({ page }) => {
     const api = await installAdminApi(page)
     await page.goto('/')
@@ -318,6 +334,50 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     const request = api.findRequest('POST', '/scheduled-jobs/job-1/test-send')!
     expectCsrf(request); expectIdempotencyKey(request)
     expect(request.headers['if-match']).toBe('"7"')
+  })
+
+  test('统计导出按钮使用统一圆角且顶栏不显示虚假范围', async ({ page }) => {
+    await installAdminApi(page)
+    await page.goto('/analytics')
+
+    await expect(page.locator('[data-test="export-analytics"]')).toHaveCSS('border-radius', '4px')
+    await expect(page.locator('.scope-indicator')).toHaveCount(0)
+  })
+
+  test('短视口下定时任务抽屉仅滚动表单内容', async ({ page }) => {
+    await installAdminApi(page)
+    await page.setViewportSize({ width: 620, height: 500 })
+    await page.goto('/scheduled-jobs')
+    await page.getByRole('button', { name: '新建任务', exact: true }).click()
+
+    const editor = page.getByRole('dialog', { name: '新建任务', exact: true })
+    await expect(editor.locator('[data-test="save-job"]')).toBeVisible()
+
+    const layout = await editor.evaluate((element) => {
+      const body = element.querySelector<HTMLElement>('.editor-body')!
+      const footer = element.querySelector<HTMLElement>('footer')!
+      const editorRect = element.getBoundingClientRect()
+      const bodyRect = body.getBoundingClientRect()
+      const footerRect = footer.getBoundingClientRect()
+
+      return {
+        viewportHeight: window.innerHeight,
+        editorBottom: editorRect.bottom,
+        footerBottom: footerRect.bottom,
+        bodyHeight: bodyRect.height,
+        bodyScrollHeight: body.scrollHeight,
+        bodyMinHeight: getComputedStyle(body).minHeight,
+        saveFlexShrink: getComputedStyle(
+          footer.querySelector<HTMLElement>('[data-test="save-job"]')!,
+        ).flexShrink,
+      }
+    })
+
+    expect(layout.editorBottom).toBeLessThanOrEqual(layout.viewportHeight)
+    expect(layout.footerBottom).toBeLessThanOrEqual(layout.viewportHeight)
+    expect(layout.bodyScrollHeight).toBeGreaterThan(layout.bodyHeight)
+    expect(layout.bodyMinHeight).toBe('0px')
+    expect(layout.saveFlexShrink).toBe('0')
   })
 
   test('编辑定时任务使用详情版本提交更新', async ({ page }) => {

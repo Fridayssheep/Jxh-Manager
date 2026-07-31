@@ -207,7 +207,6 @@ onMounted(() => load())
     <header class="page-header">
       <div>
         <h1>群与设置</h1>
-        <p>查看 NapCat 群快照，并进入群级功能覆盖。</p>
       </div>
       <button
         v-if="auth.hasPermission('groups:sync')"

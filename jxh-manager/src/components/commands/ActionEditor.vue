@@ -138,7 +138,7 @@ const actionMeta = {
 <template>
   <div class="action-editor">
     <div class="editor-toolbar">
-      <p>动作严格按顺序执行；任一步失败后，后续动作不会继续。</p>
+      <p>注意：动作任一步失败后，后续动作将不会继续</p>
       <div class="add-actions">
         <button data-test="add-reply-action" type="button" :disabled="readonly" @click="addReply">
           <MessageSquareText :size="15" aria-hidden="true" />回复文本
@@ -151,8 +151,8 @@ const actionMeta = {
       </div>
     </div>
 
-    <p v-if="!canConfigureCrossGroup" class="permission-note">跨群目标只能由超级管理员新增或修改。</p>
-    <p v-if="!actions.length" class="empty-copy">尚未配置动作。至少添加一个受控动作后才能保存。</p>
+    <p v-if="!canConfigureCrossGroup" class="permission-note">操作失败了喵：跨群目标只能由超级管理员新增或修改</p>
+    <p v-if="!actions.length" class="empty-copy">尚未配置动作，请至少添加一个受控动作喵</p>
 
     <article v-for="(action, index) in actions" :key="index" class="action-item">
       <header>
@@ -213,7 +213,7 @@ const actionMeta = {
             />
             <span>{{ group.name }} <small class="mono">{{ group.group_id }}</small></span>
           </label>
-          <p v-if="!groups.length">群目录暂不可用，不能新增跨群目标。</p>
+          <p v-if="!groups.length">群目录暂不可用，无法新增跨群目标</p>
         </div>
         <label class="wide-field">
           <span>发送模板</span>

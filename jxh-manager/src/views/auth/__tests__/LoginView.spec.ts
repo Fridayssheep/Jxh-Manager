@@ -24,6 +24,14 @@ async function mountLogin() {
 }
 
 describe('LoginView', () => {
+  it('uses the branded login artwork inside a dedicated login shell', async () => {
+    const { wrapper } = await mountLogin()
+
+    expect(wrapper.find('.login-shell').exists()).toBe(true)
+    expect(wrapper.get('[data-test=login-artwork]').attributes('src')).toContain('login')
+    expect(wrapper.get('[data-test=login-artwork]').attributes('alt')).toBe('')
+  })
+
   it('validates required credentials before calling the API', async () => {
     const { wrapper, auth } = await mountLogin()
     const login = vi.spyOn(auth, 'login')

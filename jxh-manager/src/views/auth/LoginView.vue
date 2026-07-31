@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight, KeyRound, LoaderCircle, UserRound, WifiOff } from '@lucide/vue'
 
 import { getLoginErrorMessage } from '@/api/auth'
+import loginArtwork from '@/assets/login.webp'
 import logoAvatar from '@/assets/logo-avatar.webp'
 import { useAuthStore } from '@/stores/auth'
 
@@ -39,179 +40,197 @@ async function submit(): Promise<void> {
 
 <template>
   <main class="login-page">
-    <section class="brand-panel" aria-label="精小弘管理端">
-      <div class="brand-track" aria-hidden="true" />
-      <div class="brand-identity">
-        <img :src="logoAvatar" width="72" height="72" alt="精小弘" />
-        <div>
-          <strong>精小弘</strong>
-          <span>JXH MANAGER</span>
-        </div>
-      </div>
-      <p>内部管理控制台</p>
-      <div class="brand-index" aria-hidden="true">01 / ADMIN</div>
-    </section>
-
-    <section class="login-workspace">
-      <div class="login-form-wrap">
-        <header>
-          <span class="login-kicker">安全会话</span>
-          <h1>登录管理端</h1>
-          <p>使用管理员分配的本地账号。</p>
-        </header>
-
-        <div v-if="auth.bootstrapError" class="service-warning" role="status">
-          <WifiOff :size="18" aria-hidden="true" />
+    <div class="login-shell">
+      <section class="brand-panel" aria-label="精小弘管理端">
+        <img
+          :src="loginArtwork"
+          class="login-artwork"
+          data-test="login-artwork"
+          alt=""
+          aria-hidden="true"
+        />
+        <div class="brand-identity">
+          <img :src="logoAvatar" width="48" height="48" alt="精小弘" />
           <div>
-            <strong>管理服务暂时不可用</strong>
-            <span>可以检查网络后再次登录。</span>
+            <strong>精小弘</strong>
+            <span>JXH MANAGER</span>
           </div>
         </div>
+      </section>
 
-        <form novalidate @submit.prevent="submit">
-          <label for="username">账号</label>
-          <div class="input-wrap" :class="{ 'input-wrap--error': errors.username }">
-            <UserRound :size="18" aria-hidden="true" />
-            <input
-              id="username"
-              v-model="form.username"
-              name="username"
-              type="text"
-              autocomplete="username"
-              autocapitalize="none"
-              spellcheck="false"
-              aria-describedby="username-error"
-            />
+      <section class="login-workspace">
+        <div class="login-form-wrap">
+          <header>
+            <h1>登录管理端</h1>
+          </header>
+
+          <div v-if="auth.bootstrapError" class="service-warning" role="status">
+            <WifiOff :size="18" aria-hidden="true" />
+            <div>
+              <strong>管理服务暂时不可用</strong>
+              <span>可以检查网络后再次登录。</span>
+            </div>
           </div>
-          <span id="username-error" class="field-error" aria-live="polite">{{ errors.username }}</span>
 
-          <label for="password">密码</label>
-          <div class="input-wrap" :class="{ 'input-wrap--error': errors.password }">
-            <KeyRound :size="18" aria-hidden="true" />
-            <input
-              id="password"
-              v-model="form.password"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              aria-describedby="password-error"
-            />
-          </div>
-          <span id="password-error" class="field-error" aria-live="polite">{{ errors.password }}</span>
+          <form novalidate @submit.prevent="submit">
+            <label for="username">账号</label>
+            <div class="input-wrap" :class="{ 'input-wrap--error': errors.username }">
+              <UserRound :size="18" aria-hidden="true" />
+              <input
+                id="username"
+                v-model="form.username"
+                name="username"
+                type="text"
+                autocomplete="username"
+                autocapitalize="none"
+                spellcheck="false"
+                aria-describedby="username-error"
+              />
+            </div>
+            <span id="username-error" class="field-error" aria-live="polite">{{ errors.username }}</span>
 
-          <div v-if="errors.form" class="form-error" role="alert">{{ errors.form }}</div>
+            <label for="password">密码</label>
+            <div class="input-wrap" :class="{ 'input-wrap--error': errors.password }">
+              <KeyRound :size="18" aria-hidden="true" />
+              <input
+                id="password"
+                v-model="form.password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                aria-describedby="password-error"
+              />
+            </div>
+            <span id="password-error" class="field-error" aria-live="polite">{{ errors.password }}</span>
 
-          <button class="login-button" type="submit" :disabled="submitting">
-            <LoaderCircle v-if="submitting" class="spin" :size="18" aria-hidden="true" />
-            <ArrowRight v-else :size="18" aria-hidden="true" />
-            <span>{{ submitting ? '正在验证' : '登录' }}</span>
-          </button>
-        </form>
+            <div v-if="errors.form" class="form-error" role="alert">{{ errors.form }}</div>
 
-        <footer>会话由服务器安全管理</footer>
-      </div>
-    </section>
+            <button class="login-button" type="submit" :disabled="submitting">
+              <LoaderCircle v-if="submitting" class="spin" :size="18" aria-hidden="true" />
+              <ArrowRight v-else :size="18" aria-hidden="true" />
+              <span>{{ submitting ? '正在验证' : '登录' }}</span>
+            </button>
+          </form>
+        </div>
+      </section>
+    </div>
   </main>
 </template>
 
 <style scoped>
 .login-page {
+  position: relative;
   display: grid;
-  min-height: 100vh;
-  grid-template-columns: minmax(300px, 38%) minmax(420px, 1fr);
+  min-height: 100dvh;
+  place-items: center;
+  padding: 40px 48px;
+  overflow: hidden;
   background: var(--color-surface);
+  isolation: isolate;
+}
+
+.login-page::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 45% 0 0;
+  content: '';
+  background: var(--color-brand-500);
+  clip-path: polygon(0 0, 78% 0, 100% 100%, 0 100%);
+}
+
+.login-shell {
+  display: grid;
+  width: min(1120px, calc(100vw - 96px));
+  height: min(720px, calc(100dvh - 80px));
+  min-height: 560px;
+  grid-template-columns: minmax(300px, 43%) minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  box-shadow: 0 24px 64px rgb(34 37 36 / 18%);
+  animation: login-shell-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .brand-panel {
   position: relative;
-  display: flex;
-  min-height: 100vh;
-  flex-direction: column;
-  padding: 56px 52px 44px 64px;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   color: var(--color-brand-ink);
   background-color: var(--color-brand-surface);
-  background-image:
-    linear-gradient(var(--color-brand-border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-brand-border) 1px, transparent 1px);
-  background-size: 48px 48px;
 }
 
-.brand-track {
+.login-artwork {
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 8px;
-  background: var(--color-brand-500);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .brand-identity {
+  position: absolute;
+  z-index: 1;
+  top: 24px;
+  left: 24px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  color: var(--color-brand-ink);
 }
 
 .brand-identity img {
+  width: 48px;
+  height: 48px;
+  background: var(--color-surface);
+  border: 1px solid rgb(255 255 255 / 84%);
   border-radius: var(--radius-overlay);
+  box-shadow: 0 6px 20px rgb(123 32 54 / 14%);
 }
 
 .brand-identity div {
   display: grid;
+  padding: 4px 7px;
+  background: rgb(255 255 255 / 82%);
+  border: 1px solid rgb(255 255 255 / 84%);
+  border-left: 3px solid var(--color-brand-500);
+  border-radius: var(--radius-control);
 }
 
 .brand-identity strong {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
 }
 
 .brand-identity span {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-}
-
-.brand-panel > p {
-  margin-top: auto;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.brand-index {
-  margin-top: 12px;
-  font-family: var(--font-mono);
-  font-size: 11px;
 }
 
 .login-workspace {
   display: grid;
-  min-height: 100vh;
+  min-width: 0;
+  min-height: 0;
   place-items: center;
-  padding: 48px;
+  padding: 48px clamp(40px, 6vw, 80px);
+  background: var(--color-surface);
 }
 
 .login-form-wrap {
   width: min(100%, 388px);
+  animation: login-form-enter 360ms 70ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .login-form-wrap header {
   margin-bottom: 30px;
 }
 
-.login-kicker {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--color-brand-action);
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .login-form-wrap h1 {
   font-size: 28px;
   line-height: 38px;
-}
-
-.login-form-wrap header p {
-  margin-top: 6px;
-  color: var(--color-text-secondary);
 }
 
 form {
@@ -323,42 +342,98 @@ input {
   opacity: 0.72;
 }
 
-footer {
-  margin-top: 20px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  text-align: center;
+@keyframes login-shell-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes login-form-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (max-width: 820px) {
   .login-page {
-    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .login-page::before {
+    inset: 0 0 56% 0;
+    clip-path: polygon(0 0, 100% 0, 100% 76%, 0 100%);
+  }
+
+  .login-shell {
+    width: min(480px, 100%);
+    height: auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .brand-panel {
-    min-height: auto;
-    padding: 20px 20px 20px 28px;
-    background-image: none;
+    min-height: 72px;
+    padding: 14px 18px;
+    background: var(--color-brand-surface);
+    border-bottom: 1px solid var(--color-brand-border);
   }
 
-  .brand-panel > p,
-  .brand-index {
+  .login-artwork {
     display: none;
   }
 
+  .brand-identity {
+    position: relative;
+    inset: auto;
+    gap: 10px;
+  }
+
   .brand-identity img {
-    width: 48px;
-    height: 48px;
+    width: 42px;
+    height: 42px;
+    box-shadow: none;
+  }
+
+  .brand-identity div {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
   }
 
   .brand-identity strong {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .login-workspace {
     min-height: 0;
-    place-items: start center;
-    padding: 48px 24px;
+    padding: 36px 28px 32px;
+  }
+}
+
+@media (max-width: 420px) {
+  .login-page {
+    padding: 12px;
+  }
+
+  .login-workspace {
+    padding: 28px 20px 24px;
+  }
+
+  .login-form-wrap header {
+    margin-bottom: 24px;
   }
 }
 </style>

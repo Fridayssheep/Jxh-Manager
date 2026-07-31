@@ -119,7 +119,6 @@ onBeforeUnmount(unsubscribe)
           <header class="section-header">
             <div>
               <h2>最近趋势</h2>
-              <p>按自然日聚合，不包含消息正文。</p>
             </div>
             <div v-if="secondaryMetrics.length" class="secondary-metrics">
               <div v-for="metric in secondaryMetrics" :key="metric.key">
@@ -136,8 +135,7 @@ onBeforeUnmount(unsubscribe)
         <section class="pending-section overview-card">
           <header class="section-header">
             <div>
-              <h2>需要处理</h2>
-              <p>按影响程度排序的管理事项。</p>
+              <h2>等待处理</h2>
             </div>
           </header>
           <div v-if="overview.data.pending_items.length" class="pending-list">
@@ -177,9 +175,7 @@ onBeforeUnmount(unsubscribe)
         <header class="section-header">
           <div>
             <h2>系统健康</h2>
-            <p>依赖状态来自最近一次服务端检查。</p>
           </div>
-          <span class="health-caption">系统页仅保留配置项</span>
         </header>
         <div class="dependency-grid">
           <article
@@ -203,7 +199,7 @@ onBeforeUnmount(unsubscribe)
       </section>
 
       <footer class="generated-time">
-        数据生成于 {{ timeFormatter.format(new Date(overview.data.generated_at)) }}
+        update at {{ timeFormatter.format(new Date(overview.data.generated_at)) }}
         <span v-if="overview.loading"> · 正在更新</span>
       </footer>
     </template>
