@@ -78,6 +78,8 @@ map $http_x_forwarded_proto $jxh_forwarded_proto {
     ""      $scheme;
 }
 
+resolver 127.0.0.11 ipv6=off valid=30s;
+
 server {
     listen 80;
     server_name _;
@@ -85,6 +87,8 @@ server {
 
     root /usr/share/nginx/html;
     index index.html;
+
+    set $admin_backend bot:8090;
 
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
@@ -97,7 +101,7 @@ server {
     }
 
     location = /api/admin/v1/events {
-        proxy_pass http://bot:8090;
+        proxy_pass http://$admin_backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header Host $http_host;
@@ -110,7 +114,7 @@ server {
     }
 
     location /api/admin/v1/ {
-        proxy_pass http://bot:8090;
+        proxy_pass http://$admin_backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header Host $http_host;
