@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   AdminApiError,
@@ -14,6 +14,11 @@ describe('admin API client', () => {
   beforeEach(() => {
     setCsrfToken(null)
     setUnauthorizedHandler(null)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('adds the in-memory csrf token and cookies to mutation requests', async () => {
@@ -83,6 +88,19 @@ describe('admin API client', () => {
     const key = createIdempotencyKey()
     expect(key.length).toBeGreaterThanOrEqual(8)
     expect(key).toMatch(/^[A-Za-z0-9._:-]+$/)
+  })
+
+  it('creates distinct idempotency keys without Web Crypto on HTTP origins', () => {
+    vi.stubGlobal('crypto', undefined)
+    vi.spyOn(Date, 'now').mockReturnValue(1_722_225_600_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0.25)
+
+    const first = createIdempotencyKey()
+    const second = createIdempotencyKey()
+
+    expect(first).not.toBe(second)
+    expect(first).toMatch(/^[A-Za-z0-9._:-]+$/)
+    expect(second).toMatch(/^[A-Za-z0-9._:-]+$/)
   })
 
   it('maps the API error envelope to a stable typed error', () => {

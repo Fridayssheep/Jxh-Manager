@@ -7,6 +7,7 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 let csrfToken: string | null = null
 let unauthorizedHandler: (() => void) | null = null
+let idempotencySequence = 0
 
 export class AdminApiError extends Error {
   readonly status: number
@@ -81,11 +82,11 @@ export function ifMatch(version: number): string {
 }
 
 export function createIdempotencyKey(): string {
-  if (!globalThis.crypto?.randomUUID) {
-    throw new Error('secure random UUID generation is unavailable')
-  }
-
-  return globalThis.crypto.randomUUID()
+  idempotencySequence = (idempotencySequence + 1) % Number.MAX_SAFE_INTEGER
+  const timestamp = Date.now().toString(36)
+  const sequence = idempotencySequence.toString(36)
+  const random = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(36)
+  return `${timestamp}-${sequence}-${random}`
 }
 
 type ApiResult<T> = {
