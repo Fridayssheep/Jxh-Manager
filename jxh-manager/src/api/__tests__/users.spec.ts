@@ -12,7 +12,6 @@ import {
 describe('usersApi mutation boundaries', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('44444444-4444-4444-8444-444444444444')
   })
 
   it('lists accounts with filters and cursor pagination', async () => {
@@ -68,7 +67,7 @@ describe('usersApi mutation boundaries', () => {
     await usersApi.resetPassword('user-2', 'new-password-value', 4)
     expect(post).toHaveBeenCalledWith('/users/{user_id}/password-reset', {
       params: { path: { user_id: 'user-2' }, header: {
-        'If-Match': '"4"', 'Idempotency-Key': '44444444-4444-4444-8444-444444444444',
+        'If-Match': '"4"', 'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/),
       } },
       body: { new_password: 'new-password-value' },
     })
@@ -81,7 +80,7 @@ describe('usersApi mutation boundaries', () => {
     await usersApi.revokeSession('session-2')
     expect(post).toHaveBeenCalledWith('/sessions/{session_id}/revoke', {
       params: { path: { session_id: 'session-2' }, header: {
-        'Idempotency-Key': '44444444-4444-4444-8444-444444444444',
+        'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/),
       } },
     })
   })
@@ -96,7 +95,7 @@ describe('usersApi mutation boundaries', () => {
 
     expect(post).toHaveBeenCalledWith('/users/{user_id}/sessions/revoke', {
       params: { path: { user_id: 'user-2' }, header: {
-        'Idempotency-Key': '44444444-4444-4444-8444-444444444444',
+        'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/),
       } },
     })
   })

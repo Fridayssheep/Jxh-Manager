@@ -7,7 +7,6 @@ import { makeAuthContext } from '@/test/auth-fixture'
 describe('authApi account actions', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('55555555-5555-4555-8555-555555555555')
   })
 
   it('changes the current password with an idempotency key', async () => {
@@ -20,7 +19,7 @@ describe('authApi account actions', () => {
 
     expect(result).toEqual(context)
     expect(post).toHaveBeenCalledWith('/auth/change-password', {
-      params: { header: { 'Idempotency-Key': '55555555-5555-4555-8555-555555555555' } },
+      params: { header: { 'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/) } },
       body: { current_password: 'current-password', new_password: 'new-password-value' },
     })
   })

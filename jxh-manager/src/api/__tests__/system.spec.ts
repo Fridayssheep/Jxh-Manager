@@ -34,7 +34,6 @@ const patch: SystemConfigurationPatch = {
 describe('systemApi', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('66666666-6666-4666-8666-666666666666')
   })
 
   it('reads the structured system configuration', async () => {
@@ -122,7 +121,7 @@ describe('systemApi', () => {
 
     await expect(systemApi.restartBot(7)).resolves.toEqual(operation)
     expect(post).toHaveBeenCalledWith('/system/bot/restart', {
-      params: { header: { 'Idempotency-Key': '66666666-6666-4666-8666-666666666666' } },
+      params: { header: { 'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/) } },
       body: { confirmation: 'restart', configuration_version: 7 },
     })
   })

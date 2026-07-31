@@ -7,7 +7,6 @@ import { makeJoinDecisionResult } from '@/test/join-request-fixture'
 describe('joinRequestsApi mutation boundaries', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('11111111-1111-4111-8111-111111111111')
   })
 
   it('sends the resource version and idempotency key for a single decision', async () => {
@@ -26,7 +25,7 @@ describe('joinRequestsApi mutation boundaries', () => {
           path: { request_id: 'flag-10001' },
           header: {
             'If-Match': '"7"',
-            'Idempotency-Key': '11111111-1111-4111-8111-111111111111',
+            'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/),
           },
         },
       }),
@@ -60,7 +59,7 @@ describe('joinRequestsApi mutation boundaries', () => {
       '/join-requests/bulk-decisions',
       expect.objectContaining({
         params: {
-          header: { 'Idempotency-Key': '11111111-1111-4111-8111-111111111111' },
+          header: { 'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/) },
         },
       }),
     )

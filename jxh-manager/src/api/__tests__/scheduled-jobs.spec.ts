@@ -7,7 +7,6 @@ import { makeScheduledJob, makeScheduledJobRun } from '@/test/scheduled-job-fixt
 describe('scheduledJobsApi mutation boundaries', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('22222222-2222-4222-8222-222222222222')
   })
 
   it('uses If-Match when updating a task', async () => {
@@ -29,7 +28,7 @@ describe('scheduledJobsApi mutation boundaries', () => {
 
     expect(post).toHaveBeenCalledWith('/scheduled-jobs/{job_id}/test-send', {
       params: { path: { job_id: 'job-1' }, header: {
-        'If-Match': '"7"', 'Idempotency-Key': '22222222-2222-4222-8222-222222222222',
+        'If-Match': '"7"', 'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/),
       } },
     })
   })

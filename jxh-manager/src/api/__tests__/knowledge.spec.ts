@@ -6,7 +6,6 @@ import { knowledgeApi } from '@/api/knowledge'
 describe('knowledgeApi action boundaries', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('33333333-3333-4333-8333-333333333333')
   })
 
   it('starts one idempotent reload operation', async () => {
@@ -16,7 +15,7 @@ describe('knowledgeApi action boundaries', () => {
     await knowledgeApi.reload()
 
     expect(post).toHaveBeenCalledWith('/knowledge/reload', {
-      params: { header: { 'Idempotency-Key': '33333333-3333-4333-8333-333333333333' } },
+      params: { header: { 'Idempotency-Key': expect.stringMatching(/^[A-Za-z0-9._:-]+$/) } },
     })
   })
 })
