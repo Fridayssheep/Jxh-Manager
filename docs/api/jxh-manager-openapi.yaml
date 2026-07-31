@@ -552,7 +552,7 @@ paths:
       description: 仅拥有 bot:restart 权限的管理员可以调用。接口受理后由外部进程管理器重新拉起 Bot。
       operationId: restartBot
       x-stage: phase_1
-      x-status: planned
+      x-status: implemented
       security:
         - cookieAuth: []
           csrfToken: []
