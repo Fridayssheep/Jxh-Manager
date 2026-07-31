@@ -211,6 +211,7 @@ Append the service before the top-level networks block:
     ports:
       - "${WEB_PORT:-8080}:80"
     networks:
+      - edge
       - manager
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null || exit 1"]
@@ -220,6 +221,7 @@ Append the service before the top-level networks block:
       start_period: 5s
 
 networks:
+  edge:
   manager:
     internal: true
 ```
@@ -235,9 +237,10 @@ $compose.services.frontend.ports[0].published
 $compose.services.frontend.depends_on.bot.condition
 $compose.services.bot.PSObject.Properties.Name -contains 'ports'
 $compose.networks.manager.internal
+$compose.services.frontend.networks.PSObject.Properties.Name -join ','
 ```
 
-Expected: 依次输出 `8080`、`service_healthy`、`False`、`True`。
+Expected: 依次输出 `8080`、`service_healthy`、`False`、`True`、`edge,manager`。
 
 - [ ] **Step 5: 构建 Compose 中的 frontend 服务**
 
@@ -336,17 +339,24 @@ git commit -m "docs: 更新前后端部署说明"
 Run:
 
 ```powershell
-$checkNetwork = 'jxh-manager-deploy-check-net'
+$managerNetwork = 'jxh-manager-deploy-check-manager'
+$edgeNetwork = 'jxh-manager-deploy-check-edge'
 $backendContainer = 'jxh-manager-deploy-check-bot'
 $frontendContainer = 'jxh-manager-deploy-check-frontend'
 $checkPort = 18080
 
+$existingContainers = @(docker container ls --all --format '{{.Names}}')
 foreach ($container in @($backendContainer, $frontendContainer)) {
-  docker container inspect $container *> $null
-  if ($LASTEXITCODE -eq 0) { throw "verification container already exists: $container" }
+  if ($existingContainers -contains $container) {
+    throw "verification container already exists: $container"
+  }
 }
-docker network inspect $checkNetwork *> $null
-if ($LASTEXITCODE -eq 0) { throw "verification network already exists: $checkNetwork" }
+$existingNetworks = @(docker network ls --format '{{.Name}}')
+foreach ($network in @($managerNetwork, $edgeNetwork)) {
+  if ($existingNetworks -contains $network) {
+    throw "verification network already exists: $network"
+  }
+}
 if (Get-NetTCPConnection -LocalPort $checkPort -State Listen -ErrorAction SilentlyContinue) {
   throw "verification port is already in use: $checkPort"
 }
@@ -389,9 +399,11 @@ class Handler(BaseHTTPRequestHandler):
 ThreadingHTTPServer(("0.0.0.0", 8090), Handler).serve_forever()
 '@
 
-docker network create --internal $checkNetwork
-docker run --detach --name $backendContainer --network $checkNetwork --network-alias bot `
-  python:3.13-alpine python -u -c $mockServer
+$mockServerBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($mockServer))
+docker network create --internal $managerNetwork
+docker network create $edgeNetwork
+docker run --detach --name $backendContainer --network $managerNetwork --network-alias bot `
+  python:3.13-alpine python -u -c "import base64,sys;exec(base64.b64decode(sys.argv[1]))" $mockServerBase64
 ```
 
 Expected: network and mock backend container IDs are returned; no existing resource is replaced.
@@ -401,8 +413,9 @@ Expected: network and mock backend container IDs are returned; no existing resou
 Run:
 
 ```powershell
-docker run --detach --name $frontendContainer --network $checkNetwork `
+docker run --detach --name $frontendContainer --network $edgeNetwork `
   --publish "127.0.0.1:${checkPort}:80" jxh-manager:latest
+docker network connect $managerNetwork $frontendContainer
 
 $healthy = $false
 foreach ($attempt in 1..30) {
@@ -432,12 +445,14 @@ if ($index -ne $route -or $index -notmatch '<div id="app"></div>') {
   throw 'SPA history fallback did not return index.html'
 }
 
-$api = Invoke-RestMethod -Headers @{
-  Origin = 'http://manager.example.test'
-  Cookie = 'jxh_admin_session=session-probe'
-  'X-CSRF-Token' = 'csrf-probe'
-  'X-Forwarded-Proto' = 'https'
-} "http://127.0.0.1:$checkPort/api/admin/v1/auth/me"
+$apiRaw = curl.exe --silent --show-error --fail `
+  --header "Origin: http://manager.example.test" `
+  --header "Cookie: jxh_admin_session=session-probe" `
+  --header "X-CSRF-Token: csrf-probe" `
+  --header "X-Forwarded-Proto: https" `
+  "http://127.0.0.1:$checkPort/api/admin/v1/auth/me"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$api = $apiRaw | ConvertFrom-Json
 
 if ($api.path -ne '/api/admin/v1/auth/me' -or
     $api.origin -ne 'http://manager.example.test' -or
@@ -474,16 +489,18 @@ foreach ($container in @($frontendContainer, $backendContainer)) {
     throw "refusing to remove unverified container: $container"
   }
 }
-$actualNetwork = docker network inspect --format '{{.Name}}' $checkNetwork
-if ($LASTEXITCODE -ne 0 -or $actualNetwork -ne $checkNetwork) {
-  throw "refusing to remove unverified network: $checkNetwork"
+foreach ($network in @($managerNetwork, $edgeNetwork)) {
+  $actualNetwork = docker network inspect --format '{{.Name}}' $network
+  if ($LASTEXITCODE -ne 0 -or $actualNetwork -ne $network) {
+    throw "refusing to remove unverified network: $network"
+  }
 }
 
 docker container rm --force $frontendContainer $backendContainer
-docker network rm $checkNetwork
+docker network rm $managerNetwork $edgeNetwork
 ```
 
-Expected: only the two explicitly verified temporary containers and the isolated network are removed; no volume is created or removed.
+Expected: only the two explicitly verified temporary containers and the two isolated networks are removed; no volume is created or removed.
 
 ### Task 5: 完整回归与完成审计
 

@@ -54,7 +54,7 @@ Nginx 路由按以下优先级处理：
 - 发布 `${WEB_PORT:-8080}:80`。
 - 等待 `bot` 健康后启动。
 - 配置独立健康检查和 `restart: unless-stopped`。
-- 只加入内部管理网络。
+- 加入仅承载宿主端口发布的 edge 网络和内部管理网络。
 
 `bot` 服务作以下调整：
 
@@ -63,7 +63,7 @@ Nginx 路由按以下优先级处理：
 - 同时加入原有默认网络和内部管理网络。
 - 默认 `JXH_ADMIN_PUBLIC_ORIGIN` 改为前端入口 `http://localhost:${WEB_PORT:-8080}`。
 
-内部管理网络只连接 `frontend` 与 `bot`。MySQL、NapCat、quote 和 migrate 保持在默认后端网络，前端不能直接访问这些依赖。
+edge 网络只连接 `frontend`，为宿主端口发布提供网关；内部管理网络只连接 `frontend` 与 `bot`，并保持 `internal: true`。MySQL、NapCat、quote 和 migrate 保持在默认后端网络，前端不能通过 Compose 服务发现直接访问这些依赖。
 
 ## 6. Origin、Cookie 与代理信任
 
