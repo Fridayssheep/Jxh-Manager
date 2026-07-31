@@ -470,34 +470,33 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     const api = await installAdminApi(page)
     await page.goto('/system')
 
-    const editor = page.locator('[data-test="config-yaml"]')
-    await expect(editor).toHaveValue(/timezone: "Asia\/Shanghai"/)
-    await editor.fill('app:\n  timezone: "Asia/Tokyo"\n')
+    const sheet = page.locator('[data-test="config-wps-sheet"]')
+    await expect(sheet).toHaveValue('知识库')
+    await sheet.fill('知识库 2026')
     await page.locator('[data-test="save-configuration"]').click()
-    await expect(page.getByText('配置文件已保存，重启 Bot 后生效。')).toBeVisible()
+    await expect(page.getByText('设置已保存，重启 Bot 后生效。')).toBeVisible()
 
     const request = api.findRequest('PATCH', '/system/configuration')!
     expectCsrf(request)
     expect(request.headers['if-match']).toBe('"7"')
-    expect(request.body).toEqual({ yaml: 'app:\n  timezone: "Asia/Tokyo"\n' })
-    await expect(page.getByText('版本 8')).toBeVisible()
+    expect(request.body).toEqual({ wps: { sheet: '知识库 2026' } })
+    await expect(page.locator('[data-test="config-version"]')).toHaveText('版本 8')
     expect(api.consoleErrors).toEqual([])
   })
 
-  test('NapCat 仅接受小写 restart 并提交受控重启', async ({ page }) => {
+  test('Bot 仅接受小写 restart 并提交受控重启', async ({ page }) => {
     const api = await installAdminApi(page)
     await page.goto('/system')
-    await page.locator('[data-test="restart-napcat"]').click()
+    await page.locator('[data-test="restart-bot"]').click()
     await page.locator('[data-test="restart-confirmation"]').fill('RESTART')
-    await expect(page.locator('[data-test="confirm-restart"]')).toBeDisabled()
+    await expect(page.locator('[data-test="confirm-bot-restart"]')).toBeDisabled()
     await page.locator('[data-test="restart-confirmation"]').fill('restart')
-    await page.locator('[data-test="restart-reason"]').fill('维护窗口')
-    await page.locator('[data-test="confirm-restart"]').click()
+    await page.locator('[data-test="confirm-bot-restart"]').click()
 
-    await expect(page.getByText('重启请求已受理，系统会通过实时事件更新后续状态。')).toBeVisible()
-    const request = api.findRequest('POST', '/system/napcat/restart')!
+    await expect(page.locator('[data-test="reconnect-overlay"]')).toBeVisible()
+    const request = api.findRequest('POST', '/system/bot/restart')!
     expectCsrf(request); expectIdempotencyKey(request)
-    expect(request.body).toEqual({ confirmation: 'restart', reason: '维护窗口' })
+    expect(request.body).toEqual({ confirmation: 'restart', configuration_version: 7 })
   })
 })
 
@@ -528,12 +527,15 @@ test('应用壳和关键页面适配当前 viewport', async ({ page }, testInfo)
     { path: '/audit-logs', heading: '审计日志', ready: '[data-test="audit-row-audit-1"]' },
     { path: '/users', heading: '账号与会话', ready: '[data-test="user-filters"]' },
     { path: '/account', heading: '个人账号', ready: '[data-test="change-password"]' },
-    { path: '/system', heading: '系统设置', ready: '[data-test="restart-napcat"]' },
+    { path: '/system', heading: '系统设置', ready: '[data-test="restart-bot"]' },
   ]
 
   for (const route of routes) {
     await page.goto(route.path)
-    await expect(page.getByRole('heading', { name: route.heading, exact: true })).toBeVisible()
+    const heading = route.path === '/system'
+      ? page.locator('[data-test="system-page-title"]')
+      : page.getByRole('heading', { name: route.heading, exact: true })
+    await expect(heading).toBeVisible()
     await expect(page.locator(route.ready)).toBeVisible()
     await expectNoHorizontalOverflow(page)
     await expectNamedControls(page)
@@ -558,8 +560,8 @@ test('应用壳和关键页面适配当前 viewport', async ({ page }, testInfo)
   await page.getByRole('button', { name: '关闭详情' }).click()
 
   await page.goto('/system')
-  await page.locator('[data-test="restart-napcat"]').click()
-  await expect(page.getByRole('alertdialog', { name: '重启 NapCat' })).toBeVisible()
+  await page.locator('[data-test="restart-bot"]').click()
+  await expect(page.getByRole('alertdialog', { name: '重启 Bot' })).toBeVisible()
   await expectNoHorizontalOverflow(page)
   await expectNamedControls(page)
   const restartDialog = page.getByRole('alertdialog')

@@ -2,104 +2,149 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminApiError } from '@/api/client'
-import type { components } from '@/api/schema'
+import type { SystemConfiguration } from '@/api/types'
 import { systemApi } from '@/api/system'
-import ConfigurationEditor from '../ConfigurationEditor.vue'
+import AppSelect from '@/components/form/AppSelect.vue'
+import SystemConfigurationForm from '../SystemConfigurationForm.vue'
 
-type SystemConfiguration = components['schemas']['SystemConfiguration']
-
-const configuration: SystemConfiguration = {
-  yaml: 'ai:\n  api_key: __JXH_SECRET_UNCHANGED__\n  model: gpt-test\n',
-  version: 7,
-  masked_fields: ['ai.api_key', 'wps.share_url'],
-  environment_overrides: ['ai.model'],
-  restart_required: true,
+function makeConfiguration(overrides: Partial<SystemConfiguration> = {}): SystemConfiguration {
+  return {
+    wps: {
+      share_url: { configured: true, source: 'file' },
+      sid: { configured: true, source: 'environment' },
+      sheet: '知识库',
+      timeout_sec: 45,
+    },
+    ai: {
+      provider: 'openai',
+      base_url: 'https://api.openai.test/v1',
+      api_key: { configured: true, source: 'file' },
+      model: 'gpt-4.1-mini',
+      timeout_sec: 30,
+      max_question_chars: 1200,
+    },
+    quote: {
+      base_url: 'https://quote.example.test',
+      timeout_sec: 20,
+    },
+    time: {
+      app_timezone: 'Asia/Shanghai',
+      scheduler_timezone: 'Asia/Shanghai',
+    },
+    retention: {
+      trigger_log_retention_days: 180,
+    },
+    environment_overrides: ['ai.model', 'wps.sid'],
+    version: 7,
+    applied_version: 6,
+    restart_required: true,
+    restart_supported: true,
+    ...overrides,
+  }
 }
 
-function mountEditor(canWrite = true) {
-  return mount(ConfigurationEditor, { props: { canWrite } })
+function mountForm(canWrite = true) {
+  return mount(SystemConfigurationForm, {
+    props: { canWrite },
+  })
 }
 
-describe('ConfigurationEditor', () => {
+describe('SystemConfigurationForm', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(systemApi, 'getConfiguration').mockResolvedValue({ ...configuration })
+    vi.spyOn(systemApi, 'getConfiguration').mockResolvedValue(makeConfiguration())
   })
 
-  it('loads masked YAML and reports masked and environment-overridden fields', async () => {
-    const wrapper = mountEditor()
+  it('renders the five structured categories and never echoes secret placeholders', async () => {
+    const wrapper = mountForm()
     await flushPromises()
 
-    expect((wrapper.get('[data-test=config-yaml]').element as HTMLTextAreaElement).value).toBe(configuration.yaml)
-    expect(wrapper.text()).toContain('__JXH_SECRET_UNCHANGED__')
-    expect(wrapper.text()).toContain('ai.api_key')
-    expect(wrapper.text()).toContain('wps.share_url')
-    expect(wrapper.text()).toContain('ai.model')
-    expect(wrapper.text()).toContain('重启后生效')
+    expect(
+      wrapper.findAll('[data-test^=config-section-]').map((node) => node.attributes('data-test')),
+    ).toEqual([
+      'config-section-wps',
+      'config-section-ai',
+      'config-section-quote',
+      'config-section-time',
+      'config-section-retention',
+    ])
+    expect(wrapper.get('[data-test=config-ai-model]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-test=config-wps-sid-replace]').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).not.toContain('__JXH_SECRET_UNCHANGED__')
     expect(wrapper.text()).not.toContain('real-secret')
+    expect(wrapper.find('[data-test=config-ai-api-key-value]').exists()).toBe(false)
   })
 
-  it('is read-only without config:write', async () => {
-    const wrapper = mountEditor(false)
+  it('is read-only without write permission', async () => {
+    const wrapper = mountForm(false)
     await flushPromises()
 
-    expect(wrapper.get('[data-test=config-yaml]').attributes('readonly')).toBeDefined()
+    expect(wrapper.get('[data-test=config-ai-base-url]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-test=config-wps-sheet]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[data-test=save-configuration]').exists()).toBe(false)
   })
 
-  it('saves the current draft with the loaded version', async () => {
-    const update = vi.spyOn(systemApi, 'updateConfiguration').mockResolvedValue({
-      ...configuration,
-      yaml: 'ai:\n  enabled: false\n',
-      version: 8,
-    })
-    const wrapper = mountEditor()
+  it('saves a structured patch with the loaded version', async () => {
+    const update = vi.spyOn(systemApi, 'updateConfiguration').mockResolvedValue(
+      makeConfiguration({
+        ai: {
+          ...makeConfiguration().ai,
+          provider: 'ark',
+          base_url: 'https://ark.example.test/v1',
+        },
+        quote: { ...makeConfiguration().quote, timeout_sec: 30 },
+        retention: { trigger_log_retention_days: 365 },
+        version: 8,
+      }),
+    )
+    const wrapper = mountForm()
     await flushPromises()
 
-    await wrapper.get('[data-test=config-yaml]').setValue('ai:\n  enabled: false\n')
+    wrapper.getComponent(AppSelect).vm.$emit('update:modelValue', 'ark')
+    await flushPromises()
+    await wrapper.get('[data-test=config-ai-base-url]').setValue('https://ark.example.test/v1')
+    await wrapper.get('[data-test=config-quote-timeout-sec]').setValue('30')
+    await wrapper.get('[data-test=config-retention-trigger-log-retention-days]').setValue('365')
+    await wrapper.get('[data-test=config-ai-api-key-replace]').trigger('click')
+    await wrapper.get('[data-test=config-ai-api-key-value]').setValue('new-api-key')
     await wrapper.get('[data-test=save-configuration]').trigger('click')
     await flushPromises()
 
-    expect(update).toHaveBeenCalledWith('ai:\n  enabled: false\n', 7)
-    expect(wrapper.text()).toContain('配置文件已保存')
-    expect(wrapper.text()).toContain('版本 8')
+    expect(update).toHaveBeenCalledWith({
+      ai: {
+        provider: 'ark',
+        base_url: 'https://ark.example.test/v1',
+        api_key: { operation: 'replace', value: 'new-api-key' },
+      },
+      quote: { timeout_sec: 30 },
+      retention: { trigger_log_retention_days: 365 },
+    }, 7)
   })
 
-  it('preserves the local draft after a conflict and can load the server version', async () => {
+  it('preserves the local draft after a version conflict and can reload the server version', async () => {
     vi.spyOn(systemApi, 'getConfiguration')
-      .mockResolvedValueOnce({ ...configuration })
-      .mockResolvedValueOnce({ ...configuration, yaml: 'ai:\n  model: server-version\n', version: 8 })
+      .mockResolvedValueOnce(makeConfiguration())
+      .mockResolvedValueOnce(makeConfiguration({
+        quote: { base_url: 'https://quote.example.test', timeout_sec: 40 },
+        version: 8,
+      }))
     vi.spyOn(systemApi, 'updateConfiguration').mockRejectedValue(new AdminApiError(409, {
       code: 'resource_version_conflict',
-      message: '配置文件已更新。',
+      message: 'configuration changed',
       request_id: 'request-1',
       fields: {},
       retryable: false,
     }))
-    const wrapper = mountEditor()
+    const wrapper = mountForm()
     await flushPromises()
 
-    await wrapper.get('[data-test=config-yaml]').setValue('ai:\n  model: local-draft\n')
+    await wrapper.get('[data-test=config-quote-timeout-sec]').setValue('30')
     await wrapper.get('[data-test=save-configuration]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('本地草稿已保留')
-    expect((wrapper.get('[data-test=config-yaml]').element as HTMLTextAreaElement).value).toContain('local-draft')
+    expect((wrapper.get('[data-test=config-quote-timeout-sec]').element as HTMLInputElement).value).toBe('30')
     await wrapper.get('[data-test=reload-configuration]').trigger('click')
     await flushPromises()
-    expect((wrapper.get('[data-test=config-yaml]').element as HTMLTextAreaElement).value).toContain('server-version')
-  })
-
-  it('does not report success when the save connection is interrupted', async () => {
-    vi.spyOn(systemApi, 'updateConfiguration').mockRejectedValue(new TypeError('network interrupted'))
-    const wrapper = mountEditor()
-    await flushPromises()
-
-    await wrapper.get('[data-test=config-yaml]').setValue('ai:\n  enabled: false\n')
-    await wrapper.get('[data-test=save-configuration]').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('保存结果未知')
-    expect(wrapper.text()).not.toContain('配置文件已保存')
+    expect((wrapper.get('[data-test=config-quote-timeout-sec]').element as HTMLInputElement).value).toBe('40')
   })
 })

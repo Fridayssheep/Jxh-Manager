@@ -490,8 +490,8 @@ paths:
   /system/configuration:
     get:
       tags: [System]
-      summary: 获取 Bot 配置文件
-      description: 返回保留结构和注释的 YAML；敏感字段替换为固定占位符，环境变量仅返回覆盖字段名。
+      summary: 获取 Bot 可编辑配置
+      description: 返回结构化白名单设置；敏感字段仅返回是否已配置及其来源，环境变量接管的普通字段通过 environment_overrides 标识。
       operationId: getSystemConfiguration
       x-stage: phase_1
       x-status: implemented
@@ -510,8 +510,8 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
     patch:
       tags: [System]
-      summary: 修改 Bot 配置文件
-      description: 仅超级管理员可以调用。未修改的敏感字段占位符会恢复为磁盘原值；保存后需要重启 Bot 才能生效。
+      summary: 修改 Bot 可编辑配置
+      description: 仅超级管理员可以调用。请求按分类局部更新白名单字段，敏感字段使用显式替换或清除操作；保存后由版本差异决定是否需要重启 Bot。
       operationId: updateSystemConfiguration
       x-stage: phase_1
       x-status: implemented
@@ -543,6 +543,42 @@ paths:
           $ref: '#/components/responses/Conflict'
         '428':
           $ref: '#/components/responses/PreconditionRequired'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /system/bot/restart:
+    post:
+      tags: [System]
+      summary: 请求重启 Bot
+      description: 仅拥有 bot:restart 权限的管理员可以调用。接口受理后由外部进程管理器重新拉起 Bot。
+      operationId: restartBot
+      x-stage: phase_1
+      x-status: implemented
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotRestartRequest'
+      responses:
+        '202':
+          description: 重启请求已经受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemOperation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
   /system/napcat/restart:
@@ -2535,6 +2571,7 @@ components:
         - sessions:manage
         - system:read
         - config:write
+        - bot:restart
         - napcat:restart
         - events:read
     Username:
@@ -5162,44 +5199,250 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DependencyHealth'
+    ConfigurationSource:
+      type: string
+      enum: [default, file, environment]
+    ConfiguredSecret:
+      type: object
+      additionalProperties: false
+      required: [configured, source]
+      properties:
+        configured:
+          type: boolean
+        source:
+          $ref: '#/components/schemas/ConfigurationSource'
+    SecretUpdate:
+      type: object
+      additionalProperties: false
+      required: [operation]
+      properties:
+        operation:
+          type: string
+          enum: [replace, clear]
+        value:
+          type: string
+          maxLength: 8192
+          writeOnly: true
+    WPSSettings:
+      type: object
+      additionalProperties: false
+      required: [share_url, sid, sheet, timeout_sec]
+      properties:
+        share_url:
+          $ref: '#/components/schemas/ConfiguredSecret'
+        sid:
+          $ref: '#/components/schemas/ConfiguredSecret'
+        sheet:
+          type: string
+          minLength: 1
+          maxLength: 128
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 600
+    WPSSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        share_url:
+          $ref: '#/components/schemas/SecretUpdate'
+        sid:
+          $ref: '#/components/schemas/SecretUpdate'
+        sheet:
+          type: string
+          minLength: 1
+          maxLength: 128
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 600
+    AISettings:
+      type: object
+      additionalProperties: false
+      required: [provider, base_url, api_key, model, timeout_sec, max_question_chars]
+      properties:
+        provider:
+          type: string
+          enum: [openai, ark]
+        base_url:
+          type: string
+          maxLength: 2048
+        api_key:
+          $ref: '#/components/schemas/ConfiguredSecret'
+        model:
+          type: string
+          maxLength: 255
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 600
+        max_question_chars:
+          type: integer
+          minimum: 1
+          maximum: 10000
+    AISettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        provider:
+          type: string
+          enum: [openai, ark]
+        base_url:
+          type: string
+          maxLength: 2048
+        api_key:
+          $ref: '#/components/schemas/SecretUpdate'
+        model:
+          type: string
+          maxLength: 255
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 600
+        max_question_chars:
+          type: integer
+          minimum: 1
+          maximum: 10000
+    QuoteSettings:
+      type: object
+      additionalProperties: false
+      required: [base_url, timeout_sec]
+      properties:
+        base_url:
+          type: string
+          maxLength: 2048
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 120
+    QuoteSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        base_url:
+          type: string
+          maxLength: 2048
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 120
+    TimeSettings:
+      type: object
+      additionalProperties: false
+      required: [app_timezone, scheduler_timezone]
+      properties:
+        app_timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+        scheduler_timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+    TimeSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        app_timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+        scheduler_timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+    RetentionSettings:
+      type: object
+      additionalProperties: false
+      required: [trigger_log_retention_days]
+      properties:
+        trigger_log_retention_days:
+          type: integer
+          minimum: 0
+          maximum: 3650
+    RetentionSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        trigger_log_retention_days:
+          type: integer
+          minimum: 0
+          maximum: 3650
     SystemConfiguration:
       type: object
       additionalProperties: false
-      required: [yaml, version, masked_fields, environment_overrides, restart_required]
+      required:
+        - wps
+        - ai
+        - quote
+        - time
+        - retention
+        - environment_overrides
+        - version
+        - applied_version
+        - restart_required
+        - restart_supported
       properties:
-        yaml:
-          type: string
-          minLength: 1
-          maxLength: 1048576
-          description: 保留结构并使用固定占位符掩码敏感字段的 YAML 文档。
-        version:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-        masked_fields:
-          type: array
-          uniqueItems: true
-          items:
-            type: string
-            pattern: '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'
+        wps:
+          $ref: '#/components/schemas/WPSSettings'
+        ai:
+          $ref: '#/components/schemas/AISettings'
+        quote:
+          $ref: '#/components/schemas/QuoteSettings'
+        time:
+          $ref: '#/components/schemas/TimeSettings'
+        retention:
+          $ref: '#/components/schemas/RetentionSettings'
         environment_overrides:
           type: array
           uniqueItems: true
           items:
             type: string
             pattern: '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'
+        version:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        applied_version:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
         restart_required:
           type: boolean
-          const: true
+        restart_supported:
+          type: boolean
     SystemConfigurationPatch:
       type: object
       additionalProperties: false
-      required: [yaml]
+      minProperties: 1
       properties:
-        yaml:
+        wps:
+          $ref: '#/components/schemas/WPSSettingsPatch'
+        ai:
+          $ref: '#/components/schemas/AISettingsPatch'
+        quote:
+          $ref: '#/components/schemas/QuoteSettingsPatch'
+        time:
+          $ref: '#/components/schemas/TimeSettingsPatch'
+        retention:
+          $ref: '#/components/schemas/RetentionSettingsPatch'
+    BotRestartRequest:
+      type: object
+      additionalProperties: false
+      required: [confirmation, configuration_version]
+      properties:
+        confirmation:
           type: string
-          minLength: 1
-          maxLength: 1048576
+          const: restart
+        configuration_version:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
     NapCatRestartRequest:
       type: object
       additionalProperties: false
@@ -5223,7 +5466,7 @@ components:
           $ref: '#/components/schemas/Identifier'
         type:
           type: string
-          const: napcat_restart
+          enum: [napcat_restart, bot_restart]
         status:
           $ref: '#/components/schemas/SystemOperationStatus'
         requested_at:

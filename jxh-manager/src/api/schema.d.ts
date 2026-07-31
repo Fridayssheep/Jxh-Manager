@@ -255,8 +255,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 获取 Bot 配置文件
-         * @description 返回保留结构和注释的 YAML；敏感字段替换为固定占位符，环境变量仅返回覆盖字段名。
+         * 获取 Bot 可编辑配置
+         * @description 返回结构化白名单设置；敏感字段仅返回是否已配置及其来源，环境变量接管的普通字段通过 environment_overrides 标识。
          */
         get: operations["getSystemConfiguration"];
         put?: never;
@@ -265,10 +265,30 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * 修改 Bot 配置文件
-         * @description 仅超级管理员可以调用。未修改的敏感字段占位符会恢复为磁盘原值；保存后需要重启 Bot 才能生效。
+         * 修改 Bot 可编辑配置
+         * @description 仅超级管理员可以调用。请求按分类局部更新白名单字段，敏感字段使用显式替换或清除操作；保存后由版本差异决定是否需要重启 Bot。
          */
         patch: operations["updateSystemConfiguration"];
+        trace?: never;
+    };
+    "/system/bot/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 请求重启 Bot
+         * @description 仅拥有 bot:restart 权限的管理员可以调用。接口受理后由外部进程管理器重新拉起 Bot。
+         */
+        post: operations["restartBot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/system/napcat/restart": {
@@ -934,7 +954,7 @@ export interface components {
         /** @enum {string} */
         AdminRole: "super_admin" | "maintainer" | "observer";
         /** @enum {string} */
-        Permission: "overview:read" | "groups:read" | "groups:sync" | "settings:read" | "settings:write" | "join_requests:read" | "join_requests:decide" | "join_policies:write" | "commands:read" | "commands:write" | "scheduled_jobs:read" | "scheduled_jobs:write" | "knowledge:read" | "knowledge:reload" | "analytics:read" | "analytics:export" | "audit:read" | "users:manage" | "sessions:manage" | "system:read" | "config:write" | "napcat:restart" | "events:read";
+        Permission: "overview:read" | "groups:read" | "groups:sync" | "settings:read" | "settings:write" | "join_requests:read" | "join_requests:decide" | "join_policies:write" | "commands:read" | "commands:write" | "scheduled_jobs:read" | "scheduled_jobs:write" | "knowledge:read" | "knowledge:reload" | "analytics:read" | "analytics:export" | "audit:read" | "users:manage" | "sessions:manage" | "system:read" | "config:write" | "bot:restart" | "napcat:restart" | "events:read";
         Username: string;
         /** Format: password */
         Password: string;
@@ -1964,17 +1984,92 @@ export interface components {
             readiness: "healthy" | "degraded" | "unavailable";
             dependencies: components["schemas"]["DependencyHealth"][];
         };
+        /** @enum {string} */
+        ConfigurationSource: "default" | "file" | "environment";
+        ConfiguredSecret: {
+            configured: boolean;
+            source: components["schemas"]["ConfigurationSource"];
+        };
+        SecretUpdate: {
+            /** @enum {string} */
+            operation: "replace" | "clear";
+            value?: string;
+        };
+        WPSSettings: {
+            share_url: components["schemas"]["ConfiguredSecret"];
+            sid: components["schemas"]["ConfiguredSecret"];
+            sheet: string;
+            timeout_sec: number;
+        };
+        WPSSettingsPatch: {
+            share_url?: components["schemas"]["SecretUpdate"];
+            sid?: components["schemas"]["SecretUpdate"];
+            sheet?: string;
+            timeout_sec?: number;
+        };
+        AISettings: {
+            /** @enum {string} */
+            provider: "openai" | "ark";
+            base_url: string;
+            api_key: components["schemas"]["ConfiguredSecret"];
+            model: string;
+            timeout_sec: number;
+            max_question_chars: number;
+        };
+        AISettingsPatch: {
+            /** @enum {string} */
+            provider?: "openai" | "ark";
+            base_url?: string;
+            api_key?: components["schemas"]["SecretUpdate"];
+            model?: string;
+            timeout_sec?: number;
+            max_question_chars?: number;
+        };
+        QuoteSettings: {
+            base_url: string;
+            timeout_sec: number;
+        };
+        QuoteSettingsPatch: {
+            base_url?: string;
+            timeout_sec?: number;
+        };
+        TimeSettings: {
+            app_timezone: string;
+            scheduler_timezone: string;
+        };
+        TimeSettingsPatch: {
+            app_timezone?: string;
+            scheduler_timezone?: string;
+        };
+        RetentionSettings: {
+            trigger_log_retention_days: number;
+        };
+        RetentionSettingsPatch: {
+            trigger_log_retention_days?: number;
+        };
         SystemConfiguration: {
-            /** @description 保留结构并使用固定占位符掩码敏感字段的 YAML 文档。 */
-            yaml: string;
-            version: number;
-            masked_fields: string[];
+            wps: components["schemas"]["WPSSettings"];
+            ai: components["schemas"]["AISettings"];
+            quote: components["schemas"]["QuoteSettings"];
+            time: components["schemas"]["TimeSettings"];
+            retention: components["schemas"]["RetentionSettings"];
             environment_overrides: string[];
-            /** @constant */
-            restart_required: true;
+            version: number;
+            applied_version: number;
+            restart_required: boolean;
+            restart_supported: boolean;
         };
         SystemConfigurationPatch: {
-            yaml: string;
+            wps?: components["schemas"]["WPSSettingsPatch"];
+            ai?: components["schemas"]["AISettingsPatch"];
+            quote?: components["schemas"]["QuoteSettingsPatch"];
+            time?: components["schemas"]["TimeSettingsPatch"];
+            retention?: components["schemas"]["RetentionSettingsPatch"];
+        };
+        BotRestartRequest: {
+            /** @constant */
+            confirmation: "restart";
+            configuration_version: number;
         };
         NapCatRestartRequest: {
             /** @constant */
@@ -1985,8 +2080,8 @@ export interface components {
         SystemOperationStatus: "accepted" | "running" | "succeeded" | "failed" | "unknown";
         SystemOperation: {
             operation_id: components["schemas"]["Identifier"];
-            /** @constant */
-            type: "napcat_restart";
+            /** @enum {string} */
+            type: "napcat_restart" | "bot_restart";
             status: components["schemas"]["SystemOperationStatus"];
             requested_at: components["schemas"]["Timestamp"];
             completed_at: components["schemas"]["Timestamp"] | null;
@@ -2680,6 +2775,38 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             428: components["responses"]["PreconditionRequired"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    restartBot: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 同一操作者和 operation 下用于副作用去重的客户端生成键 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotRestartRequest"];
+            };
+        };
+        responses: {
+            /** @description 重启请求已经受理 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemOperation"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
