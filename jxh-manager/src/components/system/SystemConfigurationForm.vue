@@ -17,6 +17,7 @@ import { AdminApiError } from '@/api/client'
 import { systemApi } from '@/api/system'
 import type { SystemConfiguration } from '@/api/types'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import {
   CONFIGURATION_FIELD_PATHS,
   cloneSystemConfigurationDraft,
@@ -30,6 +31,10 @@ import {
 import SecretSettingInput from './SecretSettingInput.vue'
 
 const props = defineProps<{ canWrite: boolean }>()
+const emit = defineEmits<{
+  loaded: [configuration: SystemConfiguration]
+  saved: [configuration: SystemConfiguration]
+}>()
 
 const resource = ref<SystemConfiguration | null>(null)
 const draft = ref<SystemConfigurationDraft | null>(null)
@@ -41,6 +46,10 @@ const saved = ref(false)
 const conflict = ref(false)
 
 const paths = CONFIGURATION_FIELD_PATHS
+const aiProviderOptions: readonly AppSelectOption[] = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'ark', label: '火山方舟' },
+]
 const issueMessages: Record<string, string> = {
   invalid_length: '长度为空或超出限制',
   invalid_url: '请输入有效的 http/https URL',
@@ -72,6 +81,7 @@ function accept(value: SystemConfiguration): void {
   saveError.value = null
   saved.value = false
   conflict.value = false
+  emit('loaded', value)
 }
 
 async function load(): Promise<void> {
@@ -94,8 +104,10 @@ async function save(): Promise<void> {
   saved.value = false
   try {
     const patch = toSystemConfigurationPatch(resource.value, draft.value)
-    accept(await systemApi.updateConfiguration(patch, resource.value.version))
+    const updated = await systemApi.updateConfiguration(patch, resource.value.version)
+    accept(updated)
     saved.value = true
+    emit('saved', updated)
   } catch (reason) {
     if (reason instanceof AdminApiError && reason.status === 409) {
       conflict.value = true
@@ -120,6 +132,11 @@ function fieldDisabled(path: ConfigurationFieldPath): boolean {
 function fieldError(path: ConfigurationFieldPath): string | null {
   const code = issues.value[path]
   return code ? issueMessages[code] ?? code : null
+}
+
+function setAIProvider(value: string): void {
+  if (!draft.value || (value !== 'openai' && value !== 'ark')) return
+  draft.value.ai.provider = value
 }
 
 onMounted(() => { void load() })
@@ -233,14 +250,14 @@ onMounted(() => { void load() })
           <div class="field-grid">
             <label class="setting-field">
               <span>提供商 <small v-if="fieldManaged(paths.ai.provider)">环境托管</small></span>
-              <select
-                v-model="draft.ai.provider"
+              <AppSelect
+                :model-value="draft.ai.provider"
+                :options="aiProviderOptions"
+                accessible-name="提供商"
                 data-test="config-ai-provider"
                 :disabled="fieldDisabled(paths.ai.provider)"
-              >
-                <option value="openai">OpenAI</option>
-                <option value="ark">火山方舟</option>
-              </select>
+                @update:model-value="setAIProvider"
+              />
               <p v-if="fieldError(paths.ai.provider)" class="field-error" role="alert">
                 {{ fieldError(paths.ai.provider) }}
               </p>
@@ -605,8 +622,7 @@ onMounted(() => { void load() })
   font-weight: 700;
 }
 
-input,
-select {
+input {
   width: 100%;
   height: 40px;
   min-width: 0;
@@ -617,11 +633,15 @@ select {
   border-radius: var(--radius-control);
 }
 
-input:disabled,
-select:disabled {
+input:disabled {
   color: var(--color-text-disabled);
   cursor: not-allowed;
   background: var(--color-surface-subtle);
+}
+
+:deep(.app-select__trigger) {
+  height: 40px;
+  border-color: var(--color-border-strong);
 }
 
 .field-error {

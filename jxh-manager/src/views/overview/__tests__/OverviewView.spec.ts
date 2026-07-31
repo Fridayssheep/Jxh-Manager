@@ -33,6 +33,7 @@ describe('OverviewView', () => {
     expect(wrapper.text()).toContain('需要处理')
     expect(wrapper.text()).toContain('等待处理的入群申请')
     expect(wrapper.text()).toContain('系统健康')
+    expect(wrapper.find('a[href="/system"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('WPS')
     expect(wrapper.text()).toContain('未配置')
     expect(wrapper.find('svg[aria-label="最近趋势"]').exists()).toBe(true)
