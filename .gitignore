@@ -30,6 +30,7 @@ build/
 
 # Local brainstorming and design-companion state.
 .superpowers/
+.worktrees/
 
 # Go cache/test output and local server binaries.
 .gocache/
