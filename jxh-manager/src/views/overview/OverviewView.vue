@@ -23,11 +23,10 @@ function setRange(value: string): void {
   overview.range = value as '7d' | '30d'
 }
 
-const pendingLinks = {
+const pendingLinks: Partial<Record<'join_requests' | 'failed_jobs' | 'knowledge_conflicts' | 'degraded_dependencies', string>> = {
   join_requests: '/join-requests?decision_status=pending',
   failed_jobs: '/scheduled-jobs?result=failed',
   knowledge_conflicts: '/knowledge?tab=conflicts',
-  degraded_dependencies: '/system',
 }
 
 const dependencyLabels = {
@@ -142,19 +141,30 @@ onBeforeUnmount(unsubscribe)
             </div>
           </header>
           <div v-if="overview.data.pending_items.length" class="pending-list">
-            <RouterLink
-              v-for="item in overview.data.pending_items"
-              :key="item.key"
-              :to="pendingLinks[item.key]"
-              class="pending-row"
-              :class="`pending-row--${item.severity}`"
-            >
-              <AlertCircle v-if="item.severity === 'critical'" :size="18" aria-hidden="true" />
-              <Clock3 v-else :size="18" aria-hidden="true" />
-              <span>{{ item.label }}</span>
-              <strong class="mono">{{ item.count }}</strong>
-              <ArrowUpRight :size="16" aria-hidden="true" />
-            </RouterLink>
+            <template v-for="item in overview.data.pending_items" :key="item.key">
+              <RouterLink
+                v-if="pendingLinks[item.key]"
+                :to="pendingLinks[item.key] ?? '/'"
+                class="pending-row"
+                :class="`pending-row--${item.severity}`"
+              >
+                <AlertCircle v-if="item.severity === 'critical'" :size="18" aria-hidden="true" />
+                <Clock3 v-else :size="18" aria-hidden="true" />
+                <span>{{ item.label }}</span>
+                <strong class="mono">{{ item.count }}</strong>
+                <ArrowUpRight :size="16" aria-hidden="true" />
+              </RouterLink>
+              <div
+                v-else
+                class="pending-row pending-row--static"
+                :class="`pending-row--${item.severity}`"
+              >
+                <AlertCircle v-if="item.severity === 'critical'" :size="18" aria-hidden="true" />
+                <Clock3 v-else :size="18" aria-hidden="true" />
+                <span>{{ item.label }}</span>
+                <strong class="mono">{{ item.count }}</strong>
+              </div>
+            </template>
           </div>
           <div v-else class="pending-empty">
             <CheckCircle2 :size="20" aria-hidden="true" />
@@ -169,7 +179,7 @@ onBeforeUnmount(unsubscribe)
             <h2>系统健康</h2>
             <p>依赖状态来自最近一次服务端检查。</p>
           </div>
-          <RouterLink to="/system">查看系统详情 <ArrowUpRight :size="15" aria-hidden="true" /></RouterLink>
+          <span class="health-caption">系统页仅保留配置项</span>
         </header>
         <div class="dependency-grid">
           <article
@@ -300,6 +310,10 @@ onBeforeUnmount(unsubscribe)
   background: var(--color-danger-surface);
 }
 
+.pending-row--static {
+  cursor: default;
+}
+
 .pending-row > span {
   color: var(--color-text-primary);
 }
@@ -313,11 +327,10 @@ onBeforeUnmount(unsubscribe)
   color: var(--color-success);
 }
 
-.health-section .section-header a {
+.health-caption {
   display: flex;
   align-items: center;
-  gap: 5px;
-  color: var(--color-brand-action);
+  color: var(--color-text-secondary);
   font-size: 12px;
   font-weight: 600;
 }

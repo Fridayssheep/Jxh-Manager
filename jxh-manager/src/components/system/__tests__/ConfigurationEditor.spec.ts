@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminApiError } from '@/api/client'
 import type { SystemConfiguration } from '@/api/types'
 import { systemApi } from '@/api/system'
+import AppSelect from '@/components/form/AppSelect.vue'
 import SystemConfigurationForm from '../SystemConfigurationForm.vue'
 
 function makeConfiguration(overrides: Partial<SystemConfiguration> = {}): SystemConfiguration {
@@ -99,7 +100,8 @@ describe('SystemConfigurationForm', () => {
     const wrapper = mountForm()
     await flushPromises()
 
-    await wrapper.get('[data-test=config-ai-provider]').setValue('ark')
+    wrapper.getComponent(AppSelect).vm.$emit('update:modelValue', 'ark')
+    await flushPromises()
     await wrapper.get('[data-test=config-ai-base-url]').setValue('https://ark.example.test/v1')
     await wrapper.get('[data-test=config-quote-timeout-sec]').setValue('30')
     await wrapper.get('[data-test=config-retention-trigger-log-retention-days]').setValue('365')

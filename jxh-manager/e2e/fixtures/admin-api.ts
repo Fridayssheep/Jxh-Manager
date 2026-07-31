@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 
-import type { SystemConfiguration } from '../../src/api/types'
+import type { ConfiguredSecret, SecretUpdate, SystemConfiguration, SystemConfigurationPatch } from '../../src/api/types'
 import { makeAnalyticsRankings, makeAnalyticsSummary, makeAnalyticsTimeseries } from '../../src/test/analytics-fixture'
 import { makeAuditLog, makeAuditLogSummary } from '../../src/test/audit-fixture'
 import { makeCommandValidationResult } from '../../src/test/command-fixture'
@@ -32,15 +32,40 @@ const permissions = [
   'join_requests:read', 'join_requests:decide', 'join_policies:write',
   'commands:read', 'commands:write', 'scheduled_jobs:read', 'scheduled_jobs:write',
   'knowledge:read', 'knowledge:reload', 'analytics:read', 'analytics:export',
-  'audit:read', 'users:manage', 'sessions:manage', 'system:read', 'config:write', 'napcat:restart',
+  'audit:read', 'users:manage', 'sessions:manage', 'system:read', 'config:write', 'bot:restart', 'napcat:restart',
 ] as const
 
 const initialSystemConfiguration: SystemConfiguration = {
-  yaml: 'app:\n  timezone: "Asia/Shanghai"\nadmin:\n  session_secret: __JXH_SECRET_UNCHANGED__\n',
+  wps: {
+    share_url: { configured: true, source: 'file' },
+    sid: { configured: true, source: 'environment' },
+    sheet: '知识库',
+    timeout_sec: 45,
+  },
+  ai: {
+    provider: 'openai',
+    base_url: 'https://api.openai.test/v1',
+    api_key: { configured: true, source: 'file' },
+    model: 'gpt-4.1-mini',
+    timeout_sec: 30,
+    max_question_chars: 1200,
+  },
+  quote: {
+    base_url: 'https://quote.example.test',
+    timeout_sec: 20,
+  },
+  time: {
+    app_timezone: 'Asia/Shanghai',
+    scheduler_timezone: 'Asia/Shanghai',
+  },
+  retention: {
+    trigger_log_retention_days: 180,
+  },
+  environment_overrides: ['ai.model', 'wps.sid'],
   version: 7,
-  masked_fields: ['admin.session_secret'],
-  environment_overrides: [],
+  applied_version: 6,
   restart_required: true,
+  restart_supported: true,
 }
 
 const group = {
@@ -105,6 +130,12 @@ async function recordRequest(route: Route): Promise<RecordedAdminRequest> {
 
 function apiError(code: string, message: string) {
   return { error: { code, message, request_id: 'e2e-request', fields: {}, retryable: false } }
+}
+
+function applySecret(current: ConfiguredSecret, update?: SecretUpdate): ConfiguredSecret {
+  if (!update) return current
+  if (update.operation === 'clear') return { configured: false, source: 'default' }
+  return { configured: true, source: 'file' }
 }
 
 export async function installAdminApi(page: Page, options: InstallOptions = {}): Promise<AdminApiHarness> {
@@ -325,13 +356,47 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
       await route.fulfill({ json: systemConfiguration }); return
     }
     if (method === 'PATCH' && path === '/system/configuration') {
-      const patch = recorded.body as { yaml?: string }
+      const patch = recorded.body as SystemConfigurationPatch
       systemConfiguration = {
         ...systemConfiguration,
-        yaml: patch.yaml ?? systemConfiguration.yaml,
+        wps: {
+          ...systemConfiguration.wps,
+          share_url: applySecret(systemConfiguration.wps.share_url, patch.wps?.share_url),
+          sid: applySecret(systemConfiguration.wps.sid, patch.wps?.sid),
+          sheet: patch.wps?.sheet ?? systemConfiguration.wps.sheet,
+          timeout_sec: patch.wps?.timeout_sec ?? systemConfiguration.wps.timeout_sec,
+        },
+        ai: {
+          ...systemConfiguration.ai,
+          provider: patch.ai?.provider ?? systemConfiguration.ai.provider,
+          base_url: patch.ai?.base_url ?? systemConfiguration.ai.base_url,
+          api_key: applySecret(systemConfiguration.ai.api_key, patch.ai?.api_key),
+          model: patch.ai?.model ?? systemConfiguration.ai.model,
+          timeout_sec: patch.ai?.timeout_sec ?? systemConfiguration.ai.timeout_sec,
+          max_question_chars: patch.ai?.max_question_chars ?? systemConfiguration.ai.max_question_chars,
+        },
+        quote: {
+          ...systemConfiguration.quote,
+          base_url: patch.quote?.base_url ?? systemConfiguration.quote.base_url,
+          timeout_sec: patch.quote?.timeout_sec ?? systemConfiguration.quote.timeout_sec,
+        },
+        time: {
+          ...systemConfiguration.time,
+          app_timezone: patch.time?.app_timezone ?? systemConfiguration.time.app_timezone,
+          scheduler_timezone: patch.time?.scheduler_timezone ?? systemConfiguration.time.scheduler_timezone,
+        },
+        retention: {
+          ...systemConfiguration.retention,
+          trigger_log_retention_days: patch.retention?.trigger_log_retention_days ?? systemConfiguration.retention.trigger_log_retention_days,
+        },
         version: systemConfiguration.version + 1,
+        restart_required: true,
       }
       await route.fulfill({ json: systemConfiguration }); return
+    }
+    if (method === 'POST' && path === '/system/bot/restart') {
+      authenticated = false
+      await route.fulfill({ status: 202, json: makeSystemOperation({ type: 'bot_restart' }) }); return
     }
     if (method === 'POST' && path === '/system/napcat/restart') {
       await route.fulfill({ status: 202, json: makeSystemOperation() }); return
