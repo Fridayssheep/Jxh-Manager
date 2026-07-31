@@ -50,11 +50,13 @@ Nginx 路由按以下优先级处理：
 
 `docker-compose.yaml` 新增 `frontend` 服务：
 
-- 构建上下文为 `../../jxh-manager`。
+- 构建上下文固定为 `https://github.com/Fridayssheep/Jxh-Manager.git#main:jxh-manager`。
 - 发布 `${WEB_PORT:-8080}:80`。
 - 等待 `bot` 健康后启动。
 - 配置独立健康检查和 `restart: unless-stopped`。
 - 加入仅承载宿主端口发布的 edge 网络和内部管理网络。
+
+前端仓库是公开仓库，部署机通过 BuildKit 直接获取远端 `main` 的 `jxh-manager` 子目录，不再依赖后端仓库旁存在本地前端目录。本阶段不增加 ref 环境变量，也不在远端获取或构建失败时回退本地目录或旧镜像；需要固定版本时后续再单独引入 tag/commit 策略。
 
 `bot` 服务作以下调整：
 
@@ -103,6 +105,7 @@ JXH_ADMIN_COOKIE_SECURE=true
 - 默认访问地址改为 `http://localhost:8080`。
 - 首个超级管理员通过 Compose 中的 `jxh-admin-bootstrap` 创建，避免要求宿主机安装 Go。
 - 说明本地 HTTP 与生产 HTTPS 的环境变量组合。
+- 说明 frontend 固定从公开远端 `main` 构建，部署需要能够访问 GitHub。
 - 删除 `ADMIN_PORT` 的 Compose 配置说明，明确 `8090` 不再发布到宿主机。
 
 保留 `VITE_ADMIN_API_BASE_URL` 作为非 Compose 场景的开发能力；标准 Compose 部署不设置它。
@@ -112,7 +115,7 @@ JXH_ADMIN_COOKIE_SECURE=true
 实施完成后必须验证：
 
 1. `docker compose config` 能正确展开服务、端口、依赖和网络。
-2. 前端镜像可以从干净上下文完成 `npm ci`、类型检查和生产构建。
+2. Compose 能从固定的远端 `main:jxh-manager` 上下文完成 `npm ci`、类型检查和生产构建，且不读取本地 `../../jxh-manager`。
 3. Nginx 配置通过语法检查。
 4. `GET /` 返回 SPA，直接请求 `/groups` 等前端路由同样返回 SPA。
 5. 从前端入口请求 `/api/admin/v1/auth/me` 能到达后端，而宿主机不能再直接通过 `8090` 访问管理 API。
@@ -127,3 +130,4 @@ JXH_ADMIN_COOKIE_SECURE=true
 - 不把后端健康接口暴露为公网运维接口。
 - 不修改管理 API 契约或前端业务页面。
 - 不顺带实施旧 QQ 内置命令移除等其他功能改造。
+- 不在本阶段增加可配置 Git ref、提交锁定、镜像仓库发布或远端失败回退。
