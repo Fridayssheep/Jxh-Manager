@@ -13,11 +13,36 @@ import { makeSystemHealth, makeSystemOperation } from '@/test/system-fixture'
 import SystemView from '../SystemView.vue'
 
 const configuration: SystemConfiguration = {
-  yaml: 'app:\n  timezone: Asia/Shanghai\n',
-  version: 7,
-  masked_fields: ['admin.session_secret'],
+  wps: {
+    share_url: { configured: true, source: 'file' },
+    sid: { configured: true, source: 'environment' },
+    sheet: '知识库',
+    timeout_sec: 45,
+  },
+  ai: {
+    provider: 'openai',
+    base_url: 'https://api.openai.test/v1',
+    api_key: { configured: true, source: 'file' },
+    model: 'gpt-4.1-mini',
+    timeout_sec: 30,
+    max_question_chars: 1200,
+  },
+  quote: {
+    base_url: 'https://quote.example.test',
+    timeout_sec: 20,
+  },
+  time: {
+    app_timezone: 'Asia/Shanghai',
+    scheduler_timezone: 'Asia/Shanghai',
+  },
+  retention: {
+    trigger_log_retention_days: 180,
+  },
   environment_overrides: [],
+  version: 7,
+  applied_version: 6,
   restart_required: true,
+  restart_supported: true,
 }
 
 async function mountView(permissions: Permission[] = ['system:read', 'napcat:restart']) {
@@ -68,7 +93,7 @@ describe('SystemView', () => {
     const readOnly = await mountView()
     await flushPromises()
     expect(readOnly.find('[data-test=system-configuration]').exists()).toBe(true)
-    expect(readOnly.get('[data-test=config-yaml]').attributes('readonly')).toBeDefined()
+    expect(readOnly.get('[data-test=config-ai-base-url]').attributes('disabled')).toBeDefined()
     expect(readOnly.find('[data-test=save-configuration]').exists()).toBe(false)
     readOnly.unmount()
 

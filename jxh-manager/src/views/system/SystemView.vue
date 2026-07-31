@@ -13,7 +13,7 @@ import type {
 } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
-import ConfigurationEditor from '@/components/system/ConfigurationEditor.vue'
+import SystemConfigurationForm from '@/components/system/SystemConfigurationForm.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useAuthStore } from '@/stores/auth'
@@ -183,7 +183,7 @@ onBeforeUnmount(unsubscribe)
       </section>
     </template>
 
-    <ConfigurationEditor :can-write="auth.hasPermission('config:write')" />
+    <SystemConfigurationForm :can-write="auth.hasPermission('config:write')" />
 
     <AppOverlayTransition :show="restartOpen" variant="dialog">
       <div class="dialog-layer" role="presentation">

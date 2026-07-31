@@ -1,18 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/api/client'
-import type { components } from '@/api/schema'
+import type { SystemConfigurationPatch, SystemOperation } from '@/api/types'
 import { systemApi } from '@/api/system'
-import { makeSystemHealth, makeSystemOperation } from '@/test/system-fixture'
 
-type SystemConfiguration = components['schemas']['SystemConfiguration']
-
-const configuration: SystemConfiguration = {
-  yaml: 'ai:\n  api_key: __JXH_SECRET_UNCHANGED__\n',
-  version: 7,
-  masked_fields: ['ai.api_key'],
-  environment_overrides: ['ai.model'],
-  restart_required: true,
+const patch: SystemConfigurationPatch = {
+  wps: {
+    share_url: { operation: 'replace', value: 'https://example.test/knowledge.xlsx' },
+    sheet: '知识库',
+    timeout_sec: 45,
+  },
+  ai: {
+    provider: 'ark',
+    base_url: 'https://ark.example.test/v1',
+    api_key: { operation: 'clear' },
+    model: 'next-model',
+    timeout_sec: 60,
+    max_question_chars: 900,
+  },
+  quote: {
+    base_url: 'https://quote.example.test',
+    timeout_sec: 20,
+  },
+  time: {
+    app_timezone: 'Asia/Shanghai',
+    scheduler_timezone: 'Asia/Shanghai',
+  },
+  retention: {
+    trigger_log_retention_days: 365,
+  },
 }
 
 describe('systemApi', () => {
@@ -21,46 +37,93 @@ describe('systemApi', () => {
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('66666666-6666-4666-8666-666666666666')
   })
 
-  it('reads the system health snapshot', async () => {
-    const health = makeSystemHealth()
-    const get = vi.spyOn(api, 'GET').mockResolvedValue({
-      data: health, response: new Response('{}', { status: 200 }),
-    } as never)
+  it('reads the structured system configuration', async () => {
+    const configuration = {
+      wps: {
+        share_url: { configured: true, source: 'file' },
+        sid: { configured: false, source: 'default' },
+        sheet: '知识库',
+        timeout_sec: 45,
+      },
+      ai: {
+        provider: 'openai',
+        base_url: 'https://api.openai.test/v1',
+        api_key: { configured: true, source: 'file' },
+        model: 'gpt-4.1-mini',
+        timeout_sec: 30,
+        max_question_chars: 1200,
+      },
+      quote: {
+        base_url: 'https://quote.example.test',
+        timeout_sec: 20,
+      },
+      time: {
+        app_timezone: 'Asia/Shanghai',
+        scheduler_timezone: 'Asia/Shanghai',
+      },
+      retention: {
+        trigger_log_retention_days: 180,
+      },
+      environment_overrides: ['ai.model', 'wps.sid'],
+      version: 7,
+      applied_version: 6,
+      restart_required: true,
+      restart_supported: true,
+    }
 
-    await expect(systemApi.getHealth()).resolves.toEqual(health)
-    expect(get).toHaveBeenCalledWith('/system/health')
-  })
-
-  it('reads and updates the Bot configuration with the resource version', async () => {
     const get = vi.spyOn(api, 'GET').mockResolvedValue({
-      data: configuration, response: new Response('{}', { status: 200 }),
-    } as never)
-    const patch = vi.spyOn(api, 'PATCH').mockResolvedValue({
-      data: { ...configuration, version: 8 }, response: new Response('{}', { status: 200 }),
+      data: configuration,
+      response: new Response('{}', { status: 200 }),
     } as never)
 
     await expect(systemApi.getConfiguration()).resolves.toEqual(configuration)
-    await expect(systemApi.updateConfiguration('ai:\n  enabled: false\n', 7)).resolves.toEqual({
-      ...configuration,
-      version: 8,
-    })
     expect(get).toHaveBeenCalledWith('/system/configuration')
-    expect(patch).toHaveBeenCalledWith('/system/configuration', {
+  })
+
+  it('patches the structured configuration with If-Match', async () => {
+    const updated = {
+      ...patch,
+      wps: {
+        ...patch.wps,
+        sid: { configured: true, source: 'file' },
+      },
+      version: 8,
+      applied_version: 6,
+      restart_required: true,
+      restart_supported: true,
+    }
+
+    const patchRequest = vi.spyOn(api, 'PATCH').mockResolvedValue({
+      data: updated,
+      response: new Response('{}', { status: 200 }),
+    } as never)
+
+    await expect(systemApi.updateConfiguration(patch, 7)).resolves.toEqual(updated)
+    expect(patchRequest).toHaveBeenCalledWith('/system/configuration', {
       params: { header: { 'If-Match': '"7"' } },
-      body: { yaml: 'ai:\n  enabled: false\n' },
+      body: patch,
     })
   })
 
-  it('restarts NapCat with the exact confirmation and one idempotency key', async () => {
-    const operation = makeSystemOperation()
+  it('restarts the bot with a single idempotency key and configuration version', async () => {
+    const operation: SystemOperation = {
+      operation_id: 'operation-1',
+      type: 'bot_restart',
+      status: 'accepted',
+      requested_at: '2026-07-31T08:22:00Z',
+      completed_at: null,
+      error_code: null,
+    }
+
     const post = vi.spyOn(api, 'POST').mockResolvedValue({
-      data: operation, response: new Response('{}', { status: 202 }),
+      data: operation,
+      response: new Response('{}', { status: 202 }),
     } as never)
 
-    await expect(systemApi.restartNapCat('维护窗口')).resolves.toEqual(operation)
-    expect(post).toHaveBeenCalledWith('/system/napcat/restart', {
+    await expect(systemApi.restartBot(7)).resolves.toEqual(operation)
+    expect(post).toHaveBeenCalledWith('/system/bot/restart', {
       params: { header: { 'Idempotency-Key': '66666666-6666-4666-8666-666666666666' } },
-      body: { confirmation: 'restart', reason: '维护窗口' },
+      body: { confirmation: 'restart', configuration_version: 7 },
     })
   })
 })
