@@ -3,7 +3,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   AlertTriangle,
-  Archive,
   ArrowLeft,
   FlaskConical,
   History,
@@ -11,6 +10,7 @@ import {
   RefreshCw,
   Save,
   ShieldAlert,
+  Trash2,
 } from '@lucide/vue'
 
 import { AdminApiError } from '@/api/client'
@@ -62,8 +62,8 @@ const loadError = ref<unknown>(null)
 const saving = ref(false)
 const validating = ref(false)
 const storedValidating = ref(false)
-const archiveBusy = ref(false)
-const archiveOpen = ref(false)
+const deleteBusy = ref(false)
+const deleteOpen = ref(false)
 const operationResult = ref<string | null>(null)
 const operationTone = ref<'success' | 'warning' | 'danger'>('success')
 const versionConflict = ref(false)
@@ -307,24 +307,24 @@ async function save(): Promise<void> {
   }
 }
 
-async function archiveCommand(): Promise<void> {
+async function deleteCommand(): Promise<void> {
   if (!command.value) return
-  archiveBusy.value = true
+  deleteBusy.value = true
   try {
-    await commandsApi.archive(command.value.command_id, command.value.version)
-    archiveOpen.value = false
+    await commandsApi.delete(command.value.command_id, command.value.version)
+    deleteOpen.value = false
     await router.push('/commands')
   } catch (reason) {
-    archiveOpen.value = false
+    deleteOpen.value = false
     operationTone.value = reason instanceof AdminApiError && reason.status === 409 ? 'warning' : 'danger'
     operationResult.value =
       reason instanceof AdminApiError && reason.status === 409
-        ? '命令版本已经变化，请重新读取后再归档。'
+        ? '命令版本已经变化，请重新读取后再删除。'
         : reason instanceof AdminApiError
           ? reason.message
-          : '命令归档失败。'
+          : '命令删除失败。'
   } finally {
-    archiveBusy.value = false
+    deleteBusy.value = false
   }
 }
 
@@ -455,16 +455,16 @@ onMounted(async () => {
       </section>
 
       <section v-if="!isNew && canWrite" class="danger-zone">
-        <div><h2>归档命令</h2></div>
-        <button data-test="archive-command" type="button" @click="archiveOpen = true"><Archive :size="16" aria-hidden="true" />归档</button>
+        <div><h2>删除命令</h2></div>
+        <button data-test="delete-command" type="button" @click="deleteOpen = true"><Trash2 :size="16" aria-hidden="true" />删除</button>
       </section>
     </template>
 
-    <AppOverlayTransition :show="archiveOpen" variant="dialog">
-      <div class="dialog-layer" role="presentation" @mousedown.self="archiveOpen = false">
-        <section class="archive-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-title">
-        <header><Archive :size="19" aria-hidden="true" /><div><h2 id="archive-title">归档 {{ command?.name }}</h2><p>该命令将停止触发，历史记录不会删除。</p></div></header>
-        <footer><button type="button" :disabled="archiveBusy" @click="archiveOpen = false">取消</button><button data-test="confirm-archive" class="danger-action" type="button" :disabled="archiveBusy" @click="archiveCommand">确认归档</button></footer>
+    <AppOverlayTransition :show="deleteOpen" variant="dialog">
+      <div class="dialog-layer" role="presentation" @mousedown.self="deleteOpen = false">
+        <section class="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+        <header><Trash2 :size="19" aria-hidden="true" /><div><h2 id="delete-title">删除 {{ command?.name }}</h2><p>该命令及其执行记录会被永久删除，无法恢复。</p></div></header>
+        <footer><button type="button" :disabled="deleteBusy" @click="deleteOpen = false">取消</button><button data-test="confirm-delete" class="danger-action" type="button" :disabled="deleteBusy" @click="deleteCommand">确认删除</button></footer>
         </section>
       </div>
     </AppOverlayTransition>
@@ -473,7 +473,7 @@ onMounted(async () => {
 
 <style scoped>
 .command-editor-page { display: grid; gap: 14px; max-width: 1180px; margin: 0 auto; }
-.page-header, .title-block, .page-actions, .back-link, .page-actions button, .operation-result, .version-conflict > div, .version-conflict button, .locked-notice, .editor-section > header, .enabled-field, .permission-grid fieldset, .permission-grid fieldset label, .group-picker label, .validation-actions, .validation-actions button, .danger-zone, .danger-zone button, .archive-dialog header, .archive-dialog footer { display: flex; align-items: center; }
+.page-header, .title-block, .page-actions, .back-link, .page-actions button, .operation-result, .version-conflict > div, .version-conflict button, .locked-notice, .editor-section > header, .enabled-field, .permission-grid fieldset, .permission-grid fieldset label, .group-picker label, .validation-actions, .validation-actions button, .danger-zone, .danger-zone button, .delete-dialog header, .delete-dialog footer { display: flex; align-items: center; }
 .page-header { justify-content: space-between; gap: 16px; }
 .title-block { gap: 10px; }
 .back-link { width: 36px; height: 36px; justify-content: center; color: var(--color-text-secondary); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
@@ -557,13 +557,13 @@ textarea { padding-block: 8px; resize: vertical; }
 .danger-zone p { color: var(--color-text-secondary); font-size: 12px; }
 .danger-zone button { min-height: 36px; gap: 6px; padding: 0 10px; color: var(--color-danger); background: var(--color-surface); border: 1px solid var(--color-danger); border-radius: var(--radius-control); }
 .dialog-layer { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(34 37 36 / 36%); }
-.archive-dialog { width: min(440px, 100%); padding: 18px; background: var(--color-surface); border-radius: var(--radius-overlay); box-shadow: 0 16px 44px rgb(34 37 36 / 18%); }
-.archive-dialog header { align-items: flex-start; gap: 10px; color: var(--color-danger); }
-.archive-dialog h2 { color: var(--color-text-primary); font-size: 16px; }
-.archive-dialog p { color: var(--color-text-secondary); font-size: 12px; }
-.archive-dialog footer { justify-content: flex-end; gap: 8px; margin-top: 18px; }
-.archive-dialog footer button { min-height: 36px; padding: 0 11px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
-.archive-dialog footer .danger-action { color: white; background: var(--color-danger); border-color: var(--color-danger); }
+.delete-dialog { width: min(440px, 100%); padding: 18px; background: var(--color-surface); border-radius: var(--radius-overlay); box-shadow: 0 16px 44px rgb(34 37 36 / 18%); }
+.delete-dialog header { align-items: flex-start; gap: 10px; color: var(--color-danger); }
+.delete-dialog h2 { color: var(--color-text-primary); font-size: 16px; }
+.delete-dialog p { color: var(--color-text-secondary); font-size: 12px; }
+.delete-dialog footer { justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.delete-dialog footer button { min-height: 36px; padding: 0 11px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+.delete-dialog footer .danger-action { color: white; background: var(--color-danger); border-color: var(--color-danger); }
 .spin { animation: spin 700ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {

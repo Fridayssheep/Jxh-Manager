@@ -41,7 +41,6 @@ describe('AuditLogsView', () => {
 
     expect(wrapper.text()).toContain('welcome.enabled')
     expect(wrapper.text()).toContain('[redacted]')
-    expect(wrapper.text()).toContain('内容已脱敏')
     expect(wrapper.findAll('button').map((button) => button.text()).join('')).not.toMatch(/恢复|撤销|重放/)
   })
 

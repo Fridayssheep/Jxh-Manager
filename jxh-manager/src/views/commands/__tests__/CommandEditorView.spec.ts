@@ -74,14 +74,14 @@ describe('CommandEditorView', () => {
     expect(router.currentRoute.value.fullPath).toBe('/commands/cmd-1')
   })
 
-  it('shows redacted runs and archives an existing command with its version', async () => {
+  it('shows redacted runs and deletes an existing command with its version', async () => {
     vi.spyOn(commandsApi, 'get').mockResolvedValue(makeCommand())
     vi.spyOn(commandsApi, 'listRuns').mockResolvedValue({
       items: [makeCommandRun()],
       next_cursor: null,
       has_more: false,
     })
-    const archive = vi.spyOn(commandsApi, 'archive').mockResolvedValue()
+    const remove = vi.spyOn(commandsApi, 'delete').mockResolvedValue()
     const { wrapper, router } = await mountEditor('/commands/cmd-1')
     await flushPromises()
 
@@ -89,15 +89,15 @@ describe('CommandEditorView', () => {
     expect(wrapper.text()).toContain('24680135')
     expect(wrapper.text()).not.toContain('自由文本原文')
 
-    await wrapper.get('[data-test=archive-command]').trigger('click')
-    await wrapper.get('[data-test=confirm-archive]').trigger('click')
+    await wrapper.get('[data-test=delete-command]').trigger('click')
+    await wrapper.get('[data-test=confirm-delete]').trigger('click')
     await flushPromises()
 
-    expect(archive).toHaveBeenCalledWith('cmd-1', 7)
+    expect(remove).toHaveBeenCalledWith('cmd-1', 7)
     expect(router.currentRoute.value.fullPath).toBe('/commands')
   })
 
-  it('animates archive confirmation layers', async () => {
+  it('animates deletion confirmation layers', async () => {
     vi.spyOn(commandsApi, 'get').mockResolvedValue(makeCommand())
     vi.spyOn(commandsApi, 'listRuns').mockResolvedValue({
       items: [],

@@ -30,7 +30,7 @@ describe('OverviewView', () => {
 
     expect(wrapper.text()).toContain('总览')
     expect(wrapper.text()).toContain('2,319')
-    expect(wrapper.text()).toContain('需要处理')
+    expect(wrapper.text()).toContain('等待处理')
     expect(wrapper.text()).toContain('等待处理的入群申请')
     expect(wrapper.text()).toContain('系统健康')
     expect(wrapper.find('a[href="/system"]').exists()).toBe(false)

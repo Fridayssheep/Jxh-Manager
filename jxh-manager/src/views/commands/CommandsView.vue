@@ -54,7 +54,6 @@ const statusLabels: Record<CommandStatus, string> = {
   draft: '草稿',
   active: '已启用',
   disabled: '已停用',
-  archived: '已归档',
 }
 
 const permissionLabels: Record<CommandTriggerPermission, string> = {
@@ -239,7 +238,7 @@ onBeforeUnmount(unsubscribe)
         <div class="action-summary" data-label="动作"><span v-for="label in uniqueActionLabels(command)" :key="label">{{ label }}</span></div>
         <div class="row-actions">
           <button
-            v-if="auth.hasPermission('commands:write') && command.status !== 'archived'"
+            v-if="auth.hasPermission('commands:write')"
             :data-test="`toggle-command-${command.command_id}`"
             type="button"
             :disabled="busyIds.has(command.command_id)"
@@ -293,7 +292,6 @@ onBeforeUnmount(unsubscribe)
 .status-badge { width: fit-content; padding: 2px 6px; color: var(--color-unknown); background: var(--color-unknown-surface); border-radius: 8px; }
 .status-badge--active { color: var(--color-success); background: var(--color-success-surface); }
 .status-badge--disabled { color: var(--color-warning); background: var(--color-warning-surface); }
-.status-badge--archived { color: var(--color-text-secondary); background: var(--color-surface-subtle); }
 .permission-label { gap: 5px; }
 .action-summary { display: flex; min-width: 0; flex-wrap: wrap; gap: 4px; }
 .action-summary span { padding: 2px 6px; color: var(--color-brand-ink); background: var(--color-brand-surface); border-radius: 8px; }

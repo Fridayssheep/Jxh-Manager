@@ -83,7 +83,7 @@ export const commandsApi = {
     )
   },
 
-  async archive(commandId: string, version: number): Promise<void> {
+  async delete(commandId: string, version: number): Promise<void> {
     return unwrap(
       await api.DELETE('/commands/{command_id}', {
         params: {

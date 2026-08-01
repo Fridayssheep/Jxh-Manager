@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { groupsApi } from '@/api/groups'
 import { scheduledJobsApi } from '@/api/scheduled-jobs'
+import type { Permission } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -11,9 +12,9 @@ import { makeAuthContext } from '@/test/auth-fixture'
 import { makeScheduledJob, makeScheduledJobRun } from '@/test/scheduled-job-fixture'
 import ScheduledJobsView from '../ScheduledJobsView.vue'
 
-async function mountView() {
+async function mountView(permissions: Permission[] = ['scheduled_jobs:read', 'scheduled_jobs:write']) {
   const pinia = createPinia(); setActivePinia(pinia)
-  useAuthStore().acceptContext(makeAuthContext(['scheduled_jobs:read', 'scheduled_jobs:write']))
+  useAuthStore().acceptContext(makeAuthContext(permissions))
   return mount(ScheduledJobsView, { global: { plugins: [pinia] }, attachTo: document.body })
 }
 
@@ -65,6 +66,31 @@ describe('ScheduledJobsView', () => {
     expect(testSend).toHaveBeenCalledWith('job-1', 7)
     expect(wrapper.text()).toContain('结果未知')
     expect(wrapper.text()).toContain(originalTime!.slice(0, 10))
+  })
+
+  it('deletes a task using its loaded version', async () => {
+    const remove = vi.spyOn(scheduledJobsApi, 'delete').mockResolvedValue()
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=edit-job-job-1]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test=delete-job]').trigger('click')
+    await wrapper.get('[data-test=confirm-delete-job]').trigger('click')
+    await flushPromises()
+
+    expect(remove).toHaveBeenCalledWith('job-1', 7)
+    expect(wrapper.text()).not.toContain('已归档')
+  })
+
+  it('hides deletion from read-only operators', async () => {
+    const wrapper = await mountView(['scheduled_jobs:read'])
+    await flushPromises()
+
+    await wrapper.get('[data-test=edit-job-job-1]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test=delete-job]').exists()).toBe(false)
   })
 
   it('animates both the task drawer and secondary confirmation', async () => {

@@ -56,7 +56,7 @@ export const scheduledJobsApi = {
     }))
   },
 
-  async archive(jobId: string, version: number): Promise<void> {
+  async delete(jobId: string, version: number): Promise<void> {
     return unwrap(await api.DELETE('/scheduled-jobs/{job_id}', {
       params: { path: { job_id: jobId }, header: { 'If-Match': ifMatch(version) } },
     }))

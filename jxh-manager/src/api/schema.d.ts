@@ -634,10 +634,10 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * 归档自定义命令
-         * @description 归档为软删除，命令名和历史记录继续保留。
+         * 删除自定义命令
+         * @description 删除命令定义及其执行记录；审计日志保留删除前快照。
          */
-        delete: operations["archiveCommand"];
+        delete: operations["deleteCommand"];
         options?: never;
         head?: never;
         /** 更新或启停自定义命令 */
@@ -716,8 +716,11 @@ export interface paths {
         get: operations["getScheduledJob"];
         put?: never;
         post?: never;
-        /** 归档定时任务 */
-        delete: operations["archiveScheduledJob"];
+        /**
+         * 删除定时任务
+         * @description 删除任务定义及其执行记录；审计日志保留删除前快照。
+         */
+        delete: operations["deleteScheduledJob"];
         options?: never;
         head?: never;
         /** 编辑、暂停或恢复定时任务 */
@@ -1379,7 +1382,7 @@ export interface components {
         /** @description 完整命令名，仅允许斜杠、小写 ASCII 字母、数字、下划线和连字符。 */
         CommandName: string;
         /** @enum {string} */
-        CommandStatus: "draft" | "active" | "disabled" | "archived";
+        CommandStatus: "draft" | "active" | "disabled";
         /** @enum {string} */
         CommandTriggerPermission: "everyone" | "group_admin" | "maintenance_allowlist";
         /** @enum {string} */
@@ -1663,7 +1666,7 @@ export interface components {
         /** @enum {string} */
         ScheduledJobType: "daily" | "once";
         /** @enum {string} */
-        ScheduledJobStatus: "active" | "paused" | "completed" | "archived";
+        ScheduledJobStatus: "active" | "paused" | "completed";
         /** @enum {string} */
         RunResult: "success" | "failed" | "unknown" | "skipped";
         DailySchedule: {
@@ -3578,7 +3581,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    archiveCommand: {
+    deleteCommand: {
         parameters: {
             query?: never;
             header: {
@@ -3592,7 +3595,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 命令已经归档 */
+            /** @description 命令已经删除 */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -3788,7 +3791,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    archiveScheduledJob: {
+    deleteScheduledJob: {
         parameters: {
             query?: never;
             header: {
@@ -3802,7 +3805,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 任务已经归档 */
+            /** @description 任务已经删除 */
             204: {
                 headers: {
                     [name: string]: unknown;

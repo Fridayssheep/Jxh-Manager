@@ -48,13 +48,13 @@ describe('commandsApi mutation boundaries', () => {
     )
   })
 
-  it('sends the loaded version when archiving a command', async () => {
+  it('sends the loaded version when deleting a command', async () => {
     const remove = vi.spyOn(api, 'DELETE').mockResolvedValue({
       data: undefined,
       response: new Response(null, { status: 204 }),
     })
 
-    await commandsApi.archive('cmd-1', 7)
+    await commandsApi.delete('cmd-1', 7)
 
     expect(remove).toHaveBeenCalledWith('/commands/{command_id}', {
       params: {

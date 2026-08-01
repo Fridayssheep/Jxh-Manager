@@ -1489,9 +1489,9 @@ paths:
           $ref: '#/components/responses/PreconditionRequired'
     delete:
       tags: [Commands]
-      summary: 归档自定义命令
-      description: 归档为软删除，命令名和历史记录继续保留。
-      operationId: archiveCommand
+      summary: 删除自定义命令
+      description: 删除命令定义及其执行记录；审计日志保留删除前快照。
+      operationId: deleteCommand
       x-stage: phase_3
       x-status: implemented
       security:
@@ -1501,7 +1501,7 @@ paths:
         - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
-          description: 命令已经归档
+          description: 命令已经删除
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1716,8 +1716,9 @@ paths:
           $ref: '#/components/responses/PreconditionRequired'
     delete:
       tags: [Scheduled Jobs]
-      summary: 归档定时任务
-      operationId: archiveScheduledJob
+      summary: 删除定时任务
+      description: 删除任务定义及其执行记录；审计日志保留删除前快照。
+      operationId: deleteScheduledJob
       x-stage: phase_2
       x-status: implemented
       security:
@@ -1727,7 +1728,7 @@ paths:
         - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
-          description: 任务已经归档
+          description: 任务已经删除
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3713,7 +3714,7 @@ components:
       description: 完整命令名，仅允许斜杠、小写 ASCII 字母、数字、下划线和连字符。
     CommandStatus:
       type: string
-      enum: [draft, active, disabled, archived]
+      enum: [draft, active, disabled]
     CommandTriggerPermission:
       type: string
       enum: [everyone, group_admin, maintenance_allowlist]
@@ -4317,7 +4318,7 @@ components:
       enum: [daily, once]
     ScheduledJobStatus:
       type: string
-      enum: [active, paused, completed, archived]
+      enum: [active, paused, completed]
     RunResult:
       type: string
       enum: [success, failed, unknown, skipped]
