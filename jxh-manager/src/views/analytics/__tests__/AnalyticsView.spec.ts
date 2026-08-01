@@ -1,4 +1,4 @@
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,12 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { analyticsApi } from '@/api/analytics'
 import AnalyticsMetricBoard from '@/components/data/AnalyticsMetricBoard.vue'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
-import AppSelect from '@/components/form/AppSelect.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   makeAnalyticsRankings,
   makeAnalyticsSummary,
   makeAnalyticsTimeseries,
+  makeKnowledgeRankings,
 } from '@/test/analytics-fixture'
 import { makeAuthContext } from '@/test/auth-fixture'
 import AnalyticsView from '../AnalyticsView.vue'
@@ -34,94 +34,118 @@ async function mountView() {
   }
 }
 
-async function selectValue(wrapper: VueWrapper, name: string, value: string): Promise<void> {
-  const select = wrapper
-    .findAllComponents(AppSelect)
-    .find((component) => component.props('name') === name)
-  if (!select) throw new Error(`AppSelect ${name} was not rendered`)
-  select.vm.$emit('update:modelValue', value)
-  select.vm.$emit('change', value)
-  await flushPromises()
-}
-
 describe('AnalyticsView', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(analyticsApi, 'getSummary').mockResolvedValue(makeAnalyticsSummary())
     vi.spyOn(analyticsApi, 'getTimeseries').mockResolvedValue(makeAnalyticsTimeseries())
-    vi.spyOn(analyticsApi, 'getRankings').mockResolvedValue(makeAnalyticsRankings())
+    vi.spyOn(analyticsApi, 'getRankings').mockImplementation(async (query) =>
+      query.dimension === 'knowledge_entry' ? makeKnowledgeRankings() : makeAnalyticsRankings(),
+    )
   })
 
-  it('keeps the time window, group, metric and result in the URL', async () => {
+  it('uses inclusive Shanghai calendar days and keeps only the date and group in the URL', async () => {
     const { wrapper, router } = await mountView()
     await flushPromises()
 
-    expect(analyticsApi.getSummary).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('12,840')
+    expect(analyticsApi.getSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: '2026-06-30T16:00:00.000Z',
+        to: '2026-07-28T16:00:00.000Z',
+        groupIds: ['10001'],
+      }),
+    )
     await wrapper.get('input[name=group_id]').setValue('10002')
-    await selectValue(wrapper, 'metric', 'ai_request_count')
-    await selectValue(wrapper, 'result', 'failed')
     await wrapper.get('[data-test=analytics-filters]').trigger('submit')
     await flushPromises()
 
-    expect(router.currentRoute.value.query).toMatchObject({
-      from: '2026-07-01T00:00:00Z',
-      to: '2026-07-28T00:00:00Z',
+    expect(router.currentRoute.value.query).toEqual({
+      from: '2026-07-01',
+      to: '2026-07-28',
       group_id: '10002',
-      metric: 'ai_request_count',
-      result: 'failed',
-      dimension: 'group',
     })
-    expect(analyticsApi.getTimeseries).toHaveBeenLastCalledWith(
-      expect.objectContaining({ metrics: ['ai_request_count'], groupIds: ['10002'] }),
-    )
     expect(analyticsApi.getSummary).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps local analysis controls out of the summary request lifecycle', async () => {
-    const summaryRequest = vi.mocked(analyticsApi.getSummary)
-    const timeseriesRequest = vi.mocked(analyticsApi.getTimeseries)
-    const rankingsRequest = vi.mocked(analyticsApi.getRankings)
-    const { wrapper, router } = await mountView()
-    await flushPromises()
-
-    expect(summaryRequest).toHaveBeenCalledTimes(1)
-    await selectValue(wrapper, 'metric', 'quote_failure_count')
-
-    expect(router.currentRoute.value.query.metric).toBe('quote_failure_count')
-    expect(summaryRequest).toHaveBeenCalledTimes(1)
-    expect(timeseriesRequest).toHaveBeenCalledTimes(2)
-    expect(rankingsRequest).toHaveBeenCalledTimes(2)
-  })
-
-  it('uses the grouped metric board and independent analysis cards', async () => {
+  it('renders a fixed business overview without arbitrary metric and dimension controls', async () => {
     const { wrapper } = await mountView()
     await flushPromises()
 
     expect(wrapper.findComponent(AnalyticsMetricBoard).exists()).toBe(true)
-    expect(wrapper.findAll('.analytics-card')).toHaveLength(2)
-    expect(wrapper.get('.trend-section').classes()).toContain('analytics-card')
-    expect(wrapper.get('.ranking-section').classes()).toContain('analytics-card')
-    expect(wrapper.find('.metric-grid').exists()).toBe(false)
-    const selects = wrapper.findAllComponents(AppSelect)
-    expect(selects).toHaveLength(7)
-    expect(wrapper.findAll('select')).toHaveLength(0)
-    expect(selects.map((select) => select.props('name'))).toEqual([
-      undefined,
-      undefined,
-      'feature_key',
-      'result',
-      'metric',
-      'granularity',
-      'dimension',
-    ])
+    expect(wrapper.findAll('[data-test^="analytics-kpi-"]')).toHaveLength(6)
+    expect(wrapper.findAll('.analytics-card')).toHaveLength(3)
+    expect(wrapper.find('input[name=feature_key]').exists()).toBe(false)
+    expect(wrapper.find('input[name=result]').exists()).toBe(false)
+    expect(wrapper.find('[name=metric]').exists()).toBe(false)
+    expect(wrapper.find('[name=dimension]').exists()).toBe(false)
+
+    expect(analyticsApi.getTimeseries).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metrics: ['group_message_count'],
+        granularity: 'day',
+      }),
+    )
+    expect(analyticsApi.getRankings).toHaveBeenCalledTimes(2)
+    expect(analyticsApi.getRankings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dimension: 'group',
+        metric: 'group_message_count',
+      }),
+    )
+    expect(analyticsApi.getRankings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dimension: 'knowledge_entry',
+        metric: 'knowledge_trigger_count',
+      }),
+    )
+    expect(wrapper.text()).toContain('热门知识词条')
+    expect(wrapper.text()).toContain('菜单')
   })
 
-  it('exports the active filter set', async () => {
+  it('rejects custom ranges longer than the retained knowledge history', async () => {
+    const { wrapper, router } = await mountView()
+    await flushPromises()
+
+    await wrapper.get('input[name=from]').setValue('2026-06-01')
+    await wrapper.get('[data-test=analytics-filters]').trigger('submit')
+    await flushPromises()
+
+    expect(router.currentRoute.value.query.from).toBe('2026-07-01T00:00:00Z')
+    expect(analyticsApi.getSummary).toHaveBeenCalledTimes(1)
+    const notice = wrapper.findComponent(OperationNotice)
+    expect(notice.props('tone')).toBe('danger')
+    expect(notice.props('message')).toBe('统计概览最多查询连续 30 天。')
+  })
+
+  it('does not show empty rankings while their first request is pending', async () => {
+    vi.mocked(analyticsApi.getRankings).mockReturnValue(new Promise(() => undefined))
+    const { wrapper } = await mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('正在更新排行')
+    expect(wrapper.text()).not.toContain('当前范围暂无群消息')
+    expect(wrapper.text()).not.toContain('当前范围暂无知识命中')
+  })
+
+  it('does not retain old metrics after a changed scope fails to load', async () => {
+    const { wrapper } = await mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('12,840')
+
+    vi.mocked(analyticsApi.getSummary).mockRejectedValueOnce(new Error('offline'))
+    await wrapper.get('input[name=group_id]').setValue('10002')
+    await wrapper.get('[data-test=analytics-filters]').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('统计读取失败')
+    expect(wrapper.text()).not.toContain('12,840')
+  })
+
+  it('exports the current overview as CSV', async () => {
     const exportData = vi.spyOn(analyticsApi, 'exportData').mockResolvedValue({
-      blob: new Blob(['rank,value']),
+      blob: new Blob(['metric,value']),
       filename: 'analytics.csv',
-      rowCount: 2,
+      rowCount: 6,
     })
     const createObjectUrl = vi.fn<(value: Blob | MediaSource) => string>(() => 'blob:analytics')
     Object.defineProperty(URL, 'createObjectURL', { value: createObjectUrl, configurable: true })
@@ -138,11 +162,9 @@ describe('AnalyticsView', () => {
 
     expect(exportData).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: '2026-07-01T00:00:00Z',
-        to: '2026-07-28T00:00:00Z',
+        dataset: 'summary',
+        format: 'csv',
         groupIds: ['10001'],
-        metric: 'group_message_count',
-        dimension: 'group',
       }),
     )
     expect(createObjectUrl).toHaveBeenCalledOnce()

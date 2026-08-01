@@ -413,7 +413,7 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
 
   test('统计导出使用当前筛选并生成下载', async ({ page }) => {
     const api = await installAdminApi(page)
-    await page.goto('/analytics?from=2026-07-01T00:00:00Z&to=2026-07-28T00:00:00Z&group_id=10001&metric=group_message_count&result=success&dimension=group')
+    await page.goto('/analytics?from=2026-07-01&to=2026-07-28&group_id=10001')
     await expect(page.getByText('12,840')).toBeVisible()
 
     const [download] = await Promise.all([
@@ -423,7 +423,8 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expect(download.suggestedFilename()).toBe('analytics.csv')
     const request = api.findRequest('GET', '/analytics/export')!
     expect(request.url).toContain('group_id=10001')
-    expect(request.url).toContain('metric=group_message_count')
+    expect(request.url).toContain('dataset=summary')
+    expect(request.url).not.toContain('metric=')
   })
 
   test('presents analytics as an operational dashboard instead of a card wall', async ({
@@ -447,10 +448,10 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await page.goto('/analytics')
 
     await expect(page.locator('[data-test="analytics-core-metrics"]')).toBeVisible()
-    await expect(page.locator('[data-test^="analytics-kpi-"]')).toHaveCount(4)
-    await expect(page.locator('[data-test="analytics-metric-group"]')).toHaveCount(3)
-    await expect(page.locator('[data-test^="analytics-metric-row-"]')).toHaveCount(12)
-    await expect(page.locator('.analytics-card')).toHaveCount(2)
+    await expect(page.locator('[data-test^="analytics-kpi-"]')).toHaveCount(6)
+    await expect(page.locator('[data-test="analytics-metric-group"]')).toHaveCount(0)
+    await expect(page.locator('[data-test^="analytics-metric-row-"]')).toHaveCount(0)
+    await expect(page.locator('.analytics-card')).toHaveCount(3)
     await expect(page.locator('.analytics-card').first()).toHaveCSS('padding', '16px')
     await expect(page.locator('.analytics-card').first()).toHaveCSS('border-radius', '6px')
     await expectNoHorizontalOverflow(page)
@@ -458,26 +459,17 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     const requestCount = (path: string) => api.requests.filter((request) => request.path === path).length
     expect(requestCount('/analytics/summary')).toBe(1)
     expect(requestCount('/analytics/timeseries')).toBe(1)
-    expect(requestCount('/analytics/rankings')).toBe(1)
+    expect(requestCount('/analytics/rankings')).toBe(2)
 
     await expect(page.locator('select')).toHaveCount(0)
-    await page.locator('[data-test="metric-select"]').click()
-    const listbox = page.getByRole('listbox', { name: '指标' })
-    await expect(listbox).toBeVisible()
-    await expect(
-      listbox.locator('[role="option"][data-value="group_message_count"]'),
-    ).toHaveAttribute('aria-selected', 'true')
-    const menuBounds = await listbox.boundingBox()
-    expect(menuBounds).not.toBeNull()
-    expect(menuBounds!.x).toBeGreaterThanOrEqual(0)
-    expect(menuBounds!.y).toBeGreaterThanOrEqual(0)
-    expect(menuBounds!.x + menuBounds!.width).toBeLessThanOrEqual(1339)
-    expect(menuBounds!.y + menuBounds!.height).toBeLessThanOrEqual(662)
-    await listbox.locator('[role="option"][data-value="quote_failure_count"]').click()
-    await expect(page).toHaveURL(/metric=quote_failure_count/)
+    await expect(page.locator('[name="metric"]')).toHaveCount(0)
+    await expect(page.locator('[name="dimension"]')).toHaveCount(0)
+    await expect(page.locator('[name="feature_key"]')).toHaveCount(0)
+    await expect(page.locator('[name="result"]')).toHaveCount(0)
+    await page.locator('[data-test="range-preset-30"]').click()
     await expect.poll(() => requestCount('/analytics/timeseries')).toBe(2)
-    await expect.poll(() => requestCount('/analytics/rankings')).toBe(2)
-    expect(requestCount('/analytics/summary')).toBe(1)
+    await expect.poll(() => requestCount('/analytics/rankings')).toBe(4)
+    expect(requestCount('/analytics/summary')).toBe(2)
     await expect
       .poll(() =>
         page.evaluate(() => {
@@ -583,7 +575,7 @@ test('应用壳和关键页面适配当前 viewport', async ({ page }, testInfo)
     { path: '/commands/new', heading: '新建自定义命令', ready: '[data-test="command-name"]' },
     { path: '/scheduled-jobs', heading: '定时任务', ready: '[data-test="test-send-job-1"]' },
     { path: '/knowledge', heading: '知识库', ready: '[data-test="reload-knowledge"]' },
-    { path: '/analytics', heading: '统计分析', ready: '[data-test="analytics-filters"]' },
+    { path: '/analytics', heading: '统计概览', ready: '[data-test="analytics-filters"]' },
     { path: '/audit-logs', heading: '审计日志', ready: '[data-test="audit-row-audit-1"]' },
     { path: '/users', heading: '账号与会话', ready: '[data-test="user-filters"]' },
     { path: '/account', heading: '个人账号', ready: '[data-test="change-password"]' },

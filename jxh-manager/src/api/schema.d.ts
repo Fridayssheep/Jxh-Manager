@@ -1821,7 +1821,7 @@ export interface components {
             has_more: boolean;
         };
         /** @enum {string} */
-        AnalyticsMetricKey: "keyword_reply_count" | "ai_request_count" | "ai_success_rate" | "ai_duration_ms" | "join_request_count" | "manual_approval_count" | "automatic_approval_count" | "scheduled_job_run_count" | "group_message_count" | "command_run_count" | "active_user_count" | "link_clean_count" | "quote_success_count" | "quote_fallback_count" | "quote_failure_count";
+        AnalyticsMetricKey: "keyword_reply_count" | "knowledge_trigger_count" | "ai_request_count" | "ai_success_rate" | "ai_duration_ms" | "join_request_count" | "manual_approval_count" | "automatic_approval_count" | "scheduled_job_run_count" | "group_message_count" | "command_run_count" | "active_user_count" | "link_clean_count" | "quote_success_count" | "quote_fallback_count" | "quote_failure_count";
         /** @enum {string} */
         AnalyticsUnit: "count" | "percent" | "milliseconds";
         AnalyticsWindow: {

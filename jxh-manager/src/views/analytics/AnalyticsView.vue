@@ -1,161 +1,134 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Download, FilterX, RefreshCw, TrendingUp } from '@lucide/vue'
-
 import {
-  analyticsApi,
-  type AnalyticsDataset,
-  type AnalyticsDimension,
-  type AnalyticsExportFormat,
-  type AnalyticsGranularity,
-  type AnalyticsResultFilter,
-} from '@/api/analytics'
+  BookOpenCheck,
+  Download,
+  FilterX,
+  MessageSquareText,
+  RefreshCw,
+  Search,
+  TrendingUp,
+} from '@lucide/vue'
+
+import { analyticsApi } from '@/api/analytics'
 import { AdminApiError } from '@/api/client'
-import type {
-  AnalyticsMetricKey,
-  AnalyticsRankings,
-  AnalyticsSummary,
-  AnalyticsTimeseries,
-  FeatureKey,
-} from '@/api/types'
+import type { AnalyticsRankings, AnalyticsSummary, AnalyticsTimeseries } from '@/api/types'
 import AnalyticsMetricBoard from '@/components/data/AnalyticsMetricBoard.vue'
 import AnalyticsTrendChart from '@/components/data/AnalyticsTrendChart.vue'
 import RankingTable from '@/components/data/RankingTable.vue'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
-import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
 const summary = ref<AnalyticsSummary | null>(null)
-const timeseries = ref<AnalyticsTimeseries | null>(null)
-const rankings = ref<AnalyticsRankings | null>(null)
+const trend = ref<AnalyticsTimeseries | null>(null)
+const groupRankings = ref<AnalyticsRankings | null>(null)
+const knowledgeRankings = ref<AnalyticsRankings | null>(null)
 const summaryLoading = ref(false)
-const analysisLoading = ref(false)
+const trendLoading = ref(false)
+const groupRankingsLoading = ref(false)
+const knowledgeRankingsLoading = ref(false)
 const summaryError = ref<unknown>(null)
-const analysisError = ref<unknown>(null)
+const trendError = ref<unknown>(null)
+const groupRankingsError = ref<unknown>(null)
+const knowledgeRankingsError = ref<unknown>(null)
 const exporting = ref(false)
-const exportResult = ref('')
-const exportTone = ref<'success' | 'danger'>('success')
+const operationResult = ref('')
+const operationTone = ref<'success' | 'danger'>('success')
 const summaryRevision = ref(0)
-const analysisRevision = ref(0)
-const globalFilter = reactive({
-  from: '',
-  to: '',
-  groupId: '',
-  featureKey: '' as FeatureKey | '',
-  result: '' as AnalyticsResultFilter | '',
-})
+const trendRevision = ref(0)
+const groupRankingsRevision = ref(0)
+const knowledgeRankingsRevision = ref(0)
+const globalFilter = reactive({ from: '', to: '', groupId: '' })
 const appliedScope = reactive({ ...globalFilter })
-const analysisFilter = reactive({
-  metric: 'group_message_count' as AnalyticsMetricKey,
-  dimension: 'group' as AnalyticsDimension, granularity: 'day' as AnalyticsGranularity,
-})
-const exportOptions = reactive({ dataset: 'rankings' as AnalyticsDataset, format: 'csv' as AnalyticsExportFormat })
 let summaryRequestId = 0
-let analysisRequestId = 0
+let trendRequestId = 0
+let groupRankingsRequestId = 0
+let knowledgeRankingsRequestId = 0
 let previousScopeKey: string | null = null
 
-const metricOptions: { value: AnalyticsMetricKey; label: string }[] = [
-  { value: 'keyword_reply_count', label: '关键词回复' },
-  { value: 'ai_request_count', label: 'AI 请求量' },
-  { value: 'ai_success_rate', label: 'AI 成功率' },
-  { value: 'ai_duration_ms', label: 'AI 平均耗时' },
-  { value: 'join_request_count', label: '入群申请' },
-  { value: 'manual_approval_count', label: '人工审批' },
-  { value: 'automatic_approval_count', label: '自动审批' },
-  { value: 'scheduled_job_run_count', label: '定时任务运行' },
-  { value: 'group_message_count', label: '群消息量' },
-  { value: 'command_run_count', label: '命令运行量' },
-  { value: 'active_user_count', label: '活跃用户' },
-  { value: 'link_clean_count', label: '链接净化' },
-  { value: 'quote_success_count', label: '引用图成功' },
-  { value: 'quote_fallback_count', label: '引用图回退' },
-  { value: 'quote_failure_count', label: '引用图失败' },
-]
-const exportDatasetOptions: readonly AppSelectOption[] = [
-  { value: 'summary', label: '指标汇总' },
-  { value: 'timeseries', label: '趋势明细' },
-  { value: 'rankings', label: '排行' },
-  { value: 'join_requests', label: '入群申请' },
-  { value: 'scheduled_job_runs', label: '任务运行' },
-]
-const exportFormatOptions: readonly AppSelectOption[] = [
-  { value: 'csv', label: 'CSV' },
-  { value: 'xlsx', label: 'XLSX' },
-]
-const featureOptions: readonly AppSelectOption[] = [
-  { value: '', label: '全部功能' },
-  { value: 'ai_qa', label: 'AI 问答' },
-  { value: 'quote', label: '引用图' },
-  { value: 'link_cleaner', label: '链接净化' },
-  { value: 'custom_commands', label: '自定义命令' },
-]
-const resultOptions: readonly AppSelectOption[] = [
-  { value: '', label: '全部结果' },
-  { value: 'success', label: '成功' },
-  { value: 'failed', label: '失败' },
-  { value: 'fallback', label: '降级' },
-  { value: 'denied', label: '拒绝' },
-  { value: 'unknown', label: '未知' },
-  { value: 'skipped', label: '跳过' },
-]
-const granularityOptions: readonly AppSelectOption[] = [
-  { value: 'day', label: '按日' },
-  { value: 'hour', label: '按小时' },
-]
-const dimensionOptions: readonly AppSelectOption[] = [
-  { value: 'group', label: '群' },
-  { value: 'command', label: '命令' },
-  { value: 'knowledge_entry', label: '知识词条' },
-]
-const timeFormatter = new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+})
 
 function queryString(value: unknown): string {
   return Array.isArray(value) ? String(value[0] ?? '') : typeof value === 'string' ? value : ''
 }
 
-function defaultDates(): { from: string; to: string } {
-  const to = new Date()
-  const from = new Date(to)
-  from.setUTCDate(from.getUTCDate() - 6)
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }
+function calendarDate(value: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value)
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}`
 }
 
-function routeState(): typeof globalFilter & typeof analysisFilter {
+function shiftCalendarDate(value: string, days: number): string {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(Date.UTC(year!, month! - 1, day! + days)).toISOString().slice(0, 10)
+}
+
+function dateSpan(from: string, to: string): number {
+  const start = Date.parse(`${from}T00:00:00Z`)
+  const end = Date.parse(`${to}T00:00:00Z`)
+  return Math.max(1, Math.round((end - start) / 86_400_000) + 1)
+}
+
+function defaultDates(days = 7): { from: string; to: string } {
+  const to = calendarDate(new Date())
+  return { from: shiftCalendarDate(to, -days + 1), to }
+}
+
+function routeDate(value: unknown, fallback: string): string {
+  const raw = queryString(value)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const parsed = new Date(raw)
+  return raw && !Number.isNaN(parsed.valueOf()) ? calendarDate(parsed) : fallback
+}
+
+function routeState(): typeof globalFilter {
   const defaults = defaultDates()
   return {
-    from: (queryString(route.query.from) || `${defaults.from}T00:00:00Z`).slice(0, 10),
-    to: (queryString(route.query.to) || `${defaults.to}T23:59:59Z`).slice(0, 10),
+    from: routeDate(route.query.from, defaults.from),
+    to: routeDate(route.query.to, defaults.to),
     groupId: queryString(route.query.group_id),
-    featureKey: queryString(route.query.feature_key) as FeatureKey | '',
-    result: queryString(route.query.result) as AnalyticsResultFilter | '',
-    metric: (queryString(route.query.metric) || 'group_message_count') as AnalyticsMetricKey,
-    dimension: (queryString(route.query.dimension) || 'group') as AnalyticsDimension,
-    granularity: (queryString(route.query.granularity) || 'day') as AnalyticsGranularity,
   }
 }
 
 function scopeKey(state: typeof globalFilter): string {
-  return JSON.stringify([
-    state.from,
-    state.to,
-    state.groupId,
-    state.featureKey,
-    state.result,
-  ])
+  return JSON.stringify([state.from, state.to, state.groupId])
 }
 
+function shanghaiDayStart(value: string): string {
+  return new Date(`${value}T00:00:00+08:00`).toISOString()
+}
+
+const appliedDays = computed(() => dateSpan(appliedScope.from, appliedScope.to))
+const activePreset = computed(() => {
+  if (globalFilter.to !== calendarDate(new Date())) return 0
+  if (globalFilter.from === shiftCalendarDate(globalFilter.to, -6)) return 7
+  if (globalFilter.from === shiftCalendarDate(globalFilter.to, -29)) return 30
+  return 0
+})
 const commonQuery = computed(() => ({
-  from: `${appliedScope.from}T00:00:00Z`,
-  to: `${appliedScope.to}T00:00:00Z`,
+  from: shanghaiDayStart(appliedScope.from),
+  to: shanghaiDayStart(shiftCalendarDate(appliedScope.to, 1)),
   groupIds: appliedScope.groupId ? [appliedScope.groupId] : [],
-  featureKeys: appliedScope.featureKey ? [appliedScope.featureKey] : [],
-  results: appliedScope.result ? [appliedScope.result] : [],
+  featureKeys: [],
+  results: [],
   timezone: 'Asia/Shanghai',
 }))
 
@@ -164,9 +137,9 @@ async function loadSummary(): Promise<void> {
   summaryLoading.value = true
   summaryError.value = null
   try {
-    const nextSummary = await analyticsApi.getSummary(commonQuery.value)
+    const next = await analyticsApi.getSummary(commonQuery.value)
     if (requestId === summaryRequestId) {
-      summary.value = nextSummary
+      summary.value = next
       summaryRevision.value += 1
     }
   } catch (reason) {
@@ -176,91 +149,102 @@ async function loadSummary(): Promise<void> {
   }
 }
 
-async function loadAnalysis(): Promise<void> {
-  const requestId = ++analysisRequestId
-  analysisLoading.value = true
-  analysisError.value = null
+async function loadTrend(): Promise<void> {
+  const requestId = ++trendRequestId
+  trendLoading.value = true
+  trendError.value = null
   try {
-    const [nextTimeseries, nextRankings] = await Promise.all([
-      analyticsApi.getTimeseries({
-        ...commonQuery.value,
-        granularity: analysisFilter.granularity,
-        metrics: [analysisFilter.metric],
-      }),
-      analyticsApi.getRankings({
-        ...commonQuery.value,
-        dimension: analysisFilter.dimension,
-        metric: analysisFilter.metric,
-        limit: 10,
-      }),
-    ])
-    if (requestId === analysisRequestId) {
-      timeseries.value = nextTimeseries
-      rankings.value = nextRankings
-      analysisRevision.value += 1
+    const next = await analyticsApi.getTimeseries({
+      ...commonQuery.value,
+      granularity: appliedDays.value <= 2 ? 'hour' : 'day',
+      metrics: ['group_message_count'],
+    })
+    if (requestId === trendRequestId) {
+      trend.value = next
+      trendRevision.value += 1
     }
   } catch (reason) {
-    if (requestId === analysisRequestId) analysisError.value = reason
+    if (requestId === trendRequestId) trendError.value = reason
   } finally {
-    if (requestId === analysisRequestId) analysisLoading.value = false
+    if (requestId === trendRequestId) trendLoading.value = false
+  }
+}
+
+async function loadGroupRankings(): Promise<void> {
+  const requestId = ++groupRankingsRequestId
+  groupRankingsLoading.value = true
+  groupRankingsError.value = null
+  try {
+    const next = await analyticsApi.getRankings({
+      ...commonQuery.value,
+      dimension: 'group',
+      metric: 'group_message_count',
+      limit: 10,
+    })
+    if (requestId === groupRankingsRequestId) {
+      groupRankings.value = next
+      groupRankingsRevision.value += 1
+    }
+  } catch (reason) {
+    if (requestId === groupRankingsRequestId) groupRankingsError.value = reason
+  } finally {
+    if (requestId === groupRankingsRequestId) groupRankingsLoading.value = false
+  }
+}
+
+async function loadKnowledgeRankings(): Promise<void> {
+  const requestId = ++knowledgeRankingsRequestId
+  knowledgeRankingsLoading.value = true
+  knowledgeRankingsError.value = null
+  try {
+    const next = await analyticsApi.getRankings({
+      ...commonQuery.value,
+      dimension: 'knowledge_entry',
+      metric: 'knowledge_trigger_count',
+      limit: 10,
+    })
+    if (requestId === knowledgeRankingsRequestId) {
+      knowledgeRankings.value = next
+      knowledgeRankingsRevision.value += 1
+    }
+  } catch (reason) {
+    if (requestId === knowledgeRankingsRequestId) knowledgeRankingsError.value = reason
+  } finally {
+    if (requestId === knowledgeRankingsRequestId) knowledgeRankingsLoading.value = false
   }
 }
 
 function reloadAll(): void {
   void loadSummary()
-  void loadAnalysis()
-}
-
-function setExportDataset(value: string): void {
-  exportOptions.dataset = value as AnalyticsDataset
-}
-
-function setExportFormat(value: string): void {
-  exportOptions.format = value as AnalyticsExportFormat
-}
-
-function setFeatureKey(value: string): void {
-  globalFilter.featureKey = value as FeatureKey | ''
-}
-
-function setResult(value: string): void {
-  globalFilter.result = value as AnalyticsResultFilter | ''
-}
-
-function setMetric(value: string): void {
-  analysisFilter.metric = value as AnalyticsMetricKey
-}
-
-function setGranularity(value: string): void {
-  analysisFilter.granularity = value as AnalyticsGranularity
-}
-
-function setDimension(value: string): void {
-  analysisFilter.dimension = value as AnalyticsDimension
+  void loadTrend()
+  void loadGroupRankings()
+  void loadKnowledgeRankings()
 }
 
 async function applyFilters(): Promise<void> {
-  await router.replace({ query: {
-    from: `${globalFilter.from}T00:00:00Z`,
-    to: `${globalFilter.to}T00:00:00Z`,
-    group_id: globalFilter.groupId || undefined,
-    feature_key: globalFilter.featureKey || undefined,
-    result: globalFilter.result || undefined,
-    metric: analysisFilter.metric,
-    dimension: analysisFilter.dimension,
-    granularity: analysisFilter.granularity,
-  } })
-}
-
-async function applyAnalysisFilters(): Promise<void> {
+  if (globalFilter.from > globalFilter.to) {
+    operationTone.value = 'danger'
+    operationResult.value = '开始日期不能晚于结束日期。'
+    return
+  }
+  if (dateSpan(globalFilter.from, globalFilter.to) > 30) {
+    operationTone.value = 'danger'
+    operationResult.value = '统计概览最多查询连续 30 天。'
+    return
+  }
+  operationResult.value = ''
   await router.replace({
     query: {
-      ...route.query,
-      metric: analysisFilter.metric,
-      dimension: analysisFilter.dimension,
-      granularity: analysisFilter.granularity,
+      from: globalFilter.from,
+      to: globalFilter.to,
+      group_id: globalFilter.groupId || undefined,
     },
   })
+}
+
+async function applyPreset(days: number): Promise<void> {
+  Object.assign(globalFilter, defaultDates(days))
+  await applyFilters()
 }
 
 async function resetFilters(): Promise<void> {
@@ -269,15 +253,12 @@ async function resetFilters(): Promise<void> {
 
 async function exportAnalytics(): Promise<void> {
   exporting.value = true
-  exportResult.value = ''
+  operationResult.value = ''
   try {
     const result = await analyticsApi.exportData({
       ...commonQuery.value,
-      dataset: exportOptions.dataset,
-      format: exportOptions.format,
-      granularity: analysisFilter.granularity,
-      metric: analysisFilter.metric,
-      dimension: analysisFilter.dimension,
+      dataset: 'summary',
+      format: 'csv',
     })
     const url = URL.createObjectURL(result.blob)
     const link = document.createElement('a')
@@ -285,11 +266,14 @@ async function exportAnalytics(): Promise<void> {
     link.download = result.filename
     link.click()
     URL.revokeObjectURL(url)
-    exportTone.value = 'success'
-    exportResult.value = result.rowCount === null ? `已导出 ${result.filename}` : `已导出 ${result.rowCount} 行 · ${result.filename}`
+    operationTone.value = 'success'
+    operationResult.value =
+      result.rowCount === null
+        ? `已导出 ${result.filename}`
+        : `已导出 ${result.rowCount} 行 · ${result.filename}`
   } catch (reason) {
-    exportTone.value = 'danger'
-    exportResult.value = reason instanceof AdminApiError ? reason.message : '统计数据导出失败。'
+    operationTone.value = 'danger'
+    operationResult.value = reason instanceof AdminApiError ? reason.message : '统计数据导出失败。'
   } finally {
     exporting.value = false
   }
@@ -301,24 +285,16 @@ watch(
     const state = routeState()
     const nextScopeKey = scopeKey(state)
     const scopeChanged = nextScopeKey !== previousScopeKey
-
-    Object.assign(appliedScope, {
-      from: state.from,
-      to: state.to,
-      groupId: state.groupId,
-      featureKey: state.featureKey,
-      result: state.result,
-    })
-    if (scopeChanged) Object.assign(globalFilter, appliedScope)
-    Object.assign(analysisFilter, {
-      metric: state.metric,
-      dimension: state.dimension,
-      granularity: state.granularity,
-    })
+    Object.assign(appliedScope, state)
+    Object.assign(globalFilter, state)
     previousScopeKey = nextScopeKey
-
-    if (scopeChanged) void loadSummary()
-    void loadAnalysis()
+    if (scopeChanged) {
+      summary.value = null
+      trend.value = null
+      groupRankings.value = null
+      knowledgeRankings.value = null
+      reloadAll()
+    }
   },
   { immediate: true },
 )
@@ -327,135 +303,197 @@ watch(
 <template>
   <main class="analytics-page">
     <header class="page-header">
-      <div><h1>统计分析</h1><p>查看或下载当前筛选范围的数据</p></div>
-      <div v-if="auth.hasPermission('analytics:export')" class="export-tools">
-        <AppSelect
-          :model-value="exportOptions.dataset"
-          :options="exportDatasetOptions"
-          accessible-name="导出数据集"
-          @update:model-value="setExportDataset"
-        />
-        <AppSelect
-          :model-value="exportOptions.format"
-          :options="exportFormatOptions"
-          accessible-name="导出格式"
-          @update:model-value="setExportFormat"
-        />
-        <button data-test="export-analytics" type="button" :disabled="exporting" @click="exportAnalytics"><Download :class="{ spin: exporting }" :size="17" />{{ exporting ? '导出中' : '导出' }}</button>
+      <div>
+        <h1>统计概览</h1>
+        <p>群聊、知识回复与入群审批的关键数据</p>
+      </div>
+      <div class="header-actions">
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="刷新统计"
+          title="刷新统计"
+          @click="reloadAll"
+        >
+          <RefreshCw :class="{ spin: summaryLoading || trendLoading }" :size="17" />
+        </button>
+        <button
+          v-if="auth.hasPermission('analytics:export')"
+          data-test="export-analytics"
+          type="button"
+          class="export-button"
+          :disabled="exporting"
+          @click="exportAnalytics"
+        >
+          <Download :class="{ spin: exporting }" :size="17" />
+          {{ exporting ? '导出中' : '导出概览' }}
+        </button>
       </div>
     </header>
 
-    <OperationNotice :message="exportResult" :tone="exportTone" :revision="exportResult" @close="exportResult = ''" />
+    <OperationNotice
+      :message="operationResult"
+      :tone="operationTone"
+      :revision="operationResult"
+      @close="operationResult = ''"
+    />
 
     <form data-test="analytics-filters" class="analytics-filters" @submit.prevent="applyFilters">
-      <div class="filter-field filter-field--date-range">
-        <span>日期范围</span>
-        <div class="date-range-inputs">
-          <label><span class="sr-only">开始日期</span><input v-model="globalFilter.from" name="from" type="date" required /></label>
-          <i aria-hidden="true">至</i>
-          <label><span class="sr-only">结束日期</span><input v-model="globalFilter.to" name="to" type="date" required /></label>
+      <div class="filter-field filter-field--preset">
+        <span>快捷范围</span>
+        <div class="range-presets" aria-label="快捷日期范围">
+          <button
+            data-test="range-preset-7"
+            type="button"
+            :class="{ active: activePreset === 7 }"
+            @click="applyPreset(7)"
+          >
+            近 7 天
+          </button>
+          <button
+            data-test="range-preset-30"
+            type="button"
+            :class="{ active: activePreset === 30 }"
+            @click="applyPreset(30)"
+          >
+            近 30 天
+          </button>
         </div>
       </div>
-      <label class="filter-field"><span>群号</span><input v-model.trim="globalFilter.groupId" name="group_id" inputmode="numeric" placeholder="全部群" /></label>
-      <label class="filter-field">
-        <span>功能</span>
-        <AppSelect
-          :model-value="globalFilter.featureKey"
-          :options="featureOptions"
-          accessible-name="功能"
-          name="feature_key"
-          @update:model-value="setFeatureKey"
-        />
-      </label>
-      <label class="filter-field">
-        <span>结果</span>
-        <AppSelect
-          :model-value="globalFilter.result"
-          :options="resultOptions"
-          accessible-name="结果"
-          name="result"
-          @update:model-value="setResult"
+      <div class="filter-field filter-field--date-range">
+        <span>自定义日期</span>
+        <div class="date-range-inputs">
+          <label
+            ><span class="sr-only">开始日期</span
+            ><input v-model="globalFilter.from" name="from" type="date" required
+          /></label>
+          <i aria-hidden="true">至</i>
+          <label
+            ><span class="sr-only">结束日期</span
+            ><input v-model="globalFilter.to" name="to" type="date" required
+          /></label>
+        </div>
+      </div>
+      <label class="filter-field filter-field--group">
+        <span>群号</span>
+        <input
+          v-model.trim="globalFilter.groupId"
+          name="group_id"
+          inputmode="numeric"
+          placeholder="全部群"
         />
       </label>
       <div class="filter-actions">
-        <button class="filter-submit" type="submit">应用筛选</button>
-        <button class="filter-reset" type="button" aria-label="清除筛选" title="清除筛选" @click="resetFilters"><FilterX :size="16" /></button>
+        <button class="filter-submit" type="submit"><Search :size="16" />查询</button>
+        <button
+          class="filter-reset"
+          type="button"
+          aria-label="清除筛选"
+          title="清除筛选"
+          @click="resetFilters"
+        >
+          <FilterX :size="16" />
+        </button>
       </div>
     </form>
 
-    <ResourceState v-if="summaryLoading && !summary" state="loading" title="正在汇总统计" description="正在读取指标、趋势和排行……" />
-    <ResourceState v-else-if="summaryError && !summary" state="error" title="统计读取失败" @retry="reloadAll" />
+    <ResourceState
+      v-if="summaryLoading && !summary"
+      state="loading"
+      title="正在汇总统计"
+      description="正在读取关键业务数据…"
+    />
+    <ResourceState
+      v-else-if="summaryError && !summary"
+      state="error"
+      title="统计读取失败"
+      @retry="reloadAll"
+    />
 
     <template v-else-if="summary">
-      <div v-if="summaryError" class="stale-state"><RefreshCw :size="15" />刷新失败，未更改上一次数据</div>
+      <div v-if="summaryError" class="stale-state">
+        <RefreshCw :size="15" />刷新失败，继续显示上一次数据
+      </div>
       <AnalyticsMetricBoard :metrics="summary.metrics" :revision="summaryRevision" />
 
-      <section class="analytics-workspace">
-        <section v-smooth-resize class="trend-section analytics-card">
-          <header>
-            <div><h2>趋势</h2><p>{{ metricOptions.find((item) => item.value === analysisFilter.metric)?.label }} · {{ analysisFilter.granularity === 'day' ? '按日' : '按小时' }}</p></div>
-            <div class="analysis-controls">
-              <label>
-                <span>指标</span>
-                <AppSelect
-                  :model-value="analysisFilter.metric"
-                  :options="metricOptions"
-                  accessible-name="指标"
-                  name="metric"
-                  data-test="metric-select"
-                  size="compact"
-                  @update:model-value="setMetric"
-                  @change="applyAnalysisFilters"
-                />
-              </label>
-              <label>
-                <span>粒度</span>
-                <AppSelect
-                  :model-value="analysisFilter.granularity"
-                  :options="granularityOptions"
-                  accessible-name="粒度"
-                  name="granularity"
-                  size="compact"
-                  @update:model-value="setGranularity"
-                  @change="applyAnalysisFilters"
-                />
-              </label>
-              <TrendingUp :size="18" aria-hidden="true" />
-            </div>
-          </header>
-          <div v-rise-on-change="analysisRevision" class="analysis-content">
-            <div v-if="analysisError" class="analysis-state analysis-state--error"><span>分析数据刷新失败。</span><button type="button" @click="loadAnalysis">重试</button></div>
-            <div v-else-if="analysisLoading" class="analysis-state"><RefreshCw :size="14" aria-hidden="true" />正在更新趋势</div>
-            <AnalyticsTrendChart :series="timeseries?.series ?? []" />
+      <section v-smooth-resize class="trend-section analytics-card">
+        <header>
+          <div>
+            <h2>群消息趋势</h2>
+            <p>{{ trend?.granularity === 'hour' ? '按小时' : '按日' }}汇总当前范围内的群消息</p>
           </div>
-        </section>
+          <TrendingUp :size="18" aria-hidden="true" />
+        </header>
+        <div v-rise-on-change="trendRevision" class="analysis-content">
+          <div v-if="trendError" class="analysis-state analysis-state--error">
+            <span>趋势数据刷新失败。</span><button type="button" @click="loadTrend">重试</button>
+          </div>
+          <div v-else-if="trendLoading" class="analysis-state">
+            <RefreshCw :size="14" />正在更新趋势
+          </div>
+          <AnalyticsTrendChart v-if="trend" :series="trend.series" />
+        </div>
+      </section>
+
+      <section class="ranking-grid" aria-label="业务排行">
         <section v-smooth-resize class="ranking-section analytics-card">
           <header>
-            <div><h2>排行</h2><p>{{ analysisFilter.dimension === 'group' ? '群' : analysisFilter.dimension === 'command' ? '命令' : '知识词条' }}维度前 10</p></div>
-            <div class="analysis-controls">
-              <label>
-                <span>维度</span>
-                <AppSelect
-                  :model-value="analysisFilter.dimension"
-                  :options="dimensionOptions"
-                  accessible-name="维度"
-                  name="dimension"
-                  size="compact"
-                  @update:model-value="setDimension"
-                  @change="applyAnalysisFilters"
-                />
-              </label>
+            <div>
+              <h2>活跃群聊</h2>
+              <p>按群消息量排列前 10</p>
             </div>
+            <MessageSquareText :size="18" aria-hidden="true" />
           </header>
-          <div v-rise-on-change="analysisRevision" class="analysis-content">
-            <div v-if="analysisError" class="analysis-state analysis-state--error"><span>排行数据刷新失败。</span><button type="button" @click="loadAnalysis">重试</button></div>
-            <div v-else-if="analysisLoading" class="analysis-state"><RefreshCw :size="14" aria-hidden="true" />正在更新排行</div>
-            <RankingTable :rankings="rankings" />
+          <div v-rise-on-change="groupRankingsRevision" class="analysis-content">
+            <div v-if="groupRankingsError" class="analysis-state analysis-state--error">
+              <span>群聊排行刷新失败。</span
+              ><button type="button" @click="loadGroupRankings">重试</button>
+            </div>
+            <div v-else-if="groupRankingsLoading" class="analysis-state">
+              <RefreshCw :size="14" />正在更新排行
+            </div>
+            <RankingTable
+              v-if="groupRankings"
+              :rankings="groupRankings"
+              empty-label="当前范围暂无群消息"
+            />
+          </div>
+        </section>
+
+        <section v-smooth-resize class="ranking-section analytics-card">
+          <header>
+            <div>
+              <h2>热门知识词条</h2>
+              <p>按关键词回复与 AI 检索总次数排列前 10</p>
+            </div>
+            <BookOpenCheck :size="18" aria-hidden="true" />
+          </header>
+          <div v-rise-on-change="knowledgeRankingsRevision" class="analysis-content">
+            <div v-if="knowledgeRankingsError" class="analysis-state analysis-state--error">
+              <span>词条排行刷新失败。</span
+              ><button type="button" @click="loadKnowledgeRankings">重试</button>
+            </div>
+            <div v-else-if="knowledgeRankingsLoading" class="analysis-state">
+              <RefreshCw :size="14" />正在更新排行
+            </div>
+            <RankingTable
+              v-if="knowledgeRankings"
+              :rankings="knowledgeRankings"
+              :show-key="false"
+              empty-label="当前范围暂无知识命中"
+            />
           </div>
         </section>
       </section>
 
-      <footer class="data-freshness">数据更新于 {{ timeFormatter.format(new Date(summary.data_fresh_at)) }}<span v-if="summaryLoading || analysisLoading"> · 正在刷新</span></footer>
+      <footer class="data-freshness">
+        数据更新于 {{ timeFormatter.format(new Date(summary.data_fresh_at)) }}
+        <span
+          v-if="summaryLoading || trendLoading || groupRankingsLoading || knowledgeRankingsLoading"
+        >
+          · 正在刷新</span
+        >
+      </footer>
     </template>
   </main>
 </template>
@@ -468,14 +506,14 @@ watch(
 }
 
 .page-header,
-.export-tools,
-.export-tools button,
+.header-actions,
+.export-button,
 .stale-state,
+.date-range-inputs,
+.filter-actions,
+.filter-submit,
 .trend-section > header,
 .ranking-section > header,
-.filter-actions,
-.date-range-inputs,
-.analysis-controls,
 .analysis-state {
   display: flex;
   align-items: center;
@@ -498,73 +536,98 @@ watch(
   font-size: 12px;
 }
 
-.export-tools {
+.header-actions {
   flex: 0 0 auto;
   gap: 7px;
 }
 
-.export-tools .app-select,
-.export-tools button {
+.icon-button,
+.export-button {
   height: 36px;
-}
-
-.export-tools .app-select:first-child {
-  width: 126px;
-}
-
-.export-tools .app-select:nth-child(2) {
-  width: 86px;
-}
-
-.export-tools button {
-  gap: 6px;
-  color: white;
-  font-weight: 600;
-  background: var(--color-brand-action);
-  border: 1px solid var(--color-brand-action);
+  color: var(--color-brand-action);
+  background: var(--color-surface);
+  border: 1px solid var(--color-brand-border);
   border-radius: var(--radius-control);
 }
 
-.export-tools button:hover:not(:disabled) {
+.icon-button {
+  display: grid;
+  width: 38px;
+  place-items: center;
+  padding: 0;
+}
+
+.export-button {
+  gap: 6px;
+  padding-inline: 11px;
+  color: white;
+  font-weight: 600;
+  background: var(--color-brand-action);
+  border-color: var(--color-brand-action);
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--color-brand-surface);
+}
+
+.export-button:hover:not(:disabled) {
   background: var(--color-brand-action-hover);
   border-color: var(--color-brand-action-hover);
 }
 
 .stale-state {
-  padding: 9px 11px;
-  font-size: 11px;
-  border-left: 3px solid var(--color-success);
-}
-
-.stale-state {
   gap: 7px;
+  padding: 9px 11px;
   color: var(--color-warning);
+  font-size: 11px;
   background: var(--color-warning-surface);
-  border-color: var(--color-warning);
+  border-left: 3px solid var(--color-warning);
 }
 
 .analytics-filters {
   display: grid;
-  grid-template-columns: minmax(280px, 1.5fr) repeat(3, minmax(120px, 0.75fr)) auto;
+  grid-template-columns: auto minmax(280px, 1fr) minmax(150px, 0.45fr) auto;
   align-items: end;
-  gap: 8px;
+  gap: 10px;
   padding: 12px 0;
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
 }
 
-.filter-field,
-.filter-field--date-range {
+.filter-field {
   display: grid;
   min-width: 0;
   gap: 4px;
 }
 
-.filter-field > span,
-.filter-field--date-range > span,
-.analysis-controls label span {
+.filter-field > span {
   color: var(--color-text-secondary);
   font-size: 10px;
+}
+
+.range-presets {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.range-presets button {
+  min-width: 70px;
+  padding-inline: 10px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 0;
+}
+
+.range-presets button + button {
+  border-left: 1px solid var(--color-border);
+}
+
+.range-presets button.active {
+  color: var(--color-brand-action);
+  background: var(--color-brand-surface);
 }
 
 .date-range-inputs {
@@ -609,7 +672,7 @@ watch(
 
 .filter-submit {
   width: auto;
-  min-width: 78px;
+  gap: 6px;
   padding-inline: 12px;
 }
 
@@ -624,12 +687,6 @@ watch(
 .filter-submit:hover,
 .filter-reset:hover {
   background: var(--color-brand-surface);
-}
-
-.analytics-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.85fr);
-  gap: 12px;
 }
 
 .analytics-card {
@@ -654,33 +711,20 @@ watch(
   line-height: 24px;
 }
 
-.analysis-controls {
-  flex: 0 1 auto;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 7px;
+.trend-section > header > svg,
+.ranking-section > header > svg {
+  margin-top: 3px;
+  color: var(--color-brand-action);
 }
 
-.analysis-controls label {
+.ranking-grid {
   display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.analysis-controls .app-select {
-  width: 100%;
-  min-width: 92px;
-  max-width: 170px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .analysis-content {
   min-width: 0;
-}
-
-.analysis-controls svg {
-  align-self: center;
-  color: var(--color-brand-action);
 }
 
 .analysis-state {
@@ -714,45 +758,31 @@ watch(
   text-align: right;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1080px) {
   .analytics-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: auto minmax(260px, 1fr) auto;
   }
 
-  .filter-field--date-range {
-    grid-column: 1 / -1;
-  }
-
-  .filter-actions {
-    align-self: end;
-    justify-content: flex-end;
-  }
-
-  .analytics-workspace {
-    grid-template-columns: 1fr;
+  .filter-field--group {
+    grid-column: 1 / 3;
   }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 760px) {
   .page-header {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .export-tools {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 82px auto;
-  }
-
-  .export-tools .app-select {
-    width: 100%;
+  .header-actions {
+    justify-content: flex-end;
   }
 
   .analytics-filters {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .filter-field--date-range {
+  .filter-field--group {
     grid-column: auto;
   }
 
@@ -762,27 +792,11 @@ watch(
 
   .filter-submit {
     flex: 1 1 auto;
+    justify-content: center;
   }
 
-  .trend-section > header,
-  .ranking-section > header {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .analysis-controls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(92px, 0.55fr) auto;
-    justify-content: stretch;
-  }
-
-  .ranking-section .analysis-controls {
+  .ranking-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .analysis-controls .app-select {
-    max-width: none;
   }
 
   .data-freshness {
@@ -791,15 +805,6 @@ watch(
 }
 
 @media (max-width: 420px) {
-  .export-tools {
-    grid-template-columns: minmax(0, 1fr) 82px;
-  }
-
-  .export-tools button {
-    grid-column: 1 / -1;
-    justify-content: center;
-  }
-
   .date-range-inputs {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -809,12 +814,9 @@ watch(
     display: none;
   }
 
-  .analysis-controls {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .analysis-controls svg {
-    display: none;
+  .range-presets,
+  .range-presets button {
+    width: 100%;
   }
 }
 </style>

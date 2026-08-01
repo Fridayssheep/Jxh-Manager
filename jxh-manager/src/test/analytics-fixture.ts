@@ -1,8 +1,4 @@
-import type {
-  AnalyticsRankings,
-  AnalyticsSummary,
-  AnalyticsTimeseries,
-} from '@/api/types'
+import type { AnalyticsRankings, AnalyticsSummary, AnalyticsTimeseries } from '@/api/types'
 
 export function makeAnalyticsSummary(): AnalyticsSummary {
   return {
@@ -20,6 +16,15 @@ export function makeAnalyticsSummary(): AnalyticsSummary {
         value: 820,
         previous_value: 760,
         change_percent: 7.9,
+      },
+      {
+        key: 'knowledge_trigger_count',
+        label: '知识命中',
+        unit: 'count',
+        available: true,
+        value: 1496,
+        previous_value: 1380,
+        change_percent: 8.4,
       },
       {
         key: 'ai_request_count',
@@ -180,6 +185,20 @@ export function makeAnalyticsRankings(): AnalyticsRankings {
     items: [
       { key: '10001', display_name: '精弘网络维护群', value: 8420, rank: 1 },
       { key: '10002', display_name: '新生答疑群', value: 4420, rank: 2 },
+    ],
+    data_fresh_at: '2026-07-28T06:00:00Z',
+  }
+}
+
+export function makeKnowledgeRankings(): AnalyticsRankings {
+  return {
+    window: makeAnalyticsSummary().window,
+    dimension: 'knowledge_entry',
+    metric: 'knowledge_trigger_count',
+    unit: 'count',
+    items: [
+      { key: '菜单', display_name: '菜单', value: 384, rank: 1 },
+      { key: '校历', display_name: '校历', value: 216, rank: 2 },
     ],
     data_fresh_at: '2026-07-28T06:00:00Z',
   }

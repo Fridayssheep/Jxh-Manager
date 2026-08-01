@@ -1,7 +1,7 @@
 import type { Page, Route } from '@playwright/test'
 
 import type { ConfiguredSecret, SecretUpdate, SystemConfiguration, SystemConfigurationPatch } from '../../src/api/types'
-import { makeAnalyticsRankings, makeAnalyticsSummary, makeAnalyticsTimeseries } from '../../src/test/analytics-fixture'
+import { makeAnalyticsRankings, makeAnalyticsSummary, makeAnalyticsTimeseries, makeKnowledgeRankings } from '../../src/test/analytics-fixture'
 import { makeAuditLog, makeAuditLogSummary } from '../../src/test/audit-fixture'
 import { makeCommandValidationResult } from '../../src/test/command-fixture'
 import { makeJoinDecisionResult, makeJoinRequest, makeJoinRequestSummary } from '../../src/test/join-request-fixture'
@@ -315,7 +315,8 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
       await route.fulfill({ json: makeAnalyticsTimeseries() }); return
     }
     if (method === 'GET' && path === '/analytics/rankings') {
-      await route.fulfill({ json: makeAnalyticsRankings() }); return
+      const dimension = new URL(recorded.url).searchParams.get('dimension')
+      await route.fulfill({ json: dimension === 'knowledge_entry' ? makeKnowledgeRankings() : makeAnalyticsRankings() }); return
     }
     if (method === 'GET' && path === '/analytics/export') {
       await route.fulfill({

@@ -4772,6 +4772,7 @@ components:
       type: string
       enum:
         - keyword_reply_count
+        - knowledge_trigger_count
         - ai_request_count
         - ai_success_rate
         - ai_duration_ms

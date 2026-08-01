@@ -23,29 +23,28 @@ afterEach(() => {
 })
 
 describe('AnalyticsMetricBoard', () => {
-  it('shows four operational KPIs and groups every remaining raw metric once', () => {
+  it('shows only the six core business KPIs', () => {
     const metrics = [...makeAnalyticsSummary().metrics]
       .reverse()
       .map((metric) => ({ ...metric, label: `Backend label: ${metric.key}` }))
     const wrapper = mount(AnalyticsMetricBoard, { props: { metrics } })
 
-    expect(wrapper.findAll('[data-test^="analytics-kpi-"]')).toHaveLength(4)
+    expect(wrapper.findAll('[data-test^="analytics-kpi-"]')).toHaveLength(6)
     expect(wrapper.get('[data-test="analytics-kpi-group_message_count"]').text()).toContain(
       '12,840',
     )
     expect(wrapper.get('[data-test="analytics-kpi-active_user_count"]').text()).toContain('2,146')
-    expect(wrapper.get('[data-test="analytics-kpi-ai_success_rate"]').text()).toContain('96.4%')
+    expect(wrapper.get('[data-test="analytics-kpi-keyword_reply_count"]').text()).toContain('820')
+    expect(wrapper.get('[data-test="analytics-kpi-ai_request_count"]').text()).toContain('3,280')
+    expect(wrapper.get('[data-test="analytics-kpi-join_request_count"]').text()).toContain('428')
     expect(wrapper.get('[data-test="analytics-kpi-automatic_approval_share"]').text()).toContain(
       '72%',
     )
     expect(wrapper.get('[data-test="analytics-kpi-automatic_approval_share"]').text()).toContain(
       '308 自动 / 120 人工',
     )
-    expect(wrapper.findAll('[data-test^="analytics-metric-row-"]')).toHaveLength(12)
-    expect(wrapper.findAll('[data-test="analytics-metric-group"]')).toHaveLength(3)
-    expect(wrapper.get('[data-test="analytics-metric-row-keyword_reply_count"]').text()).toContain(
-      '关键词回复',
-    )
+    expect(wrapper.findAll('[data-test^="analytics-metric-row-"]')).toHaveLength(0)
+    expect(wrapper.findAll('[data-test="analytics-metric-group"]')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Backend label:')
   })
 
