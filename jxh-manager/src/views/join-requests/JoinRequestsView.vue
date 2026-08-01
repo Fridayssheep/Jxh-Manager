@@ -14,6 +14,7 @@ import {
 import { AdminApiError } from '@/api/client'
 import { joinRequestsApi, type JoinRequestListQuery } from '@/api/join-requests'
 import type {
+  AdminEvent,
   BulkJoinDecisionResult,
   JoinDecision,
   JoinDecisionAction,
@@ -56,6 +57,10 @@ const operationResult = ref<string | null>(null)
 const operationTone = ref<'success' | 'danger' | 'unknown' | 'warning'>('success')
 const requestList = ref<HTMLElement | null>(null)
 const requestRows = new Map<string, HTMLElement>()
+let listRequestSequence = 0
+let detailRequestSequence = 0
+let streamReloadTimer: ReturnType<typeof setTimeout> | null = null
+let pendingStreamEvent: AdminEvent | null = null
 const { indicatorStyle, updateIndicator } = useSlidingIndicator({
   container: requestList,
   target: () => activeId.value ? requestRows.get(activeId.value) ?? null : null,
@@ -184,6 +189,7 @@ function listQuery(cursor: string | null): JoinRequestListQuery {
 }
 
 function clearPageState(): void {
+  detailRequestSequence += 1
   selectedIds.value = new Set()
   activeId.value = null
   detail.value = null
@@ -193,21 +199,28 @@ function clearPageState(): void {
   dialog.open = false
 }
 
-async function loadPage(index: number, cursor: string | null): Promise<void> {
+async function loadPage(
+  index: number,
+  cursor: string | null,
+  options: { preservePageState?: boolean } = {},
+): Promise<void> {
+  const sequence = ++listRequestSequence
   loading.value = true
   error.value = null
   try {
     const result = await joinRequestsApi.list(listQuery(cursor))
+    if (sequence !== listRequestSequence) return
     items.value = result.items
     nextCursor.value = result.next_cursor
     hasMore.value = result.has_more
     pageIndex.value = index
     queueRevision.value += 1
-    clearPageState()
+    if (!options.preservePageState) clearPageState()
   } catch (reason) {
+    if (sequence !== listRequestSequence) return
     error.value = reason
   } finally {
-    loading.value = false
+    if (sequence === listRequestSequence) loading.value = false
   }
 }
 
@@ -265,30 +278,93 @@ async function loadOptionalPolicy(groupId: string): Promise<JoinRequestPolicy | 
   }
 }
 
-async function openRequest(item: JoinRequestSummary): Promise<void> {
-  activeId.value = item.request_id
+async function loadRequestDetail(
+  requestId: string,
+  groupId: string,
+  options: { clearExisting?: boolean; reloadPolicy?: boolean } = {},
+): Promise<void> {
+  const sequence = ++detailRequestSequence
   detailLoading.value = true
-  detail.value = null
-  decisions.value = []
-  policy.value = null
+  if (options.clearExisting) {
+    detail.value = null
+    decisions.value = []
+    policy.value = null
+  }
   try {
     const [nextDetail, history, nextPolicy] = await Promise.all([
-      joinRequestsApi.get(item.request_id),
-      joinRequestsApi.listDecisions(item.request_id),
-      loadOptionalPolicy(item.group.group_id),
+      joinRequestsApi.get(requestId),
+      joinRequestsApi.listDecisions(requestId),
+      options.reloadPolicy ? loadOptionalPolicy(groupId) : Promise.resolve(undefined),
     ])
-    if (activeId.value !== item.request_id) return
+    if (sequence !== detailRequestSequence || activeId.value !== requestId) return
     detail.value = nextDetail
     decisions.value = history.items
-    policy.value = nextPolicy
+    if (options.reloadPolicy) policy.value = nextPolicy ?? null
   } catch (reason) {
-    if (activeId.value === item.request_id) {
+    if (sequence === detailRequestSequence && activeId.value === requestId) {
       operationTone.value = 'danger'
       operationResult.value = reason instanceof AdminApiError ? reason.message : '申请详情读取失败。'
     }
   } finally {
-    if (activeId.value === item.request_id) detailLoading.value = false
+    if (sequence === detailRequestSequence && activeId.value === requestId) {
+      detailLoading.value = false
+    }
   }
+}
+
+async function openRequest(item: JoinRequestSummary): Promise<void> {
+  activeId.value = item.request_id
+  await loadRequestDetail(item.request_id, item.group.group_id, {
+    clearExisting: true,
+    reloadPolicy: true,
+  })
+}
+
+async function refreshAfterEvent(event: AdminEvent): Promise<void> {
+  const openedRequestId = activeId.value
+  const openedGroupId = openedRequestId
+    ? detail.value?.group.group_id ??
+      items.value.find((item) => item.request_id === openedRequestId)?.group.group_id
+    : undefined
+  const shouldReloadDetail = Boolean(
+    openedRequestId &&
+      openedGroupId &&
+      (event.event === 'stream.reset' ||
+        event.reason === 'join_request_policy_updated' ||
+        (event.resource?.type === 'join_request' && event.resource.id === openedRequestId)),
+  )
+
+  cursorHistory.value = [null]
+  const pageRefresh = loadPage(0, null, { preservePageState: true })
+  const detailRefresh = shouldReloadDetail
+    ? loadRequestDetail(openedRequestId!, openedGroupId!, {
+        reloadPolicy: event.reason === 'join_request_policy_updated',
+      })
+    : Promise.resolve()
+  await Promise.all([pageRefresh, detailRefresh])
+}
+
+function scheduleRefreshAfterEvent(event: AdminEvent): void {
+  if (
+    pendingStreamEvent === null ||
+    streamEventPriority(event) >= streamEventPriority(pendingStreamEvent)
+  ) {
+    pendingStreamEvent = event
+  }
+  if (streamReloadTimer !== null) return
+  streamReloadTimer = setTimeout(() => {
+    streamReloadTimer = null
+    const queuedEvent = pendingStreamEvent
+    pendingStreamEvent = null
+    if (queuedEvent) void refreshAfterEvent(queuedEvent)
+  }, 100)
+}
+
+function streamEventPriority(event: AdminEvent): number {
+  if (event.event === 'stream.reset') return 3
+  if (event.reason === 'join_request_policy_updated') return 2
+  if (event.resource?.type === 'join_request' && event.resource.id === activeId.value) return 1
+  return 0
 }
 
 function setSelected(item: JoinRequestSummary, checked: boolean): void {
@@ -407,8 +483,12 @@ async function updatePolicy(patch: JoinRequestPolicyPatch): Promise<void> {
 }
 
 const unsubscribe = subscribeToAdminEvents((event) => {
-  if (event.event === 'join_request.created' || event.event === 'join_request.updated') {
-    void refreshCurrentPage()
+  if (
+    event.event === 'join_request.created' ||
+    event.event === 'join_request.updated' ||
+    event.event === 'stream.reset'
+  ) {
+    scheduleRefreshAfterEvent(event)
   }
 })
 
@@ -419,7 +499,12 @@ watch(
 )
 
 onMounted(() => load())
-onBeforeUnmount(unsubscribe)
+onBeforeUnmount(() => {
+  unsubscribe()
+  listRequestSequence += 1
+  detailRequestSequence += 1
+  if (streamReloadTimer !== null) clearTimeout(streamReloadTimer)
+})
 </script>
 
 <template>
