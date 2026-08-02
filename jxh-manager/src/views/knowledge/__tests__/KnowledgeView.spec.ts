@@ -103,4 +103,92 @@ describe('KnowledgeView', () => {
     expect(wrapper.findComponent(AppTabBar).props('modelValue')).toBe('conflicts')
     expect(animate).toHaveBeenCalled()
   })
+
+  it('pages entries with a cursor instead of appending more rows', async () => {
+    const second = makeKnowledgeEntrySummary({ entry_id: 'entry-2', title: '第二页词条' })
+    vi.mocked(knowledgeApi.listEntries).mockImplementation(async (query) =>
+      query.cursor === 'entry-cursor-2'
+        ? { items: [second], next_cursor: null, has_more: false }
+        : { items: [makeKnowledgeEntrySummary()], next_cursor: 'entry-cursor-2', has_more: true },
+    )
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(knowledgeApi.listEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: null, limit: 10 }),
+    )
+    await wrapper.get('[data-test=cursor-next]').trigger('click')
+    await flushPromises()
+
+    // The previous page is replaced, not accumulated.
+    expect(wrapper.find('[data-test=knowledge-entry-entry-2]').exists()).toBe(true)
+    expect(wrapper.find('[data-test=knowledge-entry-entry-1]').exists()).toBe(false)
+
+    await wrapper.get('[data-test=cursor-previous]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test=knowledge-entry-entry-1]').exists()).toBe(true)
+    expect(wrapper.find('[data-test=knowledge-entry-entry-2]').exists()).toBe(false)
+  })
+
+  it('reloads entries from the first page with the selected page size', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    const pageSize = wrapper
+      .findAllComponents(AppSelect)
+      .find((select) => select.props('dataTest') === 'knowledge-entry-page-size')
+    if (!pageSize) throw new Error('entry page size select was not rendered')
+    pageSize.vm.$emit('update:modelValue', '20')
+    await flushPromises()
+
+    expect(knowledgeApi.listEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: null, limit: 20 }),
+    )
+  })
+
+  it('pages conflicts with their own page size', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+    wrapper.findComponent(AppTabBar).vm.$emit('update:modelValue', 'conflicts')
+    await flushPromises()
+
+    const pageSize = wrapper
+      .findAllComponents(AppSelect)
+      .find((select) => select.props('dataTest') === 'knowledge-conflict-page-size')
+    if (!pageSize) throw new Error('conflict page size select was not rendered')
+    pageSize.vm.$emit('update:modelValue', '5')
+    await flushPromises()
+
+    expect(knowledgeApi.listConflicts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: null, limit: 5 }),
+    )
+    // The entry list keeps its own page size.
+    expect(knowledgeApi.listEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ limit: 10 }),
+    )
+  })
+
+  it('refreshes on demand and never subscribes to the event stream', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+    expect(knowledgeApi.getStatus).toHaveBeenCalledTimes(1)
+
+    await wrapper.get('[data-test=refresh-knowledge]').trigger('click')
+    await flushPromises()
+
+    expect(knowledgeApi.getStatus).toHaveBeenCalledTimes(2)
+    expect(knowledgeApi.listEntries).toHaveBeenCalledTimes(2)
+    expect(knowledgeApi.listConflicts).toHaveBeenCalledTimes(2)
+  })
+
+  it('scrolls overflowing rows inside each list card', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test=knowledge-entry-scroll]').exists()).toBe(true)
+    wrapper.findComponent(AppTabBar).vm.$emit('update:modelValue', 'conflicts')
+    await flushPromises()
+    expect(wrapper.find('[data-test=knowledge-conflict-scroll]').exists()).toBe(true)
+  })
 })

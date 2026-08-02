@@ -14,7 +14,6 @@ import {
 import { AdminApiError } from '@/api/client'
 import { joinRequestsApi, type JoinRequestListQuery } from '@/api/join-requests'
 import type {
-  AdminEvent,
   BulkJoinDecisionResult,
   JoinDecision,
   JoinDecisionAction,
@@ -30,9 +29,9 @@ import JoinRequestDetail from '@/components/join-requests/JoinRequestDetail.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import CursorPager from '@/components/navigation/CursorPager.vue'
-import { subscribeToAdminEvents } from '@/composables/useAdminEvents'
 import { useSlidingIndicator } from '@/composables/useSlidingIndicator'
 import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
+import { usePageSize } from '@/composables/usePageSize'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -59,8 +58,7 @@ const requestList = ref<HTMLElement | null>(null)
 const requestRows = new Map<string, HTMLElement>()
 let listRequestSequence = 0
 let detailRequestSequence = 0
-let streamReloadTimer: ReturnType<typeof setTimeout> | null = null
-let pendingStreamEvent: AdminEvent | null = null
+const { pageSize, setPageSize, pageSizeStyle, pageSizeOptions } = usePageSize(10)
 const { indicatorStyle, updateIndicator } = useSlidingIndicator({
   container: requestList,
   target: () => activeId.value ? requestRows.get(activeId.value) ?? null : null,
@@ -184,8 +182,12 @@ function listQuery(cursor: string | null): JoinRequestListQuery {
     query: filters.query.trim(),
     sort: filters.sort,
     cursor,
-    limit: 10,
+    limit: pageSize.value,
   }
+}
+
+function changePageSize(value: string): void {
+  if (setPageSize(value)) void load()
 }
 
 function clearPageState(): void {
@@ -320,53 +322,6 @@ async function openRequest(item: JoinRequestSummary): Promise<void> {
   })
 }
 
-async function refreshAfterEvent(event: AdminEvent): Promise<void> {
-  const openedRequestId = activeId.value
-  const openedGroupId = openedRequestId
-    ? detail.value?.group.group_id ??
-      items.value.find((item) => item.request_id === openedRequestId)?.group.group_id
-    : undefined
-  const shouldReloadDetail = Boolean(
-    openedRequestId &&
-      openedGroupId &&
-      (event.event === 'stream.reset' ||
-        event.reason === 'join_request_policy_updated' ||
-        (event.resource?.type === 'join_request' && event.resource.id === openedRequestId)),
-  )
-
-  cursorHistory.value = [null]
-  const pageRefresh = loadPage(0, null, { preservePageState: true })
-  const detailRefresh = shouldReloadDetail
-    ? loadRequestDetail(openedRequestId!, openedGroupId!, {
-        reloadPolicy: event.reason === 'join_request_policy_updated',
-      })
-    : Promise.resolve()
-  await Promise.all([pageRefresh, detailRefresh])
-}
-
-function scheduleRefreshAfterEvent(event: AdminEvent): void {
-  if (
-    pendingStreamEvent === null ||
-    streamEventPriority(event) >= streamEventPriority(pendingStreamEvent)
-  ) {
-    pendingStreamEvent = event
-  }
-  if (streamReloadTimer !== null) return
-  streamReloadTimer = setTimeout(() => {
-    streamReloadTimer = null
-    const queuedEvent = pendingStreamEvent
-    pendingStreamEvent = null
-    if (queuedEvent) void refreshAfterEvent(queuedEvent)
-  }, 1500)
-}
-
-function streamEventPriority(event: AdminEvent): number {
-  if (event.event === 'stream.reset') return 3
-  if (event.reason === 'join_request_policy_updated') return 2
-  if (event.resource?.type === 'join_request' && event.resource.id === activeId.value) return 1
-  return 0
-}
-
 function setSelected(item: JoinRequestSummary, checked: boolean): void {
   const next = new Set(selectedIds.value)
   if (checked) next.add(item.request_id)
@@ -482,16 +437,6 @@ async function updatePolicy(patch: JoinRequestPolicyPatch): Promise<void> {
   }
 }
 
-const unsubscribe = subscribeToAdminEvents((event) => {
-  if (
-    event.event === 'join_request.created' ||
-    event.event === 'join_request.updated' ||
-    event.event === 'stream.reset'
-  ) {
-    scheduleRefreshAfterEvent(event)
-  }
-})
-
 watch(
   [activeId, queueRevision],
   () => void updateIndicator(),
@@ -500,10 +445,8 @@ watch(
 
 onMounted(() => load())
 onBeforeUnmount(() => {
-  unsubscribe()
   listRequestSequence += 1
   detailRequestSequence += 1
-  if (streamReloadTimer !== null) clearTimeout(streamReloadTimer)
 })
 </script>
 
@@ -513,9 +456,20 @@ onBeforeUnmount(() => {
       <div>
         <h1>入群审批</h1>
       </div>
-      <button class="refresh-button" type="button" :disabled="loading" @click="refreshCurrentPage">
-        <RefreshCw :size="16" :class="{ spin: loading }" aria-hidden="true" />刷新队列
-      </button>
+      <div class="header-actions">
+        <AppSelect
+          :model-value="String(pageSize)"
+          :options="pageSizeOptions"
+          accessible-name="每页显示条数"
+          data-test="join-request-page-size"
+          size="compact"
+          :disabled="loading"
+          @update:model-value="changePageSize"
+        />
+        <button class="refresh-button" type="button" :disabled="loading" @click="refreshCurrentPage">
+          <RefreshCw :size="16" :class="{ spin: loading }" aria-hidden="true" />刷新队列
+        </button>
+      </div>
     </header>
 
     <form class="filter-bar" data-test="join-request-filters" @submit.prevent="load()">
@@ -578,7 +532,7 @@ onBeforeUnmount(() => {
     </div>
 
     <section class="approval-workspace">
-      <div class="request-queue">
+      <div v-smooth-resize class="request-queue" :style="pageSizeStyle">
         <div data-test="request-scroll" class="request-scroll">
           <div v-smooth-resize v-rise-on-change="queueRevision" class="request-queue-content">
             <ResourceState
@@ -721,6 +675,16 @@ onBeforeUnmount(() => {
 .page-header p {
   color: var(--color-text-secondary);
   font-size: 13px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-actions > :first-child {
+  min-width: 124px;
 }
 
 .refresh-button,
@@ -878,12 +842,19 @@ onBeforeUnmount(() => {
   align-items: start;
 }
 
+/*
+ * The card grows with the selected page size on pointer-sized screens so every
+ * row stays visible. Narrow screens cap the visible rows instead and scroll the
+ * remainder inside the card.
+ */
 .request-queue {
+  --page-rows: 10;
+  --request-row-height: 92px;
+
   display: grid;
-  height: clamp(430px, calc(100dvh - 300px), 720px);
   min-width: 0;
   min-height: 0;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
   overflow: hidden;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -1075,8 +1046,10 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
+  /* Phone layout: at most five rows stay visible, the rest scrolls in place. */
   .request-queue {
-    height: min(620px, calc(100dvh - 220px));
+    grid-template-rows: minmax(0, 1fr) auto;
+    max-height: calc(5 * var(--request-row-height) + 48px);
   }
 }
 
@@ -1084,6 +1057,11 @@ onBeforeUnmount(() => {
   .page-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .header-actions > :first-child {
+    min-width: 0;
+    flex: 1;
   }
 
   .refresh-button {

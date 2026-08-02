@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminApiError } from '@/api/client'
 import { joinRequestsApi } from '@/api/join-requests'
-import type { AdminEvent } from '@/api/types'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import AppSelect from '@/components/form/AppSelect.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -17,26 +16,6 @@ import {
   makeJoinRequestSummary,
 } from '@/test/join-request-fixture'
 import JoinRequestsView from '../JoinRequestsView.vue'
-
-const adminEventSubscribers = vi.hoisted(
-  () => new Set<(event: AdminEvent) => void>(),
-)
-
-vi.mock('@/composables/useAdminEvents', () => ({
-  subscribeToAdminEvents(subscriber: (event: AdminEvent) => void) {
-    adminEventSubscribers.add(subscriber)
-    return () => adminEventSubscribers.delete(subscriber)
-  },
-}))
-
-function emitAdminEvent(event: AdminEvent): void {
-  adminEventSubscribers.forEach((subscriber) => subscriber(event))
-}
-
-async function waitForStreamRefresh(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 1600))
-  await flushPromises()
-}
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void
@@ -80,7 +59,6 @@ async function mountView() {
 describe('JoinRequestsView', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    adminEventSubscribers.clear()
     vi.spyOn(joinRequestsApi, 'list').mockResolvedValue({
       items: [first, sameGroup, otherGroup],
       next_cursor: null,
@@ -403,80 +381,47 @@ describe('JoinRequestsView', () => {
     expect(wrapper.find('[data-test=request-row-flag-older-response]').exists()).toBe(false)
   })
 
-  it('returns to the first page when the event stream must be reset', async () => {
-    const pageTwo = makeJoinRequestSummary({
-      request_id: 'flag-page-2',
-      applicant_qq: '11223344',
-    })
-    const refreshed = makeJoinRequestSummary({
-      request_id: 'flag-refreshed-first-page',
-      applicant_qq: '55667788',
-    })
-    let firstPageLoads = 0
-    vi.mocked(joinRequestsApi.list).mockImplementation(async (query) => {
-      if (query.cursor === 'cursor-2') {
-        return { items: [pageTwo], next_cursor: null, has_more: false }
-      }
-      firstPageLoads += 1
-      return firstPageLoads === 1
-        ? { items: [first], next_cursor: 'cursor-2', has_more: true }
-        : { items: [refreshed], next_cursor: null, has_more: false }
-    })
+  it('requests the default page size and never subscribes to the event stream', async () => {
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: null, limit: 10 }),
+    )
+    expect(wrapper.find('[data-test=join-request-page-size]').exists()).toBe(true)
+  })
+
+  it('reloads the first page with the selected page size', async () => {
     const wrapper = await mountView()
     await flushPromises()
     await wrapper.get('[data-test=cursor-next]').trigger('click')
     await flushPromises()
-    expect(wrapper.find('[data-test=request-row-flag-page-2]').exists()).toBe(true)
 
-    emitAdminEvent({
-      event_id: 'event-reset-1',
-      event: 'stream.reset',
-      occurred_at: '2026-08-02T03:00:00Z',
-      resource: null,
-      reason: 'event_history_gap',
-    })
-    await waitForStreamRefresh()
+    const pageSize = wrapper
+      .findAllComponents(AppSelect)
+      .find((item) => item.props('dataTest') === 'join-request-page-size')
+    if (!pageSize) throw new Error('page size select was not rendered')
+    pageSize.vm.$emit('update:modelValue', '20')
+    await flushPromises()
 
     expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: null, limit: 10 }),
+      expect.objectContaining({ cursor: null, limit: 20 }),
     )
-    expect(wrapper.find('[data-test=request-row-flag-refreshed-first-page]').exists()).toBe(true)
-    expect(wrapper.find('[data-test=request-row-flag-page-2]').exists()).toBe(false)
   })
 
-  it('reloads the open request and decision history after its update event', async () => {
+  it('keeps the current page size when the same option is chosen again', async () => {
     const wrapper = await mountView()
     await flushPromises()
-    await wrapper.get('[data-test=request-row-flag-10001]').trigger('click')
+    const callsAfterMount = vi.mocked(joinRequestsApi.list).mock.calls.length
+
+    const pageSize = wrapper
+      .findAllComponents(AppSelect)
+      .find((item) => item.props('dataTest') === 'join-request-page-size')
+    if (!pageSize) throw new Error('page size select was not rendered')
+    pageSize.vm.$emit('update:modelValue', '10')
     await flushPromises()
 
-    vi.mocked(joinRequestsApi.get).mockResolvedValue(
-      makeJoinRequest({ decision_status: 'approved', decision_source: 'automatic', version: 8 }),
-    )
-    vi.mocked(joinRequestsApi.listDecisions).mockResolvedValue({
-      items: [makeJoinDecision({ source: 'automatic', reason: '字段校验通过' })],
-      next_cursor: null,
-      has_more: false,
-    })
-
-    emitAdminEvent({
-      event_id: 'event-join-request-1',
-      event: 'join_request.updated',
-      occurred_at: '2026-08-02T03:01:00Z',
-      resource: { type: 'join_request', id: 'flag-10001', version: 8 },
-      reason: 'decision_confirmed',
-    })
-    await waitForStreamRefresh()
-
-    expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: null, limit: 10 }),
-    )
-    expect(joinRequestsApi.get).toHaveBeenCalledTimes(2)
-    expect(joinRequestsApi.listDecisions).toHaveBeenCalledTimes(2)
-    expect(joinRequestsApi.getPolicy).toHaveBeenCalledTimes(1)
-    const detailText = wrapper.get('[aria-label="申请详情"]').text()
-    expect(detailText).toContain('已批准')
-    expect(detailText).toContain('字段校验通过')
+    expect(vi.mocked(joinRequestsApi.list).mock.calls).toHaveLength(callsAfterMount)
   })
 
   it('keeps the queue in an internal scroll region with one sliding active highlight', async () => {
