@@ -34,7 +34,7 @@ function emitAdminEvent(event: AdminEvent): void {
 }
 
 async function waitForStreamRefresh(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 120))
+  await new Promise((resolve) => setTimeout(resolve, 1600))
   await flushPromises()
 }
 

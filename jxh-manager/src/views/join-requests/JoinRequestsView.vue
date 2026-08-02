@@ -357,7 +357,7 @@ function scheduleRefreshAfterEvent(event: AdminEvent): void {
     const queuedEvent = pendingStreamEvent
     pendingStreamEvent = null
     if (queuedEvent) void refreshAfterEvent(queuedEvent)
-  }, 100)
+  }, 1500)
 }
 
 function streamEventPriority(event: AdminEvent): number {
