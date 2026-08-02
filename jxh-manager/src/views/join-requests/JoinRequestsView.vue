@@ -29,6 +29,7 @@ import JoinRequestDetail from '@/components/join-requests/JoinRequestDetail.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
 import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue'
 import CursorPager from '@/components/navigation/CursorPager.vue'
+import { clampPage, pageCount } from '@/composables/pagination'
 import { useSlidingIndicator } from '@/composables/useSlidingIndicator'
 import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
 import { usePageSize } from '@/composables/usePageSize'
@@ -39,10 +40,8 @@ const route = useRoute()
 const items = ref<JoinRequestSummary[]>([])
 const loading = ref(false)
 const error = ref<unknown>(null)
-const nextCursor = ref<string | null>(null)
-const hasMore = ref(false)
-const pageIndex = ref(0)
-const cursorHistory = ref<(string | null)[]>([null])
+const pageNumber = ref(1)
+const totalCount = ref(0)
 const queueRevision = ref(0)
 const activeId = ref<string | null>(null)
 const detail = ref<JoinRequest | null>(null)
@@ -54,11 +53,13 @@ const selectedIds = ref(new Set<string>())
 const decisionBusy = ref(false)
 const operationResult = ref<string | null>(null)
 const operationTone = ref<'success' | 'danger' | 'unknown' | 'warning'>('success')
+const requestScroll = ref<HTMLElement | null>(null)
 const requestList = ref<HTMLElement | null>(null)
 const requestRows = new Map<string, HTMLElement>()
 let listRequestSequence = 0
 let detailRequestSequence = 0
 const { pageSize, setPageSize, pageSizeStyle, pageSizeOptions } = usePageSize(10)
+const totalPages = computed(() => pageCount(totalCount.value, pageSize.value))
 const { indicatorStyle, updateIndicator } = useSlidingIndicator({
   container: requestList,
   target: () => activeId.value ? requestRows.get(activeId.value) ?? null : null,
@@ -165,7 +166,7 @@ function setRequestRowElement(requestId: string, element: unknown): void {
   else requestRows.delete(requestId)
 }
 
-function listQuery(cursor: string | null): JoinRequestListQuery {
+function listQuery(page: number): JoinRequestListQuery {
   return {
     groupId: filters.groupId.trim(),
     decisionStatus: filters.decisionStatus
@@ -181,7 +182,8 @@ function listQuery(cursor: string | null): JoinRequestListQuery {
     overdue: filters.overdue ? true : null,
     query: filters.query.trim(),
     sort: filters.sort,
-    cursor,
+    page,
+    cursor: null,
     limit: pageSize.value,
   }
 }
@@ -202,22 +204,32 @@ function clearPageState(): void {
 }
 
 async function loadPage(
-  index: number,
-  cursor: string | null,
+  targetPage: number,
   options: { preservePageState?: boolean } = {},
 ): Promise<void> {
   const sequence = ++listRequestSequence
   loading.value = true
   error.value = null
   try {
-    const result = await joinRequestsApi.list(listQuery(cursor))
+    const result = await joinRequestsApi.list(listQuery(targetPage))
     if (sequence !== listRequestSequence) return
+    const lastPage = pageCount(result.total_count, pageSize.value)
+    const resolvedPage = clampPage(targetPage, lastPage)
+    if (resolvedPage !== targetPage) {
+      await loadPage(resolvedPage, options)
+      return
+    }
     items.value = result.items
-    nextCursor.value = result.next_cursor
-    hasMore.value = result.has_more
-    pageIndex.value = index
+    totalCount.value = result.total_count
+    pageNumber.value = resolvedPage
     queueRevision.value += 1
     if (!options.preservePageState) clearPageState()
+    const scroll = requestScroll.value
+    if (scroll) {
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      scroll.scrollTo?.({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })
+      if (!scroll.scrollTo) scroll.scrollTop = 0
+    }
   } catch (reason) {
     if (sequence !== listRequestSequence) return
     error.value = reason
@@ -227,26 +239,16 @@ async function loadPage(
 }
 
 async function load(): Promise<void> {
-  cursorHistory.value = [null]
-  await loadPage(0, null)
+  await loadPage(1)
 }
 
 async function refreshCurrentPage(): Promise<void> {
-  await loadPage(pageIndex.value, cursorHistory.value[pageIndex.value] ?? null)
+  await loadPage(pageNumber.value)
 }
 
-async function nextPage(): Promise<void> {
-  const cursor = nextCursor.value
-  if (!hasMore.value || !cursor || loading.value) return
-  const index = pageIndex.value + 1
-  cursorHistory.value = [...cursorHistory.value.slice(0, index), cursor]
-  await loadPage(index, cursor)
-}
-
-async function previousPage(): Promise<void> {
-  if (pageIndex.value === 0 || loading.value) return
-  const index = pageIndex.value - 1
-  await loadPage(index, cursorHistory.value[index] ?? null)
+async function goToPage(targetPage: number): Promise<void> {
+  if (loading.value || targetPage === pageNumber.value) return
+  await loadPage(clampPage(targetPage, totalPages.value))
 }
 
 function resetFilters(): void {
@@ -533,16 +535,22 @@ onBeforeUnmount(() => {
 
     <section class="approval-workspace">
       <div v-smooth-resize class="request-queue" :style="pageSizeStyle">
-        <div data-test="request-scroll" class="request-scroll">
-          <div v-smooth-resize v-rise-on-change="queueRevision" class="request-queue-content">
+        <div ref="requestScroll" data-test="request-scroll" class="request-scroll">
+          <div
+            v-smooth-resize
+            v-rise-on-change="queueRevision"
+            class="request-queue-content"
+            :class="{ 'request-queue-content--loading': loading && items.length }"
+            :aria-busy="loading"
+          >
             <ResourceState
-              v-if="loading"
+              v-if="loading && !items.length"
               state="loading"
               title="正在读取申请队列"
               description="当前页保持不变，直到新数据读取成功。"
             />
             <ResourceState
-              v-else-if="error"
+              v-else-if="error && !items.length"
               state="error"
               title="申请队列读取失败"
               description="请恢复连接后重试。"
@@ -555,7 +563,7 @@ onBeforeUnmount(() => {
               description="调整筛选条件，或等待新的入群申请。"
             />
 
-            <div v-else ref="requestList" class="request-list" aria-label="入群申请列表">
+            <div v-if="items.length" ref="requestList" class="request-list" aria-label="入群申请列表">
               <span
                 data-test="request-row-highlight"
                 class="request-row-highlight"
@@ -604,12 +612,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <CursorPager
-          :page-number="pageIndex + 1"
-          :has-previous="pageIndex > 0"
-          :has-next="hasMore && Boolean(nextCursor)"
+          :page-number="pageNumber"
+          :total-pages="totalPages"
+          :total-items="totalCount"
           :busy="loading"
-          @previous="previousPage"
-          @next="nextPage"
+          @page="goToPage"
         />
       </div>
 
@@ -865,12 +872,19 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .request-queue-content,
 .request-detail-motion {
   min-width: 0;
+}
+
+.request-queue-content--loading {
+  pointer-events: none;
+  opacity: 0.62;
+  transition: opacity var(--duration-fast) ease;
 }
 
 .request-list {

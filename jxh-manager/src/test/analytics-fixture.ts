@@ -182,6 +182,7 @@ export function makeAnalyticsRankings(): AnalyticsRankings {
     dimension: 'group',
     metric: 'group_message_count',
     unit: 'count',
+    total_count: 2,
     items: [
       { key: '10001', display_name: '精弘网络维护群', value: 8420, rank: 1 },
       { key: '10002', display_name: '新生答疑群', value: 4420, rank: 2 },
@@ -196,6 +197,7 @@ export function makeKnowledgeRankings(): AnalyticsRankings {
     dimension: 'knowledge_entry',
     metric: 'knowledge_trigger_count',
     unit: 'count',
+    total_count: 2,
     items: [
       { key: '菜单', display_name: '菜单', value: 384, rank: 1 },
       { key: '校历', display_name: '校历', value: 216, rank: 2 },

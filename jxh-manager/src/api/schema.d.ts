@@ -1312,6 +1312,7 @@ export interface components {
             items: components["schemas"]["JoinRequestSummary"][];
             next_cursor: string | null;
             has_more: boolean;
+            total_count: number;
         };
         JoinDecision: {
             decision_id: components["schemas"]["Identifier"];
@@ -1809,6 +1810,7 @@ export interface components {
             items: components["schemas"]["KnowledgeEntrySummary"][];
             next_cursor: string | null;
             has_more: boolean;
+            total_count: number;
         };
         KnowledgeConflict: {
             conflict_id: components["schemas"]["Identifier"];
@@ -1822,6 +1824,7 @@ export interface components {
             items: components["schemas"]["KnowledgeConflict"][];
             next_cursor: string | null;
             has_more: boolean;
+            total_count: number;
         };
         /** @enum {string} */
         AnalyticsMetricKey: "keyword_reply_count" | "knowledge_trigger_count" | "ai_request_count" | "ai_success_rate" | "ai_duration_ms" | "join_request_count" | "manual_approval_count" | "automatic_approval_count" | "scheduled_job_run_count" | "group_message_count" | "command_run_count" | "active_user_count" | "link_clean_count" | "quote_success_count" | "quote_fallback_count" | "quote_failure_count";
@@ -1876,6 +1879,7 @@ export interface components {
             metric: components["schemas"]["AnalyticsMetricKey"];
             unit: components["schemas"]["AnalyticsUnit"];
             items: components["schemas"]["AnalyticsRankingItem"][];
+            total_count: number;
             data_fresh_at: components["schemas"]["Timestamp"];
         };
         /** @enum {string} */
@@ -2285,6 +2289,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description 从 1 开始的页码；大于 1 时不得与 cursor 同时传入 */
+        Page: number;
         /** @description 由服务端签发且绑定当前筛选和排序条件的不透明游标 */
         Cursor: string;
         Limit: number;
@@ -3304,6 +3310,8 @@ export interface operations {
                 /** @description 匹配 QQ、学号或姓名 */
                 query?: string;
                 sort?: "requested_at_desc" | "requested_at_asc";
+                /** @description 从 1 开始的页码；大于 1 时不得与 cursor 同时传入 */
+                page?: components["parameters"]["Page"];
                 /** @description 由服务端签发且绑定当前筛选和排序条件的不透明游标 */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
@@ -3990,6 +3998,8 @@ export interface operations {
                 exact_reply?: boolean;
                 ai_enabled?: boolean;
                 has_conflict?: boolean;
+                /** @description 从 1 开始的页码；大于 1 时不得与 cursor 同时传入 */
+                page?: components["parameters"]["Page"];
                 /** @description 由服务端签发且绑定当前筛选和排序条件的不透明游标 */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
@@ -4045,6 +4055,8 @@ export interface operations {
             query?: {
                 query?: string;
                 conflict_type?: "source_key" | "keyword" | "alias";
+                /** @description 从 1 开始的页码；大于 1 时不得与 cursor 同时传入 */
+                page?: components["parameters"]["Page"];
                 /** @description 由服务端签发且绑定当前筛选和排序条件的不透明游标 */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
@@ -4155,6 +4167,8 @@ export interface operations {
                 dimension: "group" | "command" | "knowledge_entry";
                 metric: components["schemas"]["AnalyticsMetricKey"];
                 limit?: number;
+                /** @description 从 1 开始的页码；大于 1 时不得与 cursor 同时传入 */
+                page?: components["parameters"]["Page"];
             };
             header?: never;
             path?: never;

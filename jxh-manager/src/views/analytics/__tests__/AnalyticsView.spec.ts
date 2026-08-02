@@ -127,6 +127,35 @@ describe('AnalyticsView', () => {
     expect(wrapper.text()).not.toContain('当前范围暂无知识命中')
   })
 
+  it('shows ranking totals and pages each ranking independently', async () => {
+    vi.mocked(analyticsApi.getRankings).mockImplementation(async (query) => {
+      const rankings = query.dimension === 'knowledge_entry'
+        ? makeKnowledgeRankings()
+        : makeAnalyticsRankings()
+      return {
+        ...rankings,
+        total_count: 12,
+        items: query.page === 2
+          ? [{ key: 'page-2', display_name: '第二页排行', value: 120, rank: 11 }]
+          : rankings.items,
+      }
+    })
+    const { wrapper } = await mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('第 1 / 2 页')
+    const groupSection = wrapper.findAll('.ranking-section')[0]
+    if (!groupSection) throw new Error('group ranking section was not rendered')
+    await groupSection.get('[data-test=page-2]').trigger('click')
+    await flushPromises()
+
+    expect(analyticsApi.getRankings).toHaveBeenCalledWith(
+      expect.objectContaining({ dimension: 'group', page: 2, limit: 10 }),
+    )
+    expect(groupSection.text()).toContain('第二页排行')
+    expect(groupSection.text()).toContain('第 2 / 2 页')
+  })
+
   it('does not retain old metrics after a changed scope fails to load', async () => {
     const { wrapper } = await mountView()
     await flushPromises()

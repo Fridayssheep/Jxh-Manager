@@ -1,15 +1,37 @@
 import type { Page, Route } from '@playwright/test'
 
-import type { ConfiguredSecret, SecretUpdate, SystemConfiguration, SystemConfigurationPatch } from '../../src/api/types'
-import { makeAnalyticsRankings, makeAnalyticsSummary, makeAnalyticsTimeseries, makeKnowledgeRankings } from '../../src/test/analytics-fixture'
+import type {
+  ConfiguredSecret,
+  SecretUpdate,
+  SystemConfiguration,
+  SystemConfigurationPatch,
+} from '../../src/api/types'
+import {
+  makeAnalyticsRankings,
+  makeAnalyticsSummary,
+  makeAnalyticsTimeseries,
+  makeKnowledgeRankings,
+} from '../../src/test/analytics-fixture'
 import { makeAuditLog, makeAuditLogSummary } from '../../src/test/audit-fixture'
 import { makeCommandValidationResult } from '../../src/test/command-fixture'
-import { makeJoinDecisionResult, makeJoinRequest, makeJoinRequestSummary } from '../../src/test/join-request-fixture'
-import { makeKnowledgeConflict, makeKnowledgeEntrySummary, makeKnowledgeStatus } from '../../src/test/knowledge-fixture'
+import {
+  makeJoinDecisionResult,
+  makeJoinRequest,
+  makeJoinRequestSummary,
+} from '../../src/test/join-request-fixture'
+import {
+  makeKnowledgeConflict,
+  makeKnowledgeEntrySummary,
+  makeKnowledgeStatus,
+} from '../../src/test/knowledge-fixture'
 import { makeOverview } from '../../src/test/overview-fixture'
 import { makeScheduledJob, makeScheduledJobRun } from '../../src/test/scheduled-job-fixture'
 import { makeSystemHealth, makeSystemOperation } from '../../src/test/system-fixture'
-import { makeAdminSession, makeAdminUser, makeSessionRevokeResult } from '../../src/test/user-fixture'
+import {
+  makeAdminSession,
+  makeAdminUser,
+  makeSessionRevokeResult,
+} from '../../src/test/user-fixture'
 
 export type RecordedAdminRequest = {
   method: string
@@ -28,11 +50,29 @@ export type AdminApiHarness = {
 type InstallOptions = { authenticated?: boolean }
 
 const permissions = [
-  'overview:read', 'groups:read', 'groups:sync', 'settings:read', 'settings:write',
-  'join_requests:read', 'join_requests:decide', 'join_policies:write',
-  'commands:read', 'commands:write', 'scheduled_jobs:read', 'scheduled_jobs:write',
-  'knowledge:read', 'knowledge:reload', 'analytics:read', 'analytics:export',
-  'audit:read', 'users:manage', 'sessions:manage', 'system:read', 'config:write', 'bot:restart', 'napcat:restart',
+  'overview:read',
+  'groups:read',
+  'groups:sync',
+  'settings:read',
+  'settings:write',
+  'join_requests:read',
+  'join_requests:decide',
+  'join_policies:write',
+  'commands:read',
+  'commands:write',
+  'scheduled_jobs:read',
+  'scheduled_jobs:write',
+  'knowledge:read',
+  'knowledge:reload',
+  'analytics:read',
+  'analytics:export',
+  'audit:read',
+  'users:manage',
+  'sessions:manage',
+  'system:read',
+  'config:write',
+  'bot:restart',
+  'napcat:restart',
 ] as const
 
 const initialSystemConfiguration: SystemConfiguration = {
@@ -69,8 +109,12 @@ const initialSystemConfiguration: SystemConfiguration = {
 }
 
 const group = {
-  group_id: '10001', name: '精弘网络维护群', member_count: 428, max_member_count: 500,
-  bot_role: 'admin' as const, snapshot_state: 'fresh' as const,
+  group_id: '10001',
+  name: '精弘网络维护群',
+  member_count: 428,
+  max_member_count: 500,
+  bot_role: 'admin' as const,
+  snapshot_state: 'fresh' as const,
   last_synced_at: '2026-07-28T05:00:00Z',
   features: [{ key: 'ai_qa' as const, enabled: true, source: 'group_override' as const }],
   join_request_policy: { enabled: false, auto_reject: false, version: 1 },
@@ -90,7 +134,9 @@ const auditDetail = makeAuditLog({
 })
 
 const features = {
-  keyword_reply: { enabled: true }, ai_qa: { enabled: true }, quote: { enabled: true },
+  keyword_reply: { enabled: true },
+  ai_qa: { enabled: true },
+  quote: { enabled: true },
   link_cleaner: { enabled: false },
   welcome: { enabled: true, message_template: '欢迎 {{member_qq}} 加入 {{group_name}}' },
   custom_commands: { enabled: true },
@@ -98,15 +144,28 @@ const features = {
 
 const authContext = {
   user: {
-    user_id: 'user-1', username: 'root', display_name: '超级管理员', role: 'super_admin' as const,
-    qq_user_id: '10001', enabled: true, last_login_at: '2026-07-28T04:00:00Z',
-    created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-28T04:00:00Z', version: 3,
+    user_id: 'user-1',
+    username: 'root',
+    display_name: '超级管理员',
+    role: 'super_admin' as const,
+    qq_user_id: '10001',
+    enabled: true,
+    last_login_at: '2026-07-28T04:00:00Z',
+    created_at: '2026-07-01T00:00:00Z',
+    updated_at: '2026-07-28T04:00:00Z',
+    version: 3,
   },
   session: {
-    session_id: 'session-1', user_id: 'user-1', status: 'active' as const, current: true,
-    ip_address: '127.0.0.1', user_agent: 'Chrome 150 / Windows',
-    created_at: '2026-07-28T04:00:00Z', last_seen_at: '2026-07-28T08:20:00Z',
-    expires_at: '2026-07-28T12:00:00Z', revoked_at: null,
+    session_id: 'session-1',
+    user_id: 'user-1',
+    status: 'active' as const,
+    current: true,
+    ip_address: '127.0.0.1',
+    user_agent: 'Chrome 150 / Windows',
+    created_at: '2026-07-28T04:00:00Z',
+    last_seen_at: '2026-07-28T08:20:00Z',
+    expires_at: '2026-07-28T12:00:00Z',
+    revoked_at: null,
   },
   permissions: [...permissions],
   csrf_token: 'csrf-token-with-at-least-thirty-two-characters',
@@ -116,7 +175,11 @@ async function recordRequest(route: Route): Promise<RecordedAdminRequest> {
   const request = route.request()
   let body: unknown = null
   if (request.postData()) {
-    try { body = request.postDataJSON() } catch { body = request.postData() }
+    try {
+      body = request.postDataJSON()
+    } catch {
+      body = request.postData()
+    }
   }
   const url = new URL(request.url())
   return {
@@ -138,7 +201,10 @@ function applySecret(current: ConfiguredSecret, update?: SecretUpdate): Configur
   return { configured: true, source: 'file' }
 }
 
-export async function installAdminApi(page: Page, options: InstallOptions = {}): Promise<AdminApiHarness> {
+export async function installAdminApi(
+  page: Page,
+  options: InstallOptions = {},
+): Promise<AdminApiHarness> {
   const requests: RecordedAdminRequest[] = []
   const consoleErrors: string[] = []
   let authenticated = options.authenticated ?? true
@@ -157,7 +223,10 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
 
     if (method === 'GET' && path === '/auth/me') {
       if (!authenticated) {
-        await route.fulfill({ status: 401, json: apiError('authentication_required', '请先登录。') })
+        await route.fulfill({
+          status: 401,
+          json: apiError('authentication_required', '请先登录。'),
+        })
       } else await route.fulfill({ json: authContext })
       return
     }
@@ -173,89 +242,145 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
     }
 
     if (method === 'GET' && path === '/overview') {
-      await route.fulfill({ json: makeOverview() }); return
+      await route.fulfill({ json: makeOverview() })
+      return
     }
     if (method === 'GET' && path === '/groups') {
-      await route.fulfill({ json: {
-        items: [{ ...group, join_request_policy: { ...joinRequestPolicy } }],
-        next_cursor: null,
-        has_more: false,
-      } }); return
+      await route.fulfill({
+        json: {
+          items: [{ ...group, join_request_policy: { ...joinRequestPolicy } }],
+          next_cursor: null,
+          has_more: false,
+        },
+      })
+      return
     }
     if (method === 'POST' && path === '/groups/sync') {
-      await route.fulfill({ json: { synced_at: '2026-07-28T08:30:00Z', added_count: 1, updated_count: 2, removed_count: 0, total_count: 23 } }); return
+      await route.fulfill({
+        json: {
+          synced_at: '2026-07-28T08:30:00Z',
+          added_count: 1,
+          updated_count: 2,
+          removed_count: 0,
+          total_count: 23,
+        },
+      })
+      return
     }
     if (method === 'GET' && path === '/groups/10001/settings') {
-      await route.fulfill({ json: {
-        group_id: '10001', effective: features, overrides: { ai_qa: { enabled: false } },
-        global_version: 7, version: 3, updated_at: '2026-07-28T05:01:00Z', updated_by: null,
-      } }); return
+      await route.fulfill({
+        json: {
+          group_id: '10001',
+          effective: features,
+          overrides: { ai_qa: { enabled: false } },
+          global_version: 7,
+          version: 3,
+          updated_at: '2026-07-28T05:01:00Z',
+          updated_by: null,
+        },
+      })
+      return
     }
     if (method === 'PATCH' && path === '/groups/10001/settings') {
       const patch = recorded.body as { features?: Record<string, unknown> }
-      await route.fulfill({ json: {
-        group_id: '10001', effective: features,
-        overrides: patch.features?.ai_qa ? { ai_qa: patch.features.ai_qa } : {},
-        global_version: 7, version: 4, updated_at: '2026-07-28T08:31:00Z', updated_by: null,
-      } }); return
+      await route.fulfill({
+        json: {
+          group_id: '10001',
+          effective: features,
+          overrides: patch.features?.ai_qa ? { ai_qa: patch.features.ai_qa } : {},
+          global_version: 7,
+          version: 4,
+          updated_at: '2026-07-28T08:31:00Z',
+          updated_by: null,
+        },
+      })
+      return
     }
     if (method === 'GET' && path === '/groups/10001') {
-      await route.fulfill({ json: { ...group, join_request_policy: { ...joinRequestPolicy } } }); return
+      await route.fulfill({ json: { ...group, join_request_policy: { ...joinRequestPolicy } } })
+      return
     }
     if (method === 'GET' && path === '/settings') {
-      await route.fulfill({ json: {
-        features,
-        join_requests: { auto_reject_reason: '申请信息不完整，请重新申请。' },
-        version: 7,
-        updated_at: '2026-07-28T05:00:00Z',
-        updated_by: null,
-      } }); return
+      await route.fulfill({
+        json: {
+          features,
+          join_requests: { auto_reject_reason: '申请信息不完整，请重新申请。' },
+          version: 7,
+          updated_at: '2026-07-28T05:00:00Z',
+          updated_by: null,
+        },
+      })
+      return
     }
     if (method === 'PATCH' && path === '/settings') {
-      await route.fulfill({ json: {
-        features,
-        join_requests: { auto_reject_reason: '申请信息不完整，请重新申请。' },
-        version: 8,
-        updated_at: '2026-07-28T08:31:00Z',
-        updated_by: null,
-      } }); return
+      await route.fulfill({
+        json: {
+          features,
+          join_requests: { auto_reject_reason: '申请信息不完整，请重新申请。' },
+          version: 8,
+          updated_at: '2026-07-28T08:31:00Z',
+          updated_by: null,
+        },
+      })
+      return
     }
 
     if (method === 'GET' && path === '/join-requests') {
-      const cursor = new URL(recorded.url).searchParams.get('cursor')
-      if (cursor === 'join-cursor-2') {
-        await route.fulfill({ json: {
-          items: [makeJoinRequestSummary({
-            request_id: 'flag-page-2',
-            applicant_qq: '11223344',
-            applicant_nickname: '第二页申请人',
-            version: 2,
-          })],
-          next_cursor: null,
-          has_more: false,
-        } }); return
+      const pageNumber = new URL(recorded.url).searchParams.get('page')
+      if (pageNumber === '2') {
+        await route.fulfill({
+          json: {
+            items: [
+              makeJoinRequestSummary({
+                request_id: 'flag-page-2',
+                applicant_qq: '11223344',
+                applicant_nickname: '第二页申请人',
+                version: 2,
+              }),
+            ],
+            next_cursor: null,
+            has_more: false,
+            total_count: 11,
+          },
+        })
+        return
       }
-      await route.fulfill({ json: {
-        items: [makeJoinRequestSummary()],
-        next_cursor: 'join-cursor-2',
-        has_more: true,
-      } }); return
+      await route.fulfill({
+        json: {
+          items: [makeJoinRequestSummary()],
+          next_cursor: 'join-cursor-2',
+          has_more: true,
+          total_count: 11,
+        },
+      })
+      return
     }
     if (method === 'GET' && path === '/join-requests/flag-10001/decisions') {
-      await route.fulfill({ json: { items: [], next_cursor: null, has_more: false } }); return
+      await route.fulfill({ json: { items: [], next_cursor: null, has_more: false } })
+      return
     }
     if (method === 'POST' && path === '/join-requests/flag-10001/decisions') {
-      await route.fulfill({ json: makeJoinDecisionResult() }); return
+      await route.fulfill({ json: makeJoinDecisionResult() })
+      return
     }
     if (method === 'GET' && path === '/join-requests/flag-10001') {
-      await route.fulfill({ json: makeJoinRequest() }); return
+      await route.fulfill({ json: makeJoinRequest() })
+      return
     }
     if (method === 'GET' && path === '/groups/10001/join-request-policy') {
-      await route.fulfill({ json: {
-        group_id: '10001', enabled: joinRequestPolicy.enabled, mode: 'ai_fields_complete',
-        required_fields: ['student_id', 'name', 'major'], auto_reject: joinRequestPolicy.auto_reject,
-        version: joinRequestPolicy.version, updated_at: '2026-07-28T05:00:00Z', updated_by: null,
-      } }); return
+      await route.fulfill({
+        json: {
+          group_id: '10001',
+          enabled: joinRequestPolicy.enabled,
+          mode: 'ai_fields_complete',
+          required_fields: ['student_id', 'name', 'major'],
+          auto_reject: joinRequestPolicy.auto_reject,
+          version: joinRequestPolicy.version,
+          updated_at: '2026-07-28T05:00:00Z',
+          updated_by: null,
+        },
+      })
+      return
     }
     if (method === 'PATCH' && path === '/groups/10001/join-request-policy') {
       const patch = recorded.body as { enabled?: boolean; auto_reject?: boolean }
@@ -264,97 +389,213 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
         auto_reject: patch.auto_reject ?? joinRequestPolicy.auto_reject,
         version: joinRequestPolicy.version + 1,
       }
-      await route.fulfill({ json: {
-        group_id: '10001', enabled: joinRequestPolicy.enabled, mode: 'ai_fields_complete',
-        required_fields: ['student_id', 'name', 'major'], auto_reject: joinRequestPolicy.auto_reject,
-        version: joinRequestPolicy.version, updated_at: '2026-07-28T05:01:00Z', updated_by: null,
-      } }); return
+      await route.fulfill({
+        json: {
+          group_id: '10001',
+          enabled: joinRequestPolicy.enabled,
+          mode: 'ai_fields_complete',
+          required_fields: ['student_id', 'name', 'major'],
+          auto_reject: joinRequestPolicy.auto_reject,
+          version: joinRequestPolicy.version,
+          updated_at: '2026-07-28T05:01:00Z',
+          updated_by: null,
+        },
+      })
+      return
     }
 
     if (method === 'POST' && path === '/commands/validate') {
-      await route.fulfill({ json: makeCommandValidationResult() }); return
+      await route.fulfill({ json: makeCommandValidationResult() })
+      return
     }
     if (method === 'GET' && path === '/commands') {
-      await route.fulfill({ json: { items: [], next_cursor: null, has_more: false } }); return
+      await route.fulfill({ json: { items: [], next_cursor: null, has_more: false } })
+      return
     }
 
     if (method === 'GET' && path === '/scheduled-jobs') {
-      await route.fulfill({ json: { items: [makeScheduledJob()], next_cursor: null, has_more: false } }); return
+      await route.fulfill({
+        json: { items: [makeScheduledJob()], next_cursor: null, has_more: false },
+      })
+      return
     }
     if (method === 'GET' && path === '/scheduled-jobs/job-1') {
-      await route.fulfill({ json: makeScheduledJob({ name: '详情中的每日提醒', version: 12 }) }); return
+      await route.fulfill({ json: makeScheduledJob({ name: '详情中的每日提醒', version: 12 }) })
+      return
     }
     if (method === 'PATCH' && path === '/scheduled-jobs/job-1') {
       const patch = recorded.body as { name?: string }
-      await route.fulfill({ json: makeScheduledJob({ name: patch.name ?? '详情中的每日提醒', version: 13 }) }); return
+      await route.fulfill({
+        json: makeScheduledJob({ name: patch.name ?? '详情中的每日提醒', version: 13 }),
+      })
+      return
     }
     if (method === 'GET' && path === '/scheduled-jobs/job-1/runs') {
-      await route.fulfill({ json: { items: [makeScheduledJobRun()], next_cursor: null, has_more: false } }); return
+      await route.fulfill({
+        json: { items: [makeScheduledJobRun()], next_cursor: null, has_more: false },
+      })
+      return
     }
     if (method === 'POST' && path === '/scheduled-jobs/job-1/test-send') {
-      await route.fulfill({ json: makeScheduledJobRun({ kind: 'test', result: 'success' }) }); return
+      await route.fulfill({ json: makeScheduledJobRun({ kind: 'test', result: 'success' }) })
+      return
     }
 
     if (method === 'GET' && path === '/knowledge/status') {
-      await route.fulfill({ json: makeKnowledgeStatus() }); return
+      await route.fulfill({ json: makeKnowledgeStatus() })
+      return
     }
     if (method === 'GET' && path === '/knowledge/entries') {
-      await route.fulfill({ json: { items: [makeKnowledgeEntrySummary()], next_cursor: null, has_more: false } }); return
+      const pageNumber = new URL(recorded.url).searchParams.get('page')
+      const entry =
+        pageNumber === '2'
+          ? makeKnowledgeEntrySummary({ entry_id: 'entry-page-2', title: '第二页知识词条' })
+          : makeKnowledgeEntrySummary()
+      await route.fulfill({
+        json: { items: [entry], next_cursor: null, has_more: false, total_count: 11 },
+      })
+      return
     }
     if (method === 'GET' && path === '/knowledge/conflicts') {
-      await route.fulfill({ json: { items: [makeKnowledgeConflict()], next_cursor: null, has_more: false } }); return
+      await route.fulfill({
+        json: {
+          items: [makeKnowledgeConflict()],
+          next_cursor: null,
+          has_more: false,
+          total_count: 1,
+        },
+      })
+      return
     }
     if (method === 'POST' && path === '/knowledge/reload') {
-      await route.fulfill({ status: 202, json: { operation_id: 'reload-1', status: 'accepted', started_at: '2026-07-28T08:40:00Z', completed_at: null, error_code: null } }); return
+      await route.fulfill({
+        status: 202,
+        json: {
+          operation_id: 'reload-1',
+          status: 'accepted',
+          started_at: '2026-07-28T08:40:00Z',
+          completed_at: null,
+          error_code: null,
+        },
+      })
+      return
     }
 
     if (method === 'GET' && path === '/analytics/summary') {
-      await route.fulfill({ json: makeAnalyticsSummary() }); return
+      await route.fulfill({ json: makeAnalyticsSummary() })
+      return
     }
     if (method === 'GET' && path === '/analytics/timeseries') {
-      await route.fulfill({ json: makeAnalyticsTimeseries() }); return
+      await route.fulfill({ json: makeAnalyticsTimeseries() })
+      return
     }
     if (method === 'GET' && path === '/analytics/rankings') {
-      const dimension = new URL(recorded.url).searchParams.get('dimension')
-      await route.fulfill({ json: dimension === 'knowledge_entry' ? makeKnowledgeRankings() : makeAnalyticsRankings() }); return
+      const searchParams = new URL(recorded.url).searchParams
+      const dimension = searchParams.get('dimension')
+      const pageNumber = searchParams.get('page')
+      const rankings =
+        dimension === 'knowledge_entry' ? makeKnowledgeRankings() : makeAnalyticsRankings()
+      await route.fulfill({
+        json: {
+          ...rankings,
+          total_count: 12,
+          items:
+            pageNumber === '2'
+              ? [
+                  {
+                    key: `${dimension ?? 'group'}-page-2`,
+                    display_name: dimension === 'knowledge_entry' ? '第二页知识词条' : '第二页群聊',
+                    value: 120,
+                    rank: 11,
+                  },
+                ]
+              : rankings.items,
+        },
+      })
+      return
     }
     if (method === 'GET' && path === '/analytics/export') {
       await route.fulfill({
         body: 'rank,name,value\n1,精弘网络维护群,8420',
         contentType: 'text/csv; charset=utf-8',
-        headers: { 'Content-Disposition': 'attachment; filename="analytics.csv"', 'X-Export-Row-Count': '1' },
-      }); return
+        headers: {
+          'Content-Disposition': 'attachment; filename="analytics.csv"',
+          'X-Export-Row-Count': '1',
+        },
+      })
+      return
     }
 
     if (method === 'GET' && path === '/audit-logs') {
-      await route.fulfill({ json: { items: [auditSummary], next_cursor: null, has_more: false } }); return
+      await route.fulfill({ json: { items: [auditSummary], next_cursor: null, has_more: false } })
+      return
     }
     if (method === 'GET' && path === '/audit-logs/audit-1') {
-      await route.fulfill({ json: auditDetail }); return
+      await route.fulfill({ json: auditDetail })
+      return
     }
 
     if (method === 'GET' && path === '/users') {
-      await route.fulfill({ json: { items: [makeAdminUser()], next_cursor: null, has_more: false } }); return
+      await route.fulfill({
+        json: { items: [makeAdminUser()], next_cursor: null, has_more: false },
+      })
+      return
+    }
+    if (method === 'POST' && path === '/users') {
+      const input = recorded.body as {
+        username: string
+        display_name: string
+        role: 'super_admin' | 'maintainer' | 'observer'
+        qq_user_id?: string
+      }
+      await route.fulfill({
+        status: 201,
+        json: makeAdminUser({
+          user_id: 'user-created',
+          username: input.username,
+          display_name: input.display_name,
+          role: input.role,
+          qq_user_id: input.qq_user_id ?? null,
+          version: 1,
+        }),
+      })
+      return
     }
     if (method === 'GET' && path === '/users/user-2') {
-      await route.fulfill({ json: makeAdminUser({ display_name: '详情维护员', role: 'observer', version: 9 }) }); return
+      await route.fulfill({
+        json: makeAdminUser({ display_name: '详情维护员', role: 'observer', version: 9 }),
+      })
+      return
     }
     if (method === 'PATCH' && path === '/users/user-2') {
       const patch = recorded.body as { display_name?: string }
-      await route.fulfill({ json: makeAdminUser({ display_name: patch.display_name ?? '详情维护员', role: 'observer', version: 10 }) }); return
+      await route.fulfill({
+        json: makeAdminUser({
+          display_name: patch.display_name ?? '详情维护员',
+          role: 'observer',
+          version: 10,
+        }),
+      })
+      return
     }
     if (method === 'GET' && path === '/sessions') {
-      await route.fulfill({ json: { items: [makeAdminSession()], next_cursor: null, has_more: false } }); return
+      await route.fulfill({
+        json: { items: [makeAdminSession()], next_cursor: null, has_more: false },
+      })
+      return
     }
     if (method === 'POST' && path === '/sessions/session-2/revoke') {
-      await route.fulfill({ json: makeSessionRevokeResult() }); return
+      await route.fulfill({ json: makeSessionRevokeResult() })
+      return
     }
 
     if (method === 'GET' && path === '/system/health') {
-      await route.fulfill({ json: makeSystemHealth() }); return
+      await route.fulfill({ json: makeSystemHealth() })
+      return
     }
     if (method === 'GET' && path === '/system/configuration') {
-      await route.fulfill({ json: systemConfiguration }); return
+      await route.fulfill({ json: systemConfiguration })
+      return
     }
     if (method === 'PATCH' && path === '/system/configuration') {
       const patch = recorded.body as SystemConfigurationPatch
@@ -374,7 +615,8 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
           api_key: applySecret(systemConfiguration.ai.api_key, patch.ai?.api_key),
           model: patch.ai?.model ?? systemConfiguration.ai.model,
           timeout_sec: patch.ai?.timeout_sec ?? systemConfiguration.ai.timeout_sec,
-          max_question_chars: patch.ai?.max_question_chars ?? systemConfiguration.ai.max_question_chars,
+          max_question_chars:
+            patch.ai?.max_question_chars ?? systemConfiguration.ai.max_question_chars,
         },
         quote: {
           ...systemConfiguration.quote,
@@ -384,31 +626,41 @@ export async function installAdminApi(page: Page, options: InstallOptions = {}):
         time: {
           ...systemConfiguration.time,
           app_timezone: patch.time?.app_timezone ?? systemConfiguration.time.app_timezone,
-          scheduler_timezone: patch.time?.scheduler_timezone ?? systemConfiguration.time.scheduler_timezone,
+          scheduler_timezone:
+            patch.time?.scheduler_timezone ?? systemConfiguration.time.scheduler_timezone,
         },
         retention: {
           ...systemConfiguration.retention,
-          trigger_log_retention_days: patch.retention?.trigger_log_retention_days ?? systemConfiguration.retention.trigger_log_retention_days,
+          trigger_log_retention_days:
+            patch.retention?.trigger_log_retention_days ??
+            systemConfiguration.retention.trigger_log_retention_days,
         },
         version: systemConfiguration.version + 1,
         restart_required: true,
       }
-      await route.fulfill({ json: systemConfiguration }); return
+      await route.fulfill({ json: systemConfiguration })
+      return
     }
     if (method === 'POST' && path === '/system/bot/restart') {
       authenticated = false
-      await route.fulfill({ status: 202, json: makeSystemOperation({ type: 'bot_restart' }) }); return
+      await route.fulfill({ status: 202, json: makeSystemOperation({ type: 'bot_restart' }) })
+      return
     }
     if (method === 'POST' && path === '/system/napcat/restart') {
-      await route.fulfill({ status: 202, json: makeSystemOperation() }); return
+      await route.fulfill({ status: 202, json: makeSystemOperation() })
+      return
     }
 
-    await route.fulfill({ status: 404, json: apiError('e2e_route_missing', `${method} ${path} 没有 fixture。`) })
+    await route.fulfill({
+      status: 404,
+      json: apiError('e2e_route_missing', `${method} ${path} 没有 fixture。`),
+    })
   })
 
   return {
     requests,
     consoleErrors,
-    findRequest: (method, path) => [...requests].reverse().find((request) => request.method === method && request.path === path),
+    findRequest: (method, path) =>
+      [...requests].reverse().find((request) => request.method === method && request.path === path),
   }
 }

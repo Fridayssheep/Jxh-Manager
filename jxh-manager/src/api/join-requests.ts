@@ -27,6 +27,7 @@ export type JoinRequestListQuery = {
   overdue: boolean | null
   query: string
   sort: 'requested_at_desc' | 'requested_at_asc'
+  page: number
   cursor: string | null
   limit?: number
 }
@@ -49,6 +50,7 @@ export const joinRequestsApi = {
             overdue: query.overdue ?? undefined,
             query: query.query || undefined,
             sort: query.sort,
+            page: query.page,
             cursor: query.cursor ?? undefined,
             limit: query.limit ?? 30,
           },

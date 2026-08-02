@@ -2,6 +2,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AdminApiError } from '@/api/client'
 import { usersApi } from '@/api/users'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import AppSelect from '@/components/form/AppSelect.vue'
@@ -18,7 +19,8 @@ import {
 import UsersView from '../UsersView.vue'
 
 async function selectValue(wrapper: VueWrapper, dataTest: string, value: string): Promise<void> {
-  const select = wrapper.findAllComponents(AppSelect)
+  const select = wrapper
+    .findAllComponents(AppSelect)
     .find((item) => item.props('dataTest') === dataTest)
   if (!select) throw new Error(`AppSelect ${dataTest} was not rendered`)
   select.vm.$emit('update:modelValue', value)
@@ -26,7 +28,8 @@ async function selectValue(wrapper: VueWrapper, dataTest: string, value: string)
 }
 
 async function mountView() {
-  const pinia = createPinia(); setActivePinia(pinia)
+  const pinia = createPinia()
+  setActivePinia(pinia)
   useAuthStore().acceptContext(makeAuthContext(['users:manage', 'sessions:manage']))
   return mount(UsersView, { global: { plugins: [pinia] }, attachTo: document.body })
 }
@@ -34,52 +37,81 @@ async function mountView() {
 describe('UsersView', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(usersApi, 'list').mockResolvedValue({ items: [makeAdminUser()], next_cursor: null, has_more: false })
+    vi.spyOn(usersApi, 'list').mockResolvedValue({
+      items: [makeAdminUser()],
+      next_cursor: null,
+      has_more: false,
+    })
     vi.spyOn(usersApi, 'get').mockResolvedValue(makeAdminUser())
-    vi.spyOn(usersApi, 'listSessions').mockResolvedValue({ items: [makeAdminSession()], next_cursor: null, has_more: false })
+    vi.spyOn(usersApi, 'listSessions').mockResolvedValue({
+      items: [makeAdminSession()],
+      next_cursor: null,
+      has_more: false,
+    })
   })
 
   it('updates an account with its loaded version', async () => {
-    const update = vi.spyOn(usersApi, 'update').mockResolvedValue(makeAdminUser({ display_name: '夜班维护员', version: 5 }))
-    const wrapper = await mountView(); await flushPromises()
+    const update = vi
+      .spyOn(usersApi, 'update')
+      .mockResolvedValue(makeAdminUser({ display_name: '夜班维护员', version: 5 }))
+    const wrapper = await mountView()
+    await flushPromises()
     await wrapper.get('[data-test=edit-user-user-2]').trigger('click')
     await wrapper.get('[data-test=user-display-name]').setValue('夜班维护员')
-    await wrapper.get('[data-test=save-user]').trigger('click'); await flushPromises()
-    expect(update).toHaveBeenCalledWith('user-2', expect.objectContaining({ display_name: '夜班维护员' }), 4)
+    await wrapper.get('[data-test=save-user]').trigger('click')
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(
+      'user-2',
+      expect.objectContaining({ display_name: '夜班维护员' }),
+      4,
+    )
   })
 
   it('loads the latest account detail before opening the editor', async () => {
     vi.mocked(usersApi.get).mockResolvedValue(
       makeAdminUser({ display_name: '详情维护员', role: 'observer', version: 9 }),
     )
-    const update = vi.spyOn(usersApi, 'update').mockResolvedValue(
-      makeAdminUser({ display_name: '更新后的详情维护员', version: 10 }),
-    )
-    const wrapper = await mountView(); await flushPromises()
+    const update = vi
+      .spyOn(usersApi, 'update')
+      .mockResolvedValue(makeAdminUser({ display_name: '更新后的详情维护员', version: 10 }))
+    const wrapper = await mountView()
+    await flushPromises()
 
-    await wrapper.get('[data-test=edit-user-user-2]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test=edit-user-user-2]').trigger('click')
+    await flushPromises()
 
     expect(usersApi.get).toHaveBeenCalledWith('user-2')
-    expect((wrapper.get('[data-test=user-display-name]').element as HTMLInputElement).value).toBe('详情维护员')
-    expect(wrapper.findAllComponents(AppSelect).find((item) => item.props('dataTest') === 'user-role')?.props('modelValue')).toBe('observer')
+    expect((wrapper.get('[data-test=user-display-name]').element as HTMLInputElement).value).toBe(
+      '详情维护员',
+    )
+    expect(
+      wrapper
+        .findAllComponents(AppSelect)
+        .find((item) => item.props('dataTest') === 'user-role')
+        ?.props('modelValue'),
+    ).toBe('observer')
     await wrapper.get('[data-test=user-display-name]').setValue('更新后的详情维护员')
-    await wrapper.get('[data-test=save-user]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test=save-user]').trigger('click')
+    await flushPromises()
     expect(update).toHaveBeenCalledWith('user-2', expect.any(Object), 9)
   })
 
   it('shows how many sessions a password reset revoked', async () => {
     const reset = vi.spyOn(usersApi, 'resetPassword').mockResolvedValue(makePasswordResetResult())
-    const wrapper = await mountView(); await flushPromises()
+    const wrapper = await mountView()
+    await flushPromises()
     await wrapper.get('[data-test=reset-password-user-2]').trigger('click')
     await wrapper.get('[data-test=new-password]').setValue('new-password-value')
-    await wrapper.get('[data-test=confirm-user-action]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test=confirm-user-action]').trigger('click')
+    await flushPromises()
     expect(reset).toHaveBeenCalledWith('user-2', 'new-password-value', 4)
     expect(wrapper.text()).toContain('已撤销 2 个会话')
   })
 
   it('creates an account from the account editor', async () => {
     const create = vi.spyOn(usersApi, 'create').mockResolvedValue(makeAdminUser())
-    const wrapper = await mountView(); await flushPromises()
+    const wrapper = await mountView()
+    await flushPromises()
 
     await wrapper.get('[data-test=create-user]').trigger('click')
     await wrapper.get('[data-test=user-username]').setValue('maintainer')
@@ -87,34 +119,105 @@ describe('UsersView', () => {
     await selectValue(wrapper, 'user-role', 'maintainer')
     await wrapper.get('[data-test=user-qq]').setValue('10002')
     await wrapper.get('[data-test=user-password]').setValue('initial-password-value')
-    await wrapper.get('[data-test=save-user]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test=save-user]').trigger('click')
+    await flushPromises()
 
     expect(create).toHaveBeenCalledWith({
-      username: 'maintainer', display_name: '值班维护员', role: 'maintainer',
-      qq_user_id: '10002', password: 'initial-password-value',
+      username: 'maintainer',
+      display_name: '值班维护员',
+      role: 'maintainer',
+      qq_user_id: '10002',
+      password: 'initial-password-value',
     })
   })
 
+  it('validates the account contract inside the editor before creating', async () => {
+    const create = vi.spyOn(usersApi, 'create')
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=create-user]').trigger('click')
+    await wrapper.get('[data-test=user-username]').setValue('Bad Name')
+    await wrapper.get('[data-test=user-display-name]').setValue('值班维护员')
+    await wrapper.get('[data-test=user-qq]').setValue('QQ10002')
+    await wrapper.get('[data-test=user-password]').setValue('short')
+    await wrapper.get('[data-test=save-user]').trigger('click')
+    await flushPromises()
+
+    expect(create).not.toHaveBeenCalled()
+    expect(wrapper.get('[role=dialog]').text()).toContain('用户名需以小写字母开头')
+    expect(wrapper.get('[role=dialog]').text()).toContain('QQ 维护身份只能填写')
+    expect(wrapper.get('[role=dialog]').text()).toContain('初始密码需为 12–128 个字符')
+  })
+
+  it('identifies each missing required account field', async () => {
+    const create = vi.spyOn(usersApi, 'create')
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=create-user]').trigger('click')
+    await wrapper.get('[data-test=save-user]').trigger('click')
+    await flushPromises()
+
+    expect(create).not.toHaveBeenCalled()
+    expect(wrapper.get('[role=dialog]').text()).toContain('请输入用户名。')
+    expect(wrapper.get('[role=dialog]').text()).toContain('请输入显示名称。')
+    expect(wrapper.get('[role=dialog]').text()).toContain('请输入初始密码。')
+  })
+
+  it('keeps server errors visible inside the account editor', async () => {
+    vi.spyOn(usersApi, 'create').mockRejectedValue(
+      new AdminApiError(409, {
+        code: 'conflict',
+        message: '用户名或 QQ 维护身份已被使用。',
+        request_id: 'request-1',
+        fields: {},
+        retryable: false,
+      }),
+    )
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test=create-user]').trigger('click')
+    await wrapper.get('[data-test=user-username]').setValue('maintainer2')
+    await wrapper.get('[data-test=user-display-name]').setValue('值班维护员')
+    await wrapper.get('[data-test=user-password]').setValue('initial-password-value')
+    await wrapper.get('[data-test=save-user]').trigger('click')
+    await flushPromises()
+
+    expect(usersApi.create).toHaveBeenCalled()
+    expect(wrapper.get('[role=dialog]').isVisible()).toBe(true)
+    expect(wrapper.get('[data-test=user-editor-error]').text()).toContain(
+      '用户名或 QQ 维护身份已被使用',
+    )
+  })
+
   it('requires confirmation before disabling an account', async () => {
-    const update = vi.spyOn(usersApi, 'update').mockResolvedValue(makeAdminUser({ enabled: false, version: 5 }))
-    const wrapper = await mountView(); await flushPromises()
+    const update = vi
+      .spyOn(usersApi, 'update')
+      .mockResolvedValue(makeAdminUser({ enabled: false, version: 5 }))
+    const wrapper = await mountView()
+    await flushPromises()
 
     await wrapper.get('[data-test=disable-user-user-2]').trigger('click')
     expect(update).not.toHaveBeenCalled()
-    await wrapper.get('[data-test=confirm-user-action]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test=confirm-user-action]').trigger('click')
+    await flushPromises()
 
     expect(update).toHaveBeenCalledWith('user-2', { enabled: false }, 4)
     expect(wrapper.text()).toContain('账号已停用')
   })
 
   it('revokes all sessions for one account after confirmation', async () => {
-    const revoke = vi.spyOn(usersApi, 'revokeUserSessions').mockResolvedValue(
-      makeSessionRevokeResult({ session_id: null, revoked_count: 3 }),
-    )
-    const wrapper = await mountView(); await flushPromises()
+    const revoke = vi
+      .spyOn(usersApi, 'revokeUserSessions')
+      .mockResolvedValue(makeSessionRevokeResult({ session_id: null, revoked_count: 3 }))
+    const wrapper = await mountView()
+    await flushPromises()
 
     await wrapper.get('[data-test=revoke-user-sessions-user-2]').trigger('click')
-    await wrapper.get('[data-test=confirm-user-action]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test=confirm-user-action]').trigger('click')
+    await flushPromises()
 
     expect(revoke).toHaveBeenCalledWith('user-2')
     expect(wrapper.text()).toContain('已撤销 3 个会话')
@@ -122,15 +225,21 @@ describe('UsersView', () => {
 
   it('filters and revokes a single session from the sessions tab', async () => {
     const revoke = vi.spyOn(usersApi, 'revokeSession').mockResolvedValue(makeSessionRevokeResult())
-    const wrapper = await mountView(); await flushPromises()
+    const wrapper = await mountView()
+    await flushPromises()
 
-    await wrapper.get('[data-test=sessions-tab]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test=sessions-tab]').trigger('click')
+    await flushPromises()
     await selectValue(wrapper, 'users-session-status', 'active')
-    await wrapper.get('[data-test=session-filters]').trigger('submit'); await flushPromises()
-    expect(usersApi.listSessions).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'active', cursor: null }))
+    await wrapper.get('[data-test=session-filters]').trigger('submit')
+    await flushPromises()
+    expect(usersApi.listSessions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'active', cursor: null }),
+    )
 
     await wrapper.get('[data-test=revoke-session-session-2]').trigger('click')
-    await wrapper.get('[data-test=confirm-user-action]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test=confirm-user-action]').trigger('click')
+    await flushPromises()
     expect(revoke).toHaveBeenCalledWith('session-2')
   })
 

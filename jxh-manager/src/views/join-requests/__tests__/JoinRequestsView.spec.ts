@@ -10,7 +10,6 @@ import AppSelect from '@/components/form/AppSelect.vue'
 import { useAuthStore } from '@/stores/auth'
 import { makeAuthContext } from '@/test/auth-fixture'
 import {
-  makeJoinDecision,
   makeJoinDecisionResult,
   makeJoinRequest,
   makeJoinRequestSummary,
@@ -63,6 +62,7 @@ describe('JoinRequestsView', () => {
       items: [first, sameGroup, otherGroup],
       next_cursor: null,
       has_more: false,
+      total_count: 3,
     })
     vi.spyOn(joinRequestsApi, 'get').mockResolvedValue(makeJoinRequest())
     vi.spyOn(joinRequestsApi, 'listDecisions').mockResolvedValue({
@@ -88,7 +88,7 @@ describe('JoinRequestsView', () => {
     await flushPromises()
 
     expect(joinRequestsApi.list).toHaveBeenCalledWith(
-      expect.objectContaining({ decisionStatus: ['pending'], cursor: null, limit: 10 }),
+      expect.objectContaining({ decisionStatus: ['pending'], page: 1, cursor: null, limit: 10 }),
     )
     await wrapper.get('[data-test=request-row-flag-10001]').trigger('click')
     await flushPromises()
@@ -281,6 +281,7 @@ describe('JoinRequestsView', () => {
       items: requests,
       next_cursor: null,
       has_more: false,
+      total_count: 21,
     })
     const wrapper = await mountView()
     await flushPromises()
@@ -308,17 +309,17 @@ describe('JoinRequestsView', () => {
     expect(wrapper.findComponent(OperationNotice).exists()).toBe(true)
   })
 
-  it('replaces cursor pages and clears page-bound selection and detail state', async () => {
+  it('jumps directly between pages and clears page-bound selection and detail state', async () => {
     const pageTwo = makeJoinRequestSummary({
       request_id: 'flag-page-2',
       applicant_qq: '11223344',
       version: 2,
     })
     vi.mocked(joinRequestsApi.list).mockImplementation(async (query) => {
-      if (query.cursor === 'cursor-2') {
-        return { items: [pageTwo], next_cursor: null, has_more: false }
+      if (query.page === 2) {
+        return { items: [pageTwo], next_cursor: null, has_more: false, total_count: 11 }
       }
-      return { items: [first], next_cursor: 'cursor-2', has_more: true }
+      return { items: [first], next_cursor: 'cursor-2', has_more: true, total_count: 11 }
     })
     const wrapper = await mountView()
     await flushPromises()
@@ -329,22 +330,22 @@ describe('JoinRequestsView', () => {
     expect(wrapper.find('[data-test=bulk-approve]').exists()).toBe(true)
     expect(wrapper.text()).toContain('计算机科学与技术')
 
-    await wrapper.get('[data-test=cursor-next]').trigger('click')
+    await wrapper.get('[data-test=page-2]').trigger('click')
     await flushPromises()
 
     expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: 'cursor-2', limit: 10 }),
+      expect.objectContaining({ page: 2, cursor: null, limit: 10 }),
     )
     expect(wrapper.find('[data-test=request-row-flag-10001]').exists()).toBe(false)
     expect(wrapper.find('[data-test=request-row-flag-page-2]').exists()).toBe(true)
     expect(wrapper.find('[data-test=bulk-approve]').exists()).toBe(false)
     expect(wrapper.get('[aria-label="申请详情"]').text()).not.toContain('计算机科学与技术')
 
-    await wrapper.get('[data-test=cursor-previous]').trigger('click')
+    await wrapper.get('[data-test=page-1]').trigger('click')
     await flushPromises()
 
     expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: null, limit: 10 }),
+      expect.objectContaining({ page: 1, cursor: null, limit: 10 }),
     )
     expect(wrapper.find('[data-test=request-row-flag-10001]').exists()).toBe(true)
     expect(wrapper.find('[data-test=request-row-flag-page-2]').exists()).toBe(false)
@@ -371,11 +372,11 @@ describe('JoinRequestsView', () => {
     await wrapper.get('[data-test=join-request-filters]').trigger('submit')
     expect(joinRequestsApi.list).toHaveBeenCalledTimes(2)
 
-    latest.resolve({ items: [latestItem], next_cursor: null, has_more: false })
+    latest.resolve({ items: [latestItem], next_cursor: null, has_more: false, total_count: 1 })
     await flushPromises()
     expect(wrapper.find('[data-test=request-row-flag-latest-response]').exists()).toBe(true)
 
-    older.resolve({ items: [olderItem], next_cursor: null, has_more: false })
+    older.resolve({ items: [olderItem], next_cursor: null, has_more: false, total_count: 1 })
     await flushPromises()
     expect(wrapper.find('[data-test=request-row-flag-latest-response]').exists()).toBe(true)
     expect(wrapper.find('[data-test=request-row-flag-older-response]').exists()).toBe(false)
@@ -386,7 +387,7 @@ describe('JoinRequestsView', () => {
     await flushPromises()
 
     expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: null, limit: 10 }),
+      expect.objectContaining({ page: 1, cursor: null, limit: 10 }),
     )
     expect(wrapper.find('[data-test=join-request-page-size]').exists()).toBe(true)
   })
@@ -394,9 +395,6 @@ describe('JoinRequestsView', () => {
   it('reloads the first page with the selected page size', async () => {
     const wrapper = await mountView()
     await flushPromises()
-    await wrapper.get('[data-test=cursor-next]').trigger('click')
-    await flushPromises()
-
     const pageSize = wrapper
       .findAllComponents(AppSelect)
       .find((item) => item.props('dataTest') === 'join-request-page-size')
@@ -405,7 +403,7 @@ describe('JoinRequestsView', () => {
     await flushPromises()
 
     expect(joinRequestsApi.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: null, limit: 20 }),
+      expect.objectContaining({ page: 1, cursor: null, limit: 20 }),
     )
   })
 

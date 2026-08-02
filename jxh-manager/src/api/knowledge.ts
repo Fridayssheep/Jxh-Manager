@@ -16,6 +16,7 @@ export type KnowledgeEntryListQuery = {
   exactReply: boolean | null
   aiEnabled: boolean | null
   hasConflict: boolean | null
+  page: number
   cursor: string | null
   limit?: number
 }
@@ -23,6 +24,7 @@ export type KnowledgeEntryListQuery = {
 export type KnowledgeConflictListQuery = {
   query: string
   conflictType: 'source_key' | 'keyword' | 'alias' | ''
+  page: number
   cursor: string | null
   limit?: number
 }
@@ -47,6 +49,7 @@ export const knowledgeApi = {
       exact_reply: query.exactReply ?? undefined,
       ai_enabled: query.aiEnabled ?? undefined,
       has_conflict: query.hasConflict ?? undefined,
+      page: query.page,
       cursor: query.cursor ?? undefined,
       limit: query.limit ?? 30,
     } } }))
@@ -62,6 +65,7 @@ export const knowledgeApi = {
     return unwrap(await api.GET('/knowledge/conflicts', { params: { query: {
       query: query.query || undefined,
       conflict_type: query.conflictType || undefined,
+      page: query.page,
       cursor: query.cursor ?? undefined,
       limit: query.limit ?? 30,
     } } }))

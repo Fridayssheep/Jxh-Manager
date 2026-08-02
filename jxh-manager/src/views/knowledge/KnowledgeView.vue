@@ -19,6 +19,7 @@ import AppSelect, { type AppSelectOption } from '@/components/form/AppSelect.vue
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 import AppTabBar, { type AppTabOption } from '@/components/navigation/AppTabBar.vue'
 import CursorPager from '@/components/navigation/CursorPager.vue'
+import { clampPage, pageCount } from '@/composables/pagination'
 import { usePageSize } from '@/composables/usePageSize'
 import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
 import { useAuthStore } from '@/stores/auth'
@@ -30,18 +31,16 @@ const statusError = ref<unknown>(null)
 const entries = ref<KnowledgeEntrySummary[]>([])
 const entriesLoading = ref(false)
 const entriesError = ref<unknown>(null)
-const entriesCursor = ref<string | null>(null)
-const entriesHasMore = ref(false)
-const entriesPageIndex = ref(0)
-const entriesCursorHistory = ref<(string | null)[]>([null])
+const entriesPageNumber = ref(1)
+const entriesTotalCount = ref(0)
 const entriesRevision = ref(0)
+const entryScroll = ref<HTMLElement | null>(null)
 const conflicts = ref<KnowledgeConflict[]>([])
 const conflictsLoading = ref(false)
-const conflictsCursor = ref<string | null>(null)
-const conflictsHasMore = ref(false)
-const conflictsPageIndex = ref(0)
-const conflictsCursorHistory = ref<(string | null)[]>([null])
+const conflictsPageNumber = ref(1)
+const conflictsTotalCount = ref(0)
 const conflictsRevision = ref(0)
+const conflictScroll = ref<HTMLElement | null>(null)
 const activeTab = ref<'entries' | 'conflicts'>('entries')
 const detail = ref<KnowledgeEntry | null>(null)
 const detailLoading = ref(false)
@@ -53,6 +52,10 @@ const operationTone = ref<'success' | 'warning' | 'danger' | 'unknown'>('success
 
 const entryPaging = usePageSize(10)
 const conflictPaging = usePageSize(10)
+const entryTotalPages = computed(() => pageCount(entriesTotalCount.value, entryPaging.pageSize.value))
+const conflictTotalPages = computed(() =>
+  pageCount(conflictsTotalCount.value, conflictPaging.pageSize.value),
+)
 
 const entryFilters = reactive({
   query: '', category: '', entryType: '' as KnowledgeEntryType | '',
@@ -117,18 +120,20 @@ function boolFilter(value: '' | 'true' | 'false'): boolean | null {
   return value === '' ? null : value === 'true'
 }
 
-function entryQuery(cursor: string | null): KnowledgeEntryListQuery {
+function entryQuery(page: number): KnowledgeEntryListQuery {
   return {
     query: entryFilters.query.trim(), category: entryFilters.category.trim(), entryType: entryFilters.entryType,
     enabled: boolFilter(entryFilters.enabled), exactReply: boolFilter(entryFilters.exactReply),
-    aiEnabled: boolFilter(entryFilters.aiEnabled), hasConflict: boolFilter(entryFilters.hasConflict), cursor,
+    aiEnabled: boolFilter(entryFilters.aiEnabled), hasConflict: boolFilter(entryFilters.hasConflict),
+    page, cursor: null,
     limit: entryPaging.pageSize.value,
   }
 }
 
-function conflictQuery(cursor: string | null): KnowledgeConflictListQuery {
+function conflictQuery(page: number): KnowledgeConflictListQuery {
   return {
-    query: conflictFilters.query.trim(), conflictType: conflictFilters.conflictType, cursor,
+    query: conflictFilters.query.trim(), conflictType: conflictFilters.conflictType,
+    page, cursor: null,
     limit: conflictPaging.pageSize.value,
   }
 }
@@ -150,16 +155,29 @@ async function loadStatus(): Promise<void> {
   }
 }
 
-async function loadEntryPage(index: number, cursor: string | null): Promise<void> {
+function scrollListToTop(element: HTMLElement | null): void {
+  if (!element) return
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  element.scrollTo?.({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })
+  if (!element.scrollTo) element.scrollTop = 0
+}
+
+async function loadEntryPage(targetPage: number): Promise<void> {
   entriesLoading.value = true
   entriesError.value = null
   try {
-    const page = await knowledgeApi.listEntries(entryQuery(cursor))
-    entries.value = page.items
-    entriesCursor.value = page.next_cursor
-    entriesHasMore.value = page.has_more
-    entriesPageIndex.value = index
+    const result = await knowledgeApi.listEntries(entryQuery(targetPage))
+    const lastPage = pageCount(result.total_count, entryPaging.pageSize.value)
+    const resolvedPage = clampPage(targetPage, lastPage)
+    if (resolvedPage !== targetPage) {
+      await loadEntryPage(resolvedPage)
+      return
+    }
+    entries.value = result.items
+    entriesTotalCount.value = result.total_count
+    entriesPageNumber.value = resolvedPage
     entriesRevision.value += 1
+    scrollListToTop(entryScroll.value)
     if (detail.value && !entries.value.some((entry) => entry.entry_id === detail.value?.entry_id)) {
       detail.value = null
     }
@@ -171,37 +189,33 @@ async function loadEntryPage(index: number, cursor: string | null): Promise<void
 }
 
 async function loadEntries(): Promise<void> {
-  entriesCursorHistory.value = [null]
-  await loadEntryPage(0, null)
+  await loadEntryPage(1)
 }
 
-async function nextEntryPage(): Promise<void> {
-  const cursor = entriesCursor.value
-  if (!entriesHasMore.value || !cursor || entriesLoading.value) return
-  const index = entriesPageIndex.value + 1
-  entriesCursorHistory.value = [...entriesCursorHistory.value.slice(0, index), cursor]
-  await loadEntryPage(index, cursor)
-}
-
-async function previousEntryPage(): Promise<void> {
-  if (entriesPageIndex.value === 0 || entriesLoading.value) return
-  const index = entriesPageIndex.value - 1
-  await loadEntryPage(index, entriesCursorHistory.value[index] ?? null)
+async function goToEntryPage(targetPage: number): Promise<void> {
+  if (entriesLoading.value || targetPage === entriesPageNumber.value) return
+  await loadEntryPage(clampPage(targetPage, entryTotalPages.value))
 }
 
 function changeEntryPageSize(value: string): void {
   if (entryPaging.setPageSize(value)) void loadEntries()
 }
 
-async function loadConflictPage(index: number, cursor: string | null): Promise<void> {
+async function loadConflictPage(targetPage: number): Promise<void> {
   conflictsLoading.value = true
   try {
-    const page = await knowledgeApi.listConflicts(conflictQuery(cursor))
-    conflicts.value = page.items
-    conflictsCursor.value = page.next_cursor
-    conflictsHasMore.value = page.has_more
-    conflictsPageIndex.value = index
+    const result = await knowledgeApi.listConflicts(conflictQuery(targetPage))
+    const lastPage = pageCount(result.total_count, conflictPaging.pageSize.value)
+    const resolvedPage = clampPage(targetPage, lastPage)
+    if (resolvedPage !== targetPage) {
+      await loadConflictPage(resolvedPage)
+      return
+    }
+    conflicts.value = result.items
+    conflictsTotalCount.value = result.total_count
+    conflictsPageNumber.value = resolvedPage
     conflictsRevision.value += 1
+    scrollListToTop(conflictScroll.value)
   } catch (reason) {
     operationTone.value = 'danger'
     operationResult.value = reason instanceof AdminApiError ? reason.message : '冲突列表读取失败'
@@ -211,22 +225,12 @@ async function loadConflictPage(index: number, cursor: string | null): Promise<v
 }
 
 async function loadConflicts(): Promise<void> {
-  conflictsCursorHistory.value = [null]
-  await loadConflictPage(0, null)
+  await loadConflictPage(1)
 }
 
-async function nextConflictPage(): Promise<void> {
-  const cursor = conflictsCursor.value
-  if (!conflictsHasMore.value || !cursor || conflictsLoading.value) return
-  const index = conflictsPageIndex.value + 1
-  conflictsCursorHistory.value = [...conflictsCursorHistory.value.slice(0, index), cursor]
-  await loadConflictPage(index, cursor)
-}
-
-async function previousConflictPage(): Promise<void> {
-  if (conflictsPageIndex.value === 0 || conflictsLoading.value) return
-  const index = conflictsPageIndex.value - 1
-  await loadConflictPage(index, conflictsCursorHistory.value[index] ?? null)
+async function goToConflictPage(targetPage: number): Promise<void> {
+  if (conflictsLoading.value || targetPage === conflictsPageNumber.value) return
+  await loadConflictPage(clampPage(targetPage, conflictTotalPages.value))
 }
 
 function changeConflictPageSize(value: string): void {
@@ -325,10 +329,14 @@ onMounted(() => { void refreshAll() })
 
       <section class="entry-workspace">
         <div v-smooth-resize class="entry-list-pane" :style="entryPaging.pageSizeStyle.value">
-          <div data-test="knowledge-entry-scroll" class="entry-scroll">
-            <div v-rise-on-change="entriesRevision">
+          <div ref="entryScroll" data-test="knowledge-entry-scroll" class="entry-scroll">
+            <div
+              v-rise-on-change="entriesRevision"
+              :class="{ 'list-content--loading': entriesLoading && entries.length }"
+              :aria-busy="entriesLoading"
+            >
               <ResourceState v-if="entriesLoading && !entries.length" state="loading" title="正在读取词条" description="读取 WPS 索引快照中的只读摘要" />
-              <ResourceState v-else-if="entriesError" state="error" title="词条读取失败" description="筛选条件已保留" @retry="loadEntries()" />
+              <ResourceState v-else-if="entriesError && !entries.length" state="error" title="词条读取失败" description="筛选条件已保留" @retry="loadEntries()" />
               <ResourceState v-else-if="!entries.length" state="empty" title="没有符合条件的词条" description="调整筛选条件后重试" />
               <article v-for="entry in entries" :key="entry.entry_id" :data-test="`knowledge-entry-${entry.entry_id}`" :class="{ active: detail?.entry_id === entry.entry_id }" tabindex="0" @click="openEntry(entry)" @keydown.enter="openEntry(entry)">
                 <div><strong>{{ entry.title }}</strong><span>{{ entry.category }} · {{ typeLabels[entry.entry_type] }}</span></div><span v-if="entry.has_conflict" class="conflict-badge">冲突</span><ChevronRight :size="16" />
@@ -336,7 +344,7 @@ onMounted(() => { void refreshAll() })
               </article>
             </div>
           </div>
-          <CursorPager :page-number="entriesPageIndex + 1" :has-previous="entriesPageIndex > 0" :has-next="entriesHasMore && Boolean(entriesCursor)" :busy="entriesLoading" @previous="previousEntryPage" @next="nextEntryPage" />
+          <CursorPager :page-number="entriesPageNumber" :total-pages="entryTotalPages" :total-items="entriesTotalCount" :busy="entriesLoading" @page="goToEntryPage" />
         </div>
 
         <aside class="entry-detail" aria-label="词条详情">
@@ -356,14 +364,14 @@ onMounted(() => { void refreshAll() })
       <template v-else>
       <form class="conflict-filter" @submit.prevent="loadConflicts()"><label class="search-field"><Search :size="16" /><input v-model="conflictFilters.query" placeholder="搜索冲突键或词条 ID" /></label><AppSelect :model-value="conflictFilters.conflictType" :options="conflictTypeOptions" accessible-name="冲突类型" data-test="knowledge-conflict-type" @update:model-value="setConflictType" /><AppSelect :model-value="String(conflictPaging.pageSize.value)" :options="conflictPaging.pageSizeOptions" accessible-name="冲突每页显示条数" data-test="knowledge-conflict-page-size" :disabled="conflictsLoading" @update:model-value="changeConflictPageSize" /><button class="filter-submit" type="submit">应用筛选</button></form>
       <div v-smooth-resize class="conflict-pane" :style="conflictPaging.pageSizeStyle.value">
-        <div data-test="knowledge-conflict-scroll" class="conflict-scroll">
-          <div v-rise-on-change="conflictsRevision">
+        <div ref="conflictScroll" data-test="knowledge-conflict-scroll" class="conflict-scroll">
+          <div v-rise-on-change="conflictsRevision" :class="{ 'list-content--loading': conflictsLoading && conflicts.length }" :aria-busy="conflictsLoading">
             <ResourceState v-if="conflictsLoading && !conflicts.length" state="loading" title="正在读取解析冲突" description="冲突不会自动覆盖任一词条" />
             <ResourceState v-else-if="!conflicts.length" state="empty" title="当前没有解析冲突"/>
             <section v-else class="conflict-list"><article v-for="conflict in conflicts" :key="conflict.conflict_id"><TriangleAlert :size="18" /><div><strong>{{ conflictLabels[conflict.type] }}冲突 · {{ conflict.key }}</strong><span class="mono">{{ conflict.conflict_id }}</span></div><div class="entry-ids"><span v-for="id in conflict.entry_ids" :key="id" class="mono">{{ id }}</span></div><time class="mono">{{ displayTime(conflict.detected_at) }}</time></article></section>
           </div>
         </div>
-        <CursorPager :page-number="conflictsPageIndex + 1" :has-previous="conflictsPageIndex > 0" :has-next="conflictsHasMore && Boolean(conflictsCursor)" :busy="conflictsLoading" @previous="previousConflictPage" @next="nextConflictPage" />
+        <CursorPager :page-number="conflictsPageNumber" :total-pages="conflictTotalPages" :total-items="conflictsTotalCount" :busy="conflictsLoading" @page="goToConflictPage" />
       </div>
       </template>
     </div>
@@ -386,9 +394,10 @@ onMounted(() => { void refreshAll() })
  */
 .entry-list-pane,.conflict-pane{--entry-row-height:78px;--conflict-row-height:64px;display:grid;grid-template-rows:auto auto;min-width:0;min-height:0;overflow:hidden}
 .conflict-pane{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}
-.entry-scroll,.conflict-scroll{min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+.entry-scroll,.conflict-scroll{min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
+.list-content--loading{pointer-events:none;opacity:.62;transition:opacity var(--duration-fast) ease}
 .conflict-list{border:0;border-radius:0}
-.knowledge-page{display:grid;gap:14px}.page-header,.primary-action,.status-strip,.state-cell,.reload-operation,.operation-result,.view-tabs,.view-tabs button,.search-field,.entry-list-pane article,.entry-detail>header,.entry-detail footer,.dialog-layer,.reload-dialog header,.reload-notice,.reload-dialog footer{display:flex;align-items:center}.page-header{justify-content:space-between;gap:16px}.page-header h1{font-size:24px;line-height:34px}.page-header p{color:var(--color-text-secondary);font-size:13px}.primary-action{min-height:38px;gap:7px;padding:0 12px;color:white;font-weight:600;background:var(--color-brand-action);border:1px solid var(--color-brand-action);border-radius:var(--radius-control)}.status-strip{display:grid;grid-template-columns:minmax(180px,1.2fr) repeat(4,minmax(130px,1fr));background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.status-strip>div{display:grid;min-height:68px;align-content:center;gap:3px;padding:10px 14px;border-right:1px solid var(--color-border)}.status-strip>div:last-child{border-right:0}.status-strip span{color:var(--color-text-secondary);font-size:10px}.status-strip strong{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.status-strip .state-cell{display:flex;gap:9px;color:var(--color-brand-ink)}.state-cell span{display:grid}.state--ready{color:var(--color-success)}.state--reloading{color:var(--color-brand-action)}.state--degraded{color:var(--color-warning)}.state--unavailable,.danger{color:var(--color-danger)}.reload-operation{display:grid;grid-template-columns:18px minmax(190px,1fr) auto;gap:9px;padding:10px 12px;color:var(--color-brand-ink);background:var(--color-brand-surface);border-left:3px solid var(--color-brand-500)}.reload-operation>div{display:grid}.reload-operation span{color:var(--color-text-secondary);font-size:10px}.reload-operation dl{display:flex;gap:20px;margin:0}.reload-operation dl div{display:grid}.reload-operation dt{color:var(--color-text-secondary);font-size:10px}.reload-operation dd{margin:0;font-size:11px}.operation-result{min-height:42px;gap:8px;padding:8px 11px;font-size:12px;border-left:3px solid currentcolor}.operation-result>span{min-width:0;flex:1}.operation-result button{display:grid;width:28px;height:28px;place-items:center;padding:0;background:transparent;border:0}.operation-result--success{color:var(--color-success);background:var(--color-success-surface)}.operation-result--warning{color:var(--color-warning);background:var(--color-warning-surface)}.operation-result--danger{color:var(--color-danger);background:var(--color-danger-surface)}.operation-result--unknown{color:var(--color-unknown);background:var(--color-unknown-surface)}.view-tabs{gap:4px;border-bottom:1px solid var(--color-border)}.view-tabs button{min-height:38px;gap:6px;padding:0 10px;color:var(--color-text-secondary);background:transparent;border:0;border-bottom:2px solid transparent}.view-tabs button.active{color:var(--color-brand-action);font-weight:600;border-color:var(--color-brand-action)}.view-tabs button span{padding:1px 5px;font-size:10px;background:var(--color-surface-subtle);border-radius:8px}.filter-bar{display:grid;grid-template-columns:minmax(220px,1.4fr) 120px repeat(3,minmax(110px,.7fr)) auto 38px;gap:7px}.filter-bar input,.filter-bar select,.conflict-filter input,.conflict-filter select{width:100%;height:38px;padding:0 9px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.search-field{display:grid;grid-template-columns:16px minmax(0,1fr);gap:7px;padding:0 10px;color:var(--color-text-secondary);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.search-field input{min-width:0;padding:0;background:transparent;border:0;outline:0}.filter-submit,.icon-button,.load-more{height:38px;justify-content:center;padding:0 11px;color:var(--color-brand-action);font-weight:600;background:var(--color-surface);border:1px solid var(--color-brand-border);border-radius:var(--radius-control)}.icon-button{width:38px;padding:0;color:var(--color-text-secondary);border-color:var(--color-border)}.entry-workspace{display:grid;min-width:0;grid-template-columns:minmax(360px,.85fr) minmax(500px,1.15fr);gap:12px;align-items:start}.entry-list-pane,.entry-detail{min-width:0;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.entry-list-pane article{display:grid;min-height:78px;grid-template-columns:minmax(0,1fr) auto 16px;gap:7px 9px;padding:11px 12px;cursor:pointer;border-bottom:1px solid var(--color-border)}.entry-list-pane article:hover{background:var(--color-surface-raised)}.entry-list-pane article.active{background:var(--color-brand-surface);box-shadow:inset 3px 0 var(--color-brand-500)}.entry-list-pane article>div{display:grid;min-width:0}.entry-list-pane article strong{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.entry-list-pane article div span,.entry-list-pane article p{color:var(--color-text-secondary);font-size:10px}.entry-list-pane article p{grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.conflict-badge{padding:2px 6px;color:var(--color-danger);font-size:10px;background:var(--color-danger-surface);border-radius:8px}.entry-list-pane .load-more{display:block;width:calc(100% - 24px);margin:12px}.detail-empty{display:grid;min-height:430px;place-items:center;align-content:center;gap:7px;padding:28px;color:var(--color-text-secondary);text-align:center}.detail-empty strong{color:var(--color-text-primary)}.detail-empty span{max-width:340px;font-size:12px}.entry-detail>header{justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid var(--color-border)}.eyebrow{color:var(--color-brand-ink);font-size:10px;font-weight:600}.entry-detail h2{font-size:18px}.enabled-badge{padding:2px 6px;color:var(--color-success);font-size:10px;background:var(--color-success-surface);border-radius:8px}.enabled-badge.disabled{color:var(--color-warning);background:var(--color-warning-surface)}.source-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0;padding:14px 18px;background:var(--color-surface-subtle);border-bottom:1px solid var(--color-border)}.source-meta div{display:grid}.source-meta dt{color:var(--color-text-secondary);font-size:10px}.source-meta dd{overflow-wrap:anywhere;margin:0;font-size:11px}.entry-detail>section{display:grid;gap:7px;padding:14px 18px;border-bottom:1px solid var(--color-border)}.entry-detail h3{font-size:12px}.entry-detail section p{font-size:13px;white-space:pre-wrap}.answer-text{line-height:1.7}.tag-list{display:flex;flex-wrap:wrap;gap:5px}.tag-list span{padding:3px 7px;color:var(--color-brand-ink);font-size:10px;background:var(--color-brand-surface);border-radius:8px}.tag-list span.alias{color:var(--color-info);background:var(--color-info-surface)}.entry-detail footer{gap:7px;padding:10px 18px;color:var(--color-text-secondary);font-size:11px;background:var(--color-surface-subtle)}.conflict-filter{display:grid;grid-template-columns:minmax(220px,1fr) 160px auto;gap:8px}.conflict-list{display:grid;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.conflict-list article{display:grid;grid-template-columns:18px minmax(180px,1fr) minmax(240px,1fr) auto;gap:10px;align-items:center;min-height:64px;padding:10px 13px;color:var(--color-danger);border-bottom:1px solid var(--color-border)}.conflict-list article:last-child{border-bottom:0}.conflict-list article>div{display:grid}.conflict-list article strong{color:var(--color-text-primary);font-size:12px}.conflict-list article div>span,.conflict-list time{color:var(--color-text-secondary);font-size:10px}.entry-ids{display:flex!important;flex-wrap:wrap;gap:5px}.entry-ids span{padding:2px 5px;background:var(--color-surface-subtle);border-radius:6px}.dialog-layer{position:fixed;z-index:80;inset:0;justify-content:center;padding:20px;background:rgb(34 37 36/36%)}.reload-dialog{width:min(470px,100%);padding:18px;background:var(--color-surface);border-radius:var(--radius-overlay);box-shadow:0 16px 44px rgb(34 37 36/18%)}.reload-dialog header{gap:10px;color:var(--color-brand-action)}.reload-dialog header h2{color:var(--color-text-primary);font-size:16px}.reload-dialog header p{color:var(--color-text-secondary);font-size:12px}.reload-notice{gap:8px;margin-top:16px;padding:9px 10px;color:var(--color-success);font-size:12px;background:var(--color-success-surface);border-left:3px solid var(--color-success)}.reload-dialog footer{justify-content:flex-end;gap:8px;margin-top:18px}.reload-dialog footer button{min-height:36px;padding:0 11px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.reload-dialog footer .primary-action{color:white;background:var(--color-brand-action);border-color:var(--color-brand-action)}.spin{animation:spin 700ms linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-@media(max-width:1050px){.status-strip{grid-template-columns:repeat(3,1fr)}.status-strip>div:nth-child(3){border-right:0}.status-strip>div:nth-child(n+4){border-top:1px solid var(--color-border)}.filter-bar{grid-template-columns:minmax(220px,1.4fr) repeat(2,minmax(110px,.7fr)) auto 38px}.filter-bar label:nth-of-type(4),.filter-bar label:nth-of-type(5){display:none}.entry-workspace{grid-template-columns:minmax(320px,.8fr) minmax(420px,1.2fr)}}
+.knowledge-page{display:grid;gap:14px}.page-header,.primary-action,.status-strip,.state-cell,.reload-operation,.operation-result,.view-tabs,.view-tabs button,.search-field,.entry-list-pane article,.entry-detail>header,.entry-detail footer,.dialog-layer,.reload-dialog header,.reload-notice,.reload-dialog footer{display:flex;align-items:center}.page-header{justify-content:space-between;gap:16px}.page-header h1{font-size:24px;line-height:34px}.page-header p{color:var(--color-text-secondary);font-size:13px}.primary-action{min-height:38px;gap:7px;padding:0 12px;color:white;font-weight:600;background:var(--color-brand-action);border:1px solid var(--color-brand-action);border-radius:var(--radius-control)}.status-strip{display:grid;grid-template-columns:minmax(180px,1.2fr) repeat(4,minmax(130px,1fr));background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.status-strip>div{display:grid;min-height:68px;align-content:center;gap:3px;padding:10px 14px;border-right:1px solid var(--color-border)}.status-strip>div:last-child{border-right:0}.status-strip span{color:var(--color-text-secondary);font-size:10px}.status-strip strong{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.status-strip .state-cell{display:flex;gap:9px;color:var(--color-brand-ink)}.state-cell span{display:grid}.state--ready{color:var(--color-success)}.state--reloading{color:var(--color-brand-action)}.state--degraded{color:var(--color-warning)}.state--unavailable,.danger{color:var(--color-danger)}.reload-operation{display:grid;grid-template-columns:18px minmax(190px,1fr) auto;gap:9px;padding:10px 12px;color:var(--color-brand-ink);background:var(--color-brand-surface);border-left:3px solid var(--color-brand-500)}.reload-operation>div{display:grid}.reload-operation span{color:var(--color-text-secondary);font-size:10px}.reload-operation dl{display:flex;gap:20px;margin:0}.reload-operation dl div{display:grid}.reload-operation dt{color:var(--color-text-secondary);font-size:10px}.reload-operation dd{margin:0;font-size:11px}.operation-result{min-height:42px;gap:8px;padding:8px 11px;font-size:12px;border-left:3px solid currentcolor}.operation-result>span{min-width:0;flex:1}.operation-result button{display:grid;width:28px;height:28px;place-items:center;padding:0;background:transparent;border:0}.operation-result--success{color:var(--color-success);background:var(--color-success-surface)}.operation-result--warning{color:var(--color-warning);background:var(--color-warning-surface)}.operation-result--danger{color:var(--color-danger);background:var(--color-danger-surface)}.operation-result--unknown{color:var(--color-unknown);background:var(--color-unknown-surface)}.view-tabs{gap:4px;border-bottom:1px solid var(--color-border)}.view-tabs button{min-height:38px;gap:6px;padding:0 10px;color:var(--color-text-secondary);background:transparent;border:0;border-bottom:2px solid transparent}.view-tabs button.active{color:var(--color-brand-action);font-weight:600;border-color:var(--color-brand-action)}.view-tabs button span{padding:1px 5px;font-size:10px;background:var(--color-surface-subtle);border-radius:8px}.filter-bar{display:grid;grid-template-columns:minmax(220px,1.4fr) 120px repeat(4,minmax(110px,.7fr)) auto 38px;gap:7px}.filter-bar input,.filter-bar select,.conflict-filter input,.conflict-filter select{width:100%;height:38px;padding:0 9px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.search-field{display:grid;grid-template-columns:16px minmax(0,1fr);gap:7px;padding:0 10px;color:var(--color-text-secondary);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.search-field input{min-width:0;padding:0;background:transparent;border:0;outline:0}.filter-submit,.icon-button,.load-more{height:38px;justify-content:center;padding:0 11px;color:var(--color-brand-action);font-weight:600;background:var(--color-surface);border:1px solid var(--color-brand-border);border-radius:var(--radius-control)}.icon-button{width:38px;padding:0;color:var(--color-text-secondary);border-color:var(--color-border)}.entry-workspace{display:grid;min-width:0;grid-template-columns:minmax(360px,.85fr) minmax(500px,1.15fr);gap:12px;align-items:start}.entry-list-pane,.entry-detail{min-width:0;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.entry-list-pane article{display:grid;min-height:78px;grid-template-columns:minmax(0,1fr) auto 16px;gap:7px 9px;padding:11px 12px;cursor:pointer;border-bottom:1px solid var(--color-border)}.entry-list-pane article:hover{background:var(--color-surface-raised)}.entry-list-pane article.active{background:var(--color-brand-surface);box-shadow:inset 3px 0 var(--color-brand-500)}.entry-list-pane article>div{display:grid;min-width:0}.entry-list-pane article strong{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.entry-list-pane article div span,.entry-list-pane article p{color:var(--color-text-secondary);font-size:10px}.entry-list-pane article p{grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.conflict-badge{padding:2px 6px;color:var(--color-danger);font-size:10px;background:var(--color-danger-surface);border-radius:8px}.entry-list-pane .load-more{display:block;width:calc(100% - 24px);margin:12px}.detail-empty{display:grid;min-height:430px;place-items:center;align-content:center;gap:7px;padding:28px;color:var(--color-text-secondary);text-align:center}.detail-empty strong{color:var(--color-text-primary)}.detail-empty span{max-width:340px;font-size:12px}.entry-detail>header{justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid var(--color-border)}.eyebrow{color:var(--color-brand-ink);font-size:10px;font-weight:600}.entry-detail h2{font-size:18px}.enabled-badge{padding:2px 6px;color:var(--color-success);font-size:10px;background:var(--color-success-surface);border-radius:8px}.enabled-badge.disabled{color:var(--color-warning);background:var(--color-warning-surface)}.source-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0;padding:14px 18px;background:var(--color-surface-subtle);border-bottom:1px solid var(--color-border)}.source-meta div{display:grid}.source-meta dt{color:var(--color-text-secondary);font-size:10px}.source-meta dd{overflow-wrap:anywhere;margin:0;font-size:11px}.entry-detail>section{display:grid;gap:7px;padding:14px 18px;border-bottom:1px solid var(--color-border)}.entry-detail h3{font-size:12px}.entry-detail section p{font-size:13px;white-space:pre-wrap}.answer-text{line-height:1.7}.tag-list{display:flex;flex-wrap:wrap;gap:5px}.tag-list span{padding:3px 7px;color:var(--color-brand-ink);font-size:10px;background:var(--color-brand-surface);border-radius:8px}.tag-list span.alias{color:var(--color-info);background:var(--color-info-surface)}.entry-detail footer{gap:7px;padding:10px 18px;color:var(--color-text-secondary);font-size:11px;background:var(--color-surface-subtle)}.conflict-filter{display:grid;grid-template-columns:minmax(220px,1fr) 160px auto;gap:8px}.conflict-list{display:grid;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-panel)}.conflict-list article{display:grid;grid-template-columns:18px minmax(180px,1fr) minmax(240px,1fr) auto;gap:10px;align-items:center;min-height:64px;padding:10px 13px;color:var(--color-danger);border-bottom:1px solid var(--color-border)}.conflict-list article:last-child{border-bottom:0}.conflict-list article>div{display:grid}.conflict-list article strong{color:var(--color-text-primary);font-size:12px}.conflict-list article div>span,.conflict-list time{color:var(--color-text-secondary);font-size:10px}.entry-ids{display:flex!important;flex-wrap:wrap;gap:5px}.entry-ids span{padding:2px 5px;background:var(--color-surface-subtle);border-radius:6px}.dialog-layer{position:fixed;z-index:80;inset:0;justify-content:center;padding:20px;background:rgb(34 37 36/36%)}.reload-dialog{width:min(470px,100%);padding:18px;background:var(--color-surface);border-radius:var(--radius-overlay);box-shadow:0 16px 44px rgb(34 37 36/18%)}.reload-dialog header{gap:10px;color:var(--color-brand-action)}.reload-dialog header h2{color:var(--color-text-primary);font-size:16px}.reload-dialog header p{color:var(--color-text-secondary);font-size:12px}.reload-notice{gap:8px;margin-top:16px;padding:9px 10px;color:var(--color-success);font-size:12px;background:var(--color-success-surface);border-left:3px solid var(--color-success)}.reload-dialog footer{justify-content:flex-end;gap:8px;margin-top:18px}.reload-dialog footer button{min-height:36px;padding:0 11px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}.reload-dialog footer .primary-action{color:white;background:var(--color-brand-action);border-color:var(--color-brand-action)}.spin{animation:spin 700ms linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:1050px){.status-strip{grid-template-columns:repeat(3,1fr)}.status-strip>div:nth-child(3){border-right:0}.status-strip>div:nth-child(n+4){border-top:1px solid var(--color-border)}.filter-bar{grid-template-columns:minmax(180px,1.4fr) repeat(2,minmax(100px,.7fr)) minmax(110px,.7fr) auto 38px}.filter-bar label:nth-of-type(4),.filter-bar label:nth-of-type(5){display:none}.entry-workspace{grid-template-columns:minmax(320px,.8fr) minmax(420px,1.2fr)}}
 @media(max-width:720px){.page-header{align-items:stretch;flex-direction:column}.primary-action{justify-content:center}.header-actions>*{flex:1;justify-content:center}.entry-list-pane{grid-template-rows:minmax(0,1fr) auto;max-height:calc(5 * var(--entry-row-height) + 48px)}.conflict-pane{grid-template-rows:minmax(0,1fr) auto;max-height:calc(5 * var(--conflict-row-height) + 48px)}.status-strip{grid-template-columns:1fr 1fr}.status-strip>div{border-top:1px solid var(--color-border);border-right:1px solid var(--color-border)}.status-strip>div:nth-child(even){border-right:0}.status-strip>div:first-child{grid-column:1/-1;border-top:0;border-right:0}.reload-operation{grid-template-columns:18px 1fr}.reload-operation dl{grid-column:1/-1}.filter-bar{grid-template-columns:1fr 1fr}.search-field{grid-column:1/-1}.filter-bar label:nth-of-type(2){display:none}.icon-button{justify-self:end}.entry-workspace{grid-template-columns:1fr}.entry-detail{order:-1}.detail-empty{min-height:220px}.source-meta{grid-template-columns:1fr}.conflict-filter{grid-template-columns:1fr}.conflict-list article{grid-template-columns:18px 1fr}.entry-ids,.conflict-list time{grid-column:2}.dialog-layer{align-items:center}.reload-dialog{align-self:center}}
 </style>

@@ -42,6 +42,7 @@ export type AnalyticsTimeseriesQuery = AnalyticsCommonQuery & {
 export type AnalyticsRankingQuery = AnalyticsCommonQuery & {
   dimension: AnalyticsDimension
   metric: AnalyticsMetricKey
+  page?: number
   limit?: number
 }
 
@@ -106,7 +107,8 @@ export const analyticsApi = {
 
   async getRankings(query: AnalyticsRankingQuery): Promise<AnalyticsRankings> {
     return unwrap(await api.GET('/analytics/rankings', { params: { query: {
-      ...commonParams(query), dimension: query.dimension, metric: query.metric, limit: query.limit ?? 10,
+      ...commonParams(query), dimension: query.dimension, metric: query.metric,
+      page: query.page ?? 1, limit: query.limit ?? 10,
     } } }))
   },
 

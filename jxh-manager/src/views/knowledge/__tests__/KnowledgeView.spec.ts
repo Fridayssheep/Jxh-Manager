@@ -22,8 +22,8 @@ describe('KnowledgeView', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(knowledgeApi, 'getStatus').mockResolvedValue(makeKnowledgeStatus())
-    vi.spyOn(knowledgeApi, 'listEntries').mockResolvedValue({ items: [makeKnowledgeEntrySummary()], next_cursor: null, has_more: false })
-    vi.spyOn(knowledgeApi, 'listConflicts').mockResolvedValue({ items: [makeKnowledgeConflict()], next_cursor: null, has_more: false })
+    vi.spyOn(knowledgeApi, 'listEntries').mockResolvedValue({ items: [makeKnowledgeEntrySummary()], next_cursor: null, has_more: false, total_count: 1 })
+    vi.spyOn(knowledgeApi, 'listConflicts').mockResolvedValue({ items: [makeKnowledgeConflict()], next_cursor: null, has_more: false, total_count: 1 })
     vi.spyOn(knowledgeApi, 'getEntry').mockResolvedValue(makeKnowledgeEntry())
   })
 
@@ -104,27 +104,27 @@ describe('KnowledgeView', () => {
     expect(animate).toHaveBeenCalled()
   })
 
-  it('pages entries with a cursor instead of appending more rows', async () => {
+  it('jumps directly between entry pages instead of appending rows', async () => {
     const second = makeKnowledgeEntrySummary({ entry_id: 'entry-2', title: '第二页词条' })
     vi.mocked(knowledgeApi.listEntries).mockImplementation(async (query) =>
-      query.cursor === 'entry-cursor-2'
-        ? { items: [second], next_cursor: null, has_more: false }
-        : { items: [makeKnowledgeEntrySummary()], next_cursor: 'entry-cursor-2', has_more: true },
+      query.page === 2
+        ? { items: [second], next_cursor: null, has_more: false, total_count: 11 }
+        : { items: [makeKnowledgeEntrySummary()], next_cursor: 'entry-cursor-2', has_more: true, total_count: 11 },
     )
     const wrapper = await mountView()
     await flushPromises()
 
     expect(knowledgeApi.listEntries).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: null, limit: 10 }),
+      expect.objectContaining({ page: 1, cursor: null, limit: 10 }),
     )
-    await wrapper.get('[data-test=cursor-next]').trigger('click')
+    await wrapper.get('[data-test=page-2]').trigger('click')
     await flushPromises()
 
     // The previous page is replaced, not accumulated.
     expect(wrapper.find('[data-test=knowledge-entry-entry-2]').exists()).toBe(true)
     expect(wrapper.find('[data-test=knowledge-entry-entry-1]').exists()).toBe(false)
 
-    await wrapper.get('[data-test=cursor-previous]').trigger('click')
+    await wrapper.get('[data-test=page-1]').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('[data-test=knowledge-entry-entry-1]').exists()).toBe(true)
@@ -143,7 +143,7 @@ describe('KnowledgeView', () => {
     await flushPromises()
 
     expect(knowledgeApi.listEntries).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: null, limit: 20 }),
+      expect.objectContaining({ page: 1, cursor: null, limit: 20 }),
     )
   })
 
@@ -161,7 +161,7 @@ describe('KnowledgeView', () => {
     await flushPromises()
 
     expect(knowledgeApi.listConflicts).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: null, limit: 5 }),
+      expect.objectContaining({ page: 1, cursor: null, limit: 5 }),
     )
     // The entry list keeps its own page size.
     expect(knowledgeApi.listEntries).toHaveBeenLastCalledWith(

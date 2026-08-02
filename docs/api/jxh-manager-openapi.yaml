@@ -1167,6 +1167,7 @@ paths:
             type: string
             enum: [requested_at_desc, requested_at_asc]
             default: requested_at_desc
+        - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
       responses:
@@ -1912,6 +1913,7 @@ paths:
           in: query
           schema:
             type: boolean
+        - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
       responses:
@@ -1967,6 +1969,7 @@ paths:
           schema:
             type: string
             enum: [source_key, keyword, alias]
+        - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
       responses:
@@ -2085,6 +2088,7 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - $ref: '#/components/parameters/Page'
       responses:
         '200':
           description: 稳定 key、展示名称、值和排名
@@ -2190,6 +2194,15 @@ components:
         type: integer
         minimum: 1
   parameters:
+    Page:
+      name: page
+      in: query
+      description: 从 1 开始的页码；大于 1 时不得与 cursor 同时传入
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100000
+        default: 1
     Cursor:
       name: cursor
       in: query
@@ -3505,7 +3518,7 @@ components:
     JoinRequestList:
       type: object
       additionalProperties: false
-      required: [items, next_cursor, has_more]
+      required: [items, next_cursor, has_more, total_count]
       properties:
         items:
           type: array
@@ -3515,6 +3528,9 @@ components:
           type: [string, 'null']
         has_more:
           type: boolean
+        total_count:
+          type: integer
+          minimum: 0
     JoinDecision:
       type: object
       additionalProperties: false
@@ -4725,7 +4741,7 @@ components:
     KnowledgeEntryList:
       type: object
       additionalProperties: false
-      required: [items, next_cursor, has_more]
+      required: [items, next_cursor, has_more, total_count]
       properties:
         items:
           type: array
@@ -4735,6 +4751,9 @@ components:
           type: [string, 'null']
         has_more:
           type: boolean
+        total_count:
+          type: integer
+          minimum: 0
     KnowledgeConflict:
       type: object
       additionalProperties: false
@@ -4759,7 +4778,7 @@ components:
     KnowledgeConflictList:
       type: object
       additionalProperties: false
-      required: [items, next_cursor, has_more]
+      required: [items, next_cursor, has_more, total_count]
       properties:
         items:
           type: array
@@ -4769,6 +4788,9 @@ components:
           type: [string, 'null']
         has_more:
           type: boolean
+        total_count:
+          type: integer
+          minimum: 0
     AnalyticsMetricKey:
       type: string
       enum:
@@ -4895,7 +4917,7 @@ components:
     AnalyticsRankings:
       type: object
       additionalProperties: false
-      required: [window, dimension, metric, unit, items, data_fresh_at]
+      required: [window, dimension, metric, unit, items, total_count, data_fresh_at]
       properties:
         window:
           $ref: '#/components/schemas/AnalyticsWindow'
@@ -4910,6 +4932,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AnalyticsRankingItem'
+        total_count:
+          type: integer
+          minimum: 0
         data_fresh_at:
           $ref: '#/components/schemas/Timestamp'
     AuditResult:

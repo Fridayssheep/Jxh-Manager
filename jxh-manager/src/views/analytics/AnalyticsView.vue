@@ -19,6 +19,8 @@ import AnalyticsTrendChart from '@/components/data/AnalyticsTrendChart.vue'
 import RankingTable from '@/components/data/RankingTable.vue'
 import OperationNotice from '@/components/feedback/OperationNotice.vue'
 import ResourceState from '@/components/feedback/ResourceState.vue'
+import CursorPager from '@/components/navigation/CursorPager.vue'
+import { clampPage, pageCount } from '@/composables/pagination'
 import { vRiseOnChange, vSmoothResize } from '@/directives/motion'
 import { useAuthStore } from '@/stores/auth'
 
@@ -45,6 +47,9 @@ const summaryRevision = ref(0)
 const trendRevision = ref(0)
 const groupRankingsRevision = ref(0)
 const knowledgeRankingsRevision = ref(0)
+const groupRankingsPage = ref(1)
+const knowledgeRankingsPage = ref(1)
+const rankingPageSize = 10
 const globalFilter = reactive({ from: '', to: '', groupId: '' })
 const appliedScope = reactive({ ...globalFilter })
 let summaryRequestId = 0
@@ -131,6 +136,12 @@ const commonQuery = computed(() => ({
   results: [],
   timezone: 'Asia/Shanghai',
 }))
+const groupRankingPages = computed(() =>
+  pageCount(groupRankings.value?.total_count ?? 0, rankingPageSize),
+)
+const knowledgeRankingPages = computed(() =>
+  pageCount(knowledgeRankings.value?.total_count ?? 0, rankingPageSize),
+)
 
 async function loadSummary(): Promise<void> {
   const requestId = ++summaryRequestId
@@ -170,7 +181,7 @@ async function loadTrend(): Promise<void> {
   }
 }
 
-async function loadGroupRankings(): Promise<void> {
+async function loadGroupRankings(targetPage = groupRankingsPage.value): Promise<void> {
   const requestId = ++groupRankingsRequestId
   groupRankingsLoading.value = true
   groupRankingsError.value = null
@@ -179,10 +190,17 @@ async function loadGroupRankings(): Promise<void> {
       ...commonQuery.value,
       dimension: 'group',
       metric: 'group_message_count',
-      limit: 10,
+      page: targetPage,
+      limit: rankingPageSize,
     })
     if (requestId === groupRankingsRequestId) {
+      const resolvedPage = clampPage(targetPage, pageCount(next.total_count, rankingPageSize))
+      if (resolvedPage !== targetPage) {
+        await loadGroupRankings(resolvedPage)
+        return
+      }
       groupRankings.value = next
+      groupRankingsPage.value = resolvedPage
       groupRankingsRevision.value += 1
     }
   } catch (reason) {
@@ -192,7 +210,7 @@ async function loadGroupRankings(): Promise<void> {
   }
 }
 
-async function loadKnowledgeRankings(): Promise<void> {
+async function loadKnowledgeRankings(targetPage = knowledgeRankingsPage.value): Promise<void> {
   const requestId = ++knowledgeRankingsRequestId
   knowledgeRankingsLoading.value = true
   knowledgeRankingsError.value = null
@@ -201,10 +219,17 @@ async function loadKnowledgeRankings(): Promise<void> {
       ...commonQuery.value,
       dimension: 'knowledge_entry',
       metric: 'knowledge_trigger_count',
-      limit: 10,
+      page: targetPage,
+      limit: rankingPageSize,
     })
     if (requestId === knowledgeRankingsRequestId) {
+      const resolvedPage = clampPage(targetPage, pageCount(next.total_count, rankingPageSize))
+      if (resolvedPage !== targetPage) {
+        await loadKnowledgeRankings(resolvedPage)
+        return
+      }
       knowledgeRankings.value = next
+      knowledgeRankingsPage.value = resolvedPage
       knowledgeRankingsRevision.value += 1
     }
   } catch (reason) {
@@ -212,6 +237,16 @@ async function loadKnowledgeRankings(): Promise<void> {
   } finally {
     if (requestId === knowledgeRankingsRequestId) knowledgeRankingsLoading.value = false
   }
+}
+
+function goToGroupRankingPage(targetPage: number): void {
+  if (groupRankingsLoading.value || targetPage === groupRankingsPage.value) return
+  void loadGroupRankings(clampPage(targetPage, groupRankingPages.value))
+}
+
+function goToKnowledgeRankingPage(targetPage: number): void {
+  if (knowledgeRankingsLoading.value || targetPage === knowledgeRankingsPage.value) return
+  void loadKnowledgeRankings(clampPage(targetPage, knowledgeRankingPages.value))
 }
 
 function reloadAll(): void {
@@ -293,6 +328,8 @@ watch(
       trend.value = null
       groupRankings.value = null
       knowledgeRankings.value = null
+      groupRankingsPage.value = 1
+      knowledgeRankingsPage.value = 1
       reloadAll()
     }
   },
@@ -440,14 +477,14 @@ watch(
           <header>
             <div>
               <h2>活跃群聊</h2>
-              <p>按群消息量排列前 10</p>
+              <p>按群消息量排列当前范围内的群聊</p>
             </div>
             <MessageSquareText :size="18" aria-hidden="true" />
           </header>
-          <div v-rise-on-change="groupRankingsRevision" class="analysis-content">
+          <div v-rise-on-change="groupRankingsRevision" class="analysis-content" :class="{ 'analysis-content--loading': groupRankingsLoading && groupRankings }">
             <div v-if="groupRankingsError" class="analysis-state analysis-state--error">
               <span>群聊排行刷新失败。</span
-              ><button type="button" @click="loadGroupRankings">重试</button>
+              ><button type="button" @click="() => loadGroupRankings()">重试</button>
             </div>
             <div v-else-if="groupRankingsLoading" class="analysis-state">
               <RefreshCw :size="14" />正在更新排行
@@ -458,20 +495,28 @@ watch(
               empty-label="当前范围暂无群消息"
             />
           </div>
+          <CursorPager
+            v-if="groupRankings"
+            :page-number="groupRankingsPage"
+            :total-pages="groupRankingPages"
+            :total-items="groupRankings.total_count"
+            :busy="groupRankingsLoading"
+            @page="goToGroupRankingPage"
+          />
         </section>
 
         <section v-smooth-resize class="ranking-section analytics-card">
           <header>
             <div>
               <h2>热门知识词条</h2>
-              <p>按关键词回复与 AI 检索总次数排列前 10</p>
+              <p>按关键词回复与 AI 检索总次数排列</p>
             </div>
             <BookOpenCheck :size="18" aria-hidden="true" />
           </header>
-          <div v-rise-on-change="knowledgeRankingsRevision" class="analysis-content">
+          <div v-rise-on-change="knowledgeRankingsRevision" class="analysis-content" :class="{ 'analysis-content--loading': knowledgeRankingsLoading && knowledgeRankings }">
             <div v-if="knowledgeRankingsError" class="analysis-state analysis-state--error">
               <span>词条排行刷新失败。</span
-              ><button type="button" @click="loadKnowledgeRankings">重试</button>
+              ><button type="button" @click="() => loadKnowledgeRankings()">重试</button>
             </div>
             <div v-else-if="knowledgeRankingsLoading" class="analysis-state">
               <RefreshCw :size="14" />正在更新排行
@@ -483,6 +528,14 @@ watch(
               empty-label="当前范围暂无知识命中"
             />
           </div>
+          <CursorPager
+            v-if="knowledgeRankings"
+            :page-number="knowledgeRankingsPage"
+            :total-pages="knowledgeRankingPages"
+            :total-items="knowledgeRankings.total_count"
+            :busy="knowledgeRankingsLoading"
+            @page="goToKnowledgeRankingPage"
+          />
         </section>
       </section>
 
@@ -725,6 +778,12 @@ watch(
 
 .analysis-content {
   min-width: 0;
+}
+
+.analysis-content--loading {
+  pointer-events: none;
+  opacity: 0.62;
+  transition: opacity var(--duration-fast) ease;
 }
 
 .analysis-state {

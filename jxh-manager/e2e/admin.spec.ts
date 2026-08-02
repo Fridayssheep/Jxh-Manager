@@ -18,36 +18,45 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
       .map((element) => {
         const rect = element.getBoundingClientRect()
         return {
-          element: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''}${Array.from(element.classList).map((name) => `.${name}`).join('')}`,
+          element: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''}${Array.from(
+            element.classList,
+          )
+            .map((name) => `.${name}`)
+            .join('')}`,
           left: rect.left,
           right: rect.right,
           width: rect.width,
           scrollWidth: element.scrollWidth,
         }
       })
-      .filter(({ left, right }) => left < -0.5 || right > document.documentElement.clientWidth + 0.5)
+      .filter(
+        ({ left, right }) => left < -0.5 || right > document.documentElement.clientWidth + 0.5,
+      )
       .slice(0, 8),
   }))
-  expect(sizes.scrollWidth, JSON.stringify(sizes.overflowers, null, 2))
-    .toBeLessThanOrEqual(sizes.clientWidth)
+  expect(sizes.scrollWidth, JSON.stringify(sizes.overflowers, null, 2)).toBeLessThanOrEqual(
+    sizes.clientWidth,
+  )
 }
 
 async function expectNamedControls(page: Page): Promise<void> {
   const unnamedControls = await page
     .locator('button:visible, a[href]:visible, input:visible, select:visible, textarea:visible')
-    .evaluateAll((elements) => elements.flatMap((element) => {
-      const control = element as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-      const hasLabel = Array.from(control.labels ?? []).some((label) => label.textContent?.trim())
-      const hasName = Boolean(
-        element.textContent?.trim()
-        || element.getAttribute('aria-label')
-        || element.getAttribute('title')
-        || element.getAttribute('alt')
-        || ('value' in control && control.value)
-        || hasLabel,
-      )
-      return hasName ? [] : [element.outerHTML.slice(0, 180)]
-    }))
+    .evaluateAll((elements) =>
+      elements.flatMap((element) => {
+        const control = element as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+        const hasLabel = Array.from(control.labels ?? []).some((label) => label.textContent?.trim())
+        const hasName = Boolean(
+          element.textContent?.trim() ||
+          element.getAttribute('aria-label') ||
+          element.getAttribute('title') ||
+          element.getAttribute('alt') ||
+          ('value' in control && control.value) ||
+          hasLabel,
+        )
+        return hasName ? [] : [element.outerHTML.slice(0, 180)]
+      }),
+    )
 
   expect(unnamedControls).toEqual([])
 }
@@ -84,20 +93,23 @@ async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): P
   })
 
   const activeAnimations = await page.evaluate(() =>
-    document.getAnimations().filter((animation) => {
-      const endTime = animation.effect?.getComputedTiming().endTime
-      return animation.playState !== 'finished' && Number.isFinite(Number(endTime))
-    }).map((animation) => {
-      const effect = animation.effect as KeyframeEffect | null
-      const target = effect?.target as Element | null
-      return {
-        target: target ? `${target.tagName.toLowerCase()}.${target.className}` : 'unknown',
-        playState: animation.playState,
-        currentTime: Number(animation.currentTime),
-        endTime: Number(effect?.getComputedTiming().endTime),
-        keyframes: effect?.getKeyframes(),
-      }
-    }),
+    document
+      .getAnimations()
+      .filter((animation) => {
+        const endTime = animation.effect?.getComputedTiming().endTime
+        return animation.playState !== 'finished' && Number.isFinite(Number(endTime))
+      })
+      .map((animation) => {
+        const effect = animation.effect as KeyframeEffect | null
+        const target = effect?.target as Element | null
+        return {
+          target: target ? `${target.tagName.toLowerCase()}.${target.className}` : 'unknown',
+          playState: animation.playState,
+          currentTime: Number(animation.currentTime),
+          endTime: Number(effect?.getComputedTiming().endTime),
+          keyframes: effect?.getKeyframes(),
+        }
+      }),
   )
   expect(activeAnimations).toEqual([])
   const path = testInfo.outputPath(`${name}.png`)
@@ -120,7 +132,8 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(page.getByText('已启用 精弘网络维护群的自动拒绝。')).toBeVisible()
 
     const requests = api.requests.filter(
-      (request) => request.method === 'PATCH' && request.path === '/groups/10001/join-request-policy',
+      (request) =>
+        request.method === 'PATCH' && request.path === '/groups/10001/join-request-policy',
     )
     expect(requests).toHaveLength(2)
     expect(requests[0]!.headers['if-match']).toBe('"1"')
@@ -131,7 +144,9 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expectCsrf(requests[1]!)
   })
 
-  test('keeps group policy controls within a portrait tablet viewport', async ({ page }, testInfo) => {
+  test('keeps group policy controls within a portrait tablet viewport', async ({
+    page,
+  }, testInfo) => {
     await installAdminApi(page)
     await page.setViewportSize({ width: 768, height: 1024 })
     await page.goto('/groups')
@@ -182,11 +197,13 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
       { width: 390, height: 844 },
     ]) {
       await page.setViewportSize(viewport)
-      const edges = await page.locator('[data-test="navigation-highlight"]').evaluate((highlight) => {
-        const highlightLeft = highlight.getBoundingClientRect().left
-        const markerOffset = Number.parseFloat(getComputedStyle(highlight, '::before').left)
-        return { highlightLeft, markerLeft: highlightLeft + markerOffset }
-      })
+      const edges = await page
+        .locator('[data-test="navigation-highlight"]')
+        .evaluate((highlight) => {
+          const highlightLeft = highlight.getBoundingClientRect().left
+          const markerOffset = Number.parseFloat(getComputedStyle(highlight, '::before').left)
+          return { highlightLeft, markerLeft: highlightLeft + markerOffset }
+        })
       expect(edges.markerLeft).toBeCloseTo(edges.highlightLeft, 5)
     }
   })
@@ -220,9 +237,9 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(page.locator('[data-test="login-artwork"]')).toBeVisible()
     await expect(page.locator('.login-shell')).toHaveCSS('border-radius', '8px')
     await expect(page.locator('.brand-identity > div')).toHaveCSS('border-radius', '4px')
-    const brandFieldColor = await page.locator('.login-page').evaluate((element) =>
-      getComputedStyle(element, '::before').backgroundColor,
-    )
+    const brandFieldColor = await page
+      .locator('.login-page')
+      .evaluate((element) => getComputedStyle(element, '::before').backgroundColor)
     expect(brandFieldColor).toBe('rgb(240, 68, 100)')
     await expectNoHorizontalOverflow(page)
     await attachScreenshot(page, testInfo, 'login-desktop')
@@ -258,7 +275,9 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     const api = await installAdminApi(page)
     await page.goto('/join-requests')
     await page.locator('[data-test="request-row-flag-10001"]').click()
-    await expect(page.getByLabel('申请详情').getByText('计算机科学与技术', { exact: true })).toBeVisible()
+    await expect(
+      page.getByLabel('申请详情').getByText('计算机科学与技术', { exact: true }),
+    ).toBeVisible()
 
     await page.locator('[data-test="approve-request"]').click()
     await page.locator('[data-test="decision-reason"]').fill('信息完整')
@@ -266,42 +285,61 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(page.getByText('已确认批准')).toBeVisible()
 
     const request = api.findRequest('POST', '/join-requests/flag-10001/decisions')!
-    expectCsrf(request); expectIdempotencyKey(request)
+    expectCsrf(request)
+    expectIdempotencyKey(request)
     expect(request.headers['if-match']).toBe('"7"')
     expect(request.body).toEqual({ action: 'approve', reason: '信息完整' })
   })
 
-  test('入群队列使用十条游标分页并保持活动高亮对齐', async ({ page }) => {
+  test('入群队列显示总页数、直接跳页并允许在列表项上滚动页面', async ({ page }) => {
     const api = await installAdminApi(page)
+    await page.setViewportSize({ width: 1024, height: 768 })
     await page.goto('/join-requests')
     const firstRow = page.locator('[data-test="request-row-flag-10001"]')
     await expect(firstRow).toBeVisible()
 
     const firstRequest = api.requests.find((request) => request.path === '/join-requests')
     expect(firstRequest?.url).toContain('limit=10')
+    expect(firstRequest?.url).toContain('page=1')
+    await expect(page.locator('[data-test="cursor-pager"]')).toContainText('第 1 / 2 页')
     await firstRow.click()
     await expect
-      .poll(() => page.evaluate(() => {
-        const row = document.querySelector('[data-test="request-row-flag-10001"]')
-          ?.getBoundingClientRect()
-        const highlight = document.querySelector('[data-test="request-row-highlight"]')
-          ?.getBoundingClientRect()
-        if (!row || !highlight) return false
-        return Math.abs(row.top - highlight.top) < 0.5
-          && Math.abs(row.height - highlight.height) < 0.5
-      }))
+      .poll(() =>
+        page.evaluate(() => {
+          const row = document
+            .querySelector('[data-test="request-row-flag-10001"]')
+            ?.getBoundingClientRect()
+          const highlight = document
+            .querySelector('[data-test="request-row-highlight"]')
+            ?.getBoundingClientRect()
+          if (!row || !highlight) return false
+          return (
+            Math.abs(row.top - highlight.top) < 0.5 && Math.abs(row.height - highlight.height) < 0.5
+          )
+        }),
+      )
       .toBe(true)
 
-    await page.locator('[data-test="cursor-next"]').click()
+    await firstRow.hover()
+    const scrollBefore = await page.evaluate(() => window.scrollY)
+    await page.mouse.wheel(0, 520)
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollBefore)
+
+    await page.locator('[data-test="page-2"]').click()
     await expect(page.locator('[data-test="request-row-flag-page-2"]')).toBeVisible()
     await expect(firstRow).toHaveCount(0)
-    expect(api.requests.find((request) => request.url.includes('cursor=join-cursor-2'))?.url)
-      .toContain('limit=10')
+    expect(api.requests.find((request) => request.url.includes('page=2'))?.url).toContain(
+      'limit=10',
+    )
 
-    await page.locator('[data-test="cursor-previous"]').click()
+    await page.locator('[data-test="page-1"]').click()
     await expect(page.locator('[data-test="request-row-flag-10001"]')).toBeVisible()
     await expect(page.locator('[data-test="request-row-flag-page-2"]')).toHaveCount(0)
     await expect(page.locator('[data-test="request-scroll"]')).toHaveCSS('overflow-y', 'auto')
+    await expect(page.locator('[data-test="request-scroll"]')).toHaveCSS(
+      'overscroll-behavior-y',
+      'auto',
+    )
   })
 
   test('命令草稿验证只调用无副作用端点', async ({ page }) => {
@@ -320,8 +358,12 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(page.getByText('验证完成，未执行任何 NapCat 外部动作。')).toBeVisible()
     const request = api.findRequest('POST', '/commands/validate')!
     expectCsrf(request)
-    expect(request.body).toMatchObject({ definition: { name: '/welcome', actions: [{ type: 'reply_text', template: '欢迎加入本群' }] } })
-    expect(api.requests.filter((item) => item.method !== 'GET' && item.path !== '/commands/validate')).toEqual([])
+    expect(request.body).toMatchObject({
+      definition: { name: '/welcome', actions: [{ type: 'reply_text', template: '欢迎加入本群' }] },
+    })
+    expect(
+      api.requests.filter((item) => item.method !== 'GET' && item.path !== '/commands/validate'),
+    ).toEqual([])
   })
 
   test('定时任务测试发送携带版本和幂等键', async ({ page }) => {
@@ -332,7 +374,8 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(page.getByText(/测试发送成功/)).toBeVisible()
 
     const request = api.findRequest('POST', '/scheduled-jobs/job-1/test-send')!
-    expectCsrf(request); expectIdempotencyKey(request)
+    expectCsrf(request)
+    expectIdempotencyKey(request)
     expect(request.headers['if-match']).toBe('"7"')
   })
 
@@ -408,7 +451,37 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(operation.getByText('reload-1', { exact: true })).toBeVisible()
     await expect(operation).toContainText('重载操作 · 已接受')
     const request = api.findRequest('POST', '/knowledge/reload')!
-    expectCsrf(request); expectIdempotencyKey(request)
+    expectCsrf(request)
+    expectIdempotencyKey(request)
+  })
+
+  test('知识词条显示总页数、直接跳页并允许在词条上滚动页面', async ({ page }) => {
+    const api = await installAdminApi(page)
+    await page.setViewportSize({ width: 1024, height: 768 })
+    await page.goto('/knowledge')
+
+    const firstEntry = page.locator('[data-test="knowledge-entry-entry-1"]')
+    await expect(firstEntry).toBeVisible()
+    await expect(page.locator('[data-test="cursor-pager"]').first()).toContainText('第 1 / 2 页')
+    await expect(page.locator('[data-test="knowledge-entry-scroll"]')).toHaveCSS(
+      'overscroll-behavior-y',
+      'auto',
+    )
+
+    await firstEntry.hover()
+    const scrollState = await page.evaluate(() => ({
+      current: window.scrollY,
+      maximum: document.documentElement.scrollHeight - window.innerHeight,
+    }))
+    await page.mouse.wheel(0, scrollState.current >= scrollState.maximum - 1 ? -520 : 520)
+    await expect.poll(() => page.evaluate(() => window.scrollY)).not.toBe(scrollState.current)
+
+    await page.locator('[data-test="cursor-pager"]').first().locator('[data-test="page-2"]').click()
+    await expect(page.locator('[data-test="knowledge-entry-entry-page-2"]')).toBeVisible()
+    const secondPageRequest = api.requests.find(
+      (request) => request.path === '/knowledge/entries' && request.url.includes('page=2'),
+    )
+    expect(secondPageRequest?.url).toContain('limit=10')
   })
 
   test('统计导出使用当前筛选并生成下载', async ({ page }) => {
@@ -433,8 +506,9 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await page.addInitScript(() => {
       const recordedFrames: (Keyframe[] | PropertyIndexedKeyframes | null)[] = []
       const originalAnimate = Element.prototype.animate
-      ;(window as unknown as { __analyticsMotionFrames: typeof recordedFrames })
-        .__analyticsMotionFrames = recordedFrames
+      ;(
+        window as unknown as { __analyticsMotionFrames: typeof recordedFrames }
+      ).__analyticsMotionFrames = recordedFrames
       Element.prototype.animate = function (
         keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
         options?: number | KeyframeAnimationOptions,
@@ -456,10 +530,24 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(page.locator('.analytics-card').first()).toHaveCSS('border-radius', '6px')
     await expectNoHorizontalOverflow(page)
 
-    const requestCount = (path: string) => api.requests.filter((request) => request.path === path).length
+    const requestCount = (path: string) =>
+      api.requests.filter((request) => request.path === path).length
     expect(requestCount('/analytics/summary')).toBe(1)
     expect(requestCount('/analytics/timeseries')).toBe(1)
     expect(requestCount('/analytics/rankings')).toBe(2)
+
+    const groupRanking = page.locator('.ranking-section').filter({ hasText: '活跃群聊' })
+    await expect(groupRanking.locator('[data-test="cursor-pager"]')).toContainText('第 1 / 2 页')
+    await groupRanking.locator('[data-test="page-2"]').click()
+    await expect(groupRanking.getByText('第二页群聊')).toBeVisible()
+    expect(
+      api.requests.find(
+        (request) =>
+          request.path === '/analytics/rankings' &&
+          request.url.includes('dimension=group') &&
+          request.url.includes('page=2'),
+      )?.url,
+    ).toContain('limit=10')
 
     await expect(page.locator('select')).toHaveCount(0)
     await expect(page.locator('[name="metric"]')).toHaveCount(0)
@@ -468,7 +556,7 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(page.locator('[name="result"]')).toHaveCount(0)
     await page.locator('[data-test="range-preset-30"]').click()
     await expect.poll(() => requestCount('/analytics/timeseries')).toBe(2)
-    await expect.poll(() => requestCount('/analytics/rankings')).toBe(4)
+    await expect.poll(() => requestCount('/analytics/rankings')).toBe(5)
     expect(requestCount('/analytics/summary')).toBe(2)
     await expect
       .poll(() =>
@@ -497,7 +585,8 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     await expect(page.getByText('会话已撤销。')).toBeVisible()
 
     const request = api.findRequest('POST', '/sessions/session-2/revoke')!
-    expectCsrf(request); expectIdempotencyKey(request)
+    expectCsrf(request)
+    expectIdempotencyKey(request)
   })
 
   test('编辑管理账号使用详情版本提交更新', async ({ page }) => {
@@ -516,6 +605,35 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
     expectCsrf(request)
     expect(request.headers['if-match']).toBe('"9"')
     expect(request.body).toMatchObject({ display_name: '更新后的详情维护员' })
+  })
+
+  test('创建管理账号校验输入并提交有效账号', async ({ page }) => {
+    const api = await installAdminApi(page)
+    await page.goto('/users')
+    await page.locator('[data-test="create-user"]').click()
+
+    await page.locator('[data-test="user-username"]').fill('Bad Name')
+    await page.locator('[data-test="user-display-name"]').fill('新值班员')
+    await page.locator('[data-test="user-password"]').fill('short')
+    await page.locator('[data-test="save-user"]').click()
+    await expect(page.getByText('用户名需以小写字母开头')).toBeVisible()
+    await expect(page.getByText('初始密码需为 12–128 个字符。')).toBeVisible()
+    expect(api.findRequest('POST', '/users')).toBeUndefined()
+
+    await page.locator('[data-test="user-username"]').fill('operator2')
+    await page.locator('[data-test="user-password"]').fill('valid-password-2026')
+    await page.locator('[data-test="save-user"]').click()
+    await expect(page.getByText('新值班员 已保存，版本 1。')).toBeVisible()
+    await expect(page.getByText('@operator2 · user-created')).toBeVisible()
+
+    const request = api.findRequest('POST', '/users')!
+    expectCsrf(request)
+    expect(request.body).toMatchObject({
+      username: 'operator2',
+      display_name: '新值班员',
+      role: 'maintainer',
+      password: 'valid-password-2026',
+    })
   })
 
   test('Bot 配置文件保存携带资源版本和 CSRF', async ({ page }) => {
@@ -547,7 +665,8 @@ test.describe('管理端核心流程', { tag: '@desktop' }, () => {
 
     await expect(page.locator('[data-test="reconnect-overlay"]')).toBeVisible()
     const request = api.findRequest('POST', '/system/bot/restart')!
-    expectCsrf(request); expectIdempotencyKey(request)
+    expectCsrf(request)
+    expectIdempotencyKey(request)
     expect(request.body).toEqual({ confirmation: 'restart', configuration_version: 7 })
   })
 })
@@ -584,9 +703,10 @@ test('应用壳和关键页面适配当前 viewport', async ({ page }, testInfo)
 
   for (const route of routes) {
     await page.goto(route.path)
-    const heading = route.path === '/system'
-      ? page.locator('[data-test="system-page-title"]')
-      : page.getByRole('heading', { name: route.heading, exact: true })
+    const heading =
+      route.path === '/system'
+        ? page.locator('[data-test="system-page-title"]')
+        : page.getByRole('heading', { name: route.heading, exact: true })
     await expect(heading).toBeVisible()
     await expect(page.locator(route.ready)).toBeVisible()
     await expectNoHorizontalOverflow(page)
