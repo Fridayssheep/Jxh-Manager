@@ -123,6 +123,28 @@ const canAct = computed(
         <p v-else class="ai-empty">当前没有可展示的结构化字段。</p>
       </section>
 
+      <section v-if="request.automatic_review" class="detail-section review-section">
+        <header>
+          <div class="section-title"><ShieldCheck :size="17" aria-hidden="true" /><h3>自动审核 v{{ request.automatic_review.rule_version }}</h3></div>
+          <span :class="['review-outcome', `review-outcome--${request.automatic_review.outcome}`]">
+            {{ request.automatic_review.outcome === 'passed' ? '校验通过' : request.automatic_review.outcome === 'rejected' ? '未通过' : '等待依赖' }}
+          </span>
+        </header>
+        <div class="review-checks">
+          <div><span>长度</span><strong>{{ request.automatic_review.student_id.actual_length }} / {{ request.automatic_review.student_id.expected_length }} 位</strong></div>
+          <div><span>纯数字</span><strong>{{ request.automatic_review.student_id.numeric ? '通过' : '失败' }}</strong></div>
+          <div><span>入学年份</span><strong>{{ request.automatic_review.student_id.enrollment_year || '—' }} / {{ request.automatic_review.student_id.expected_year }}</strong></div>
+          <div><span>专业代码</span><strong class="mono">{{ request.automatic_review.student_id.major_code || '—' }}</strong></div>
+          <div><span>录取名单</span><strong>{{ request.automatic_review.roster.status }}</strong></div>
+          <div><span>证据样本</span><strong>{{ request.automatic_review.evidence?.total_samples ?? 0 }} 条</strong></div>
+        </div>
+        <div v-if="request.automatic_review.judgement" class="judge-result">
+          <Bot :size="15" aria-hidden="true" />
+          <div><strong>{{ request.automatic_review.judgement.decision }} · {{ request.automatic_review.judgement.confidence }}</strong><p>{{ request.automatic_review.judgement.reason }}</p></div>
+        </div>
+        <p class="review-reason">{{ request.automatic_review.reason }}</p>
+      </section>
+
       <section v-if="policy" class="detail-section policy-section">
         <header>
           <div class="section-title"><ShieldCheck :size="17" aria-hidden="true" /><h3>自动处理策略</h3></div>
@@ -131,7 +153,7 @@ const canAct = computed(
           <label class="policy-row">
             <span class="policy-copy">
               <strong>自动批准</strong>
-              <small>AI 字段完整且格式有效时批准。</small>
+              <small>固定校验、名单和专业代码 AI 判断全部通过时批准。</small>
             </span>
             <span class="policy-switch">
               <input
@@ -149,7 +171,7 @@ const canAct = computed(
           <label class="policy-row">
             <span class="policy-copy">
               <strong>自动拒绝</strong>
-              <small>AI 字段无效时使用全局拒绝消息。</small>
+              <small>校验失败时拒绝，详细原因只对管理员可见。</small>
             </span>
             <span class="policy-switch">
               <input
@@ -181,6 +203,7 @@ const canAct = computed(
               <strong>{{ decision.action === 'approve' ? '批准' : '拒绝' }} · {{ decision.status }}</strong>
               <span>{{ decision.actor?.display_name || '系统' }} · {{ decision.source }}</span>
               <p v-if="decision.reason">{{ decision.reason }}</p>
+              <p v-if="decision.review_snapshot?.judgement">AI：{{ decision.review_snapshot.judgement.decision }} · {{ decision.review_snapshot.judgement.confidence }}</p>
             </div>
             <time class="mono">{{ timeFormatter.format(new Date(decision.started_at)) }}</time>
           </article>
@@ -400,6 +423,52 @@ blockquote {
 .validation-state--valid { color: var(--color-success); }
 .validation-state--invalid { color: var(--color-danger); }
 
+.review-outcome {
+  padding: 3px 7px;
+  color: var(--color-unknown);
+  font-size: 10px;
+  background: var(--color-unknown-surface);
+  border-radius: 4px;
+}
+
+.review-outcome--passed { color: var(--color-success); background: var(--color-success-surface); }
+.review-outcome--rejected { color: var(--color-danger); background: var(--color-danger-surface); }
+
+.review-checks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 11px;
+  background: var(--color-border);
+}
+
+.review-checks div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 8px;
+  background: var(--color-surface);
+}
+
+.review-checks span { color: var(--color-text-secondary); font-size: 10px; }
+.review-checks strong { overflow-wrap: anywhere; font-size: 11px; }
+
+.judge-result {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  padding: 9px;
+  color: var(--color-info);
+  background: var(--color-info-surface);
+}
+
+.judge-result strong,
+.judge-result p,
+.review-reason { margin: 0; font-size: 11px; }
+.judge-result p { margin-top: 2px; }
+.review-reason { margin-top: 9px; color: var(--color-text-secondary); }
+
 .policy-switch {
   position: relative;
   justify-content: flex-end;
@@ -529,6 +598,10 @@ blockquote {
 
   .ai-fields {
     grid-template-columns: 1fr;
+  }
+
+  .review-checks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .decision-actions {

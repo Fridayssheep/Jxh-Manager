@@ -3,6 +3,7 @@ import {
   BookOpen,
   ChartNoAxesCombined,
   ClipboardCheck,
+  DatabaseZap,
   Clock3,
   LayoutDashboard,
   ScrollText,
@@ -43,6 +44,12 @@ export const primaryNavigation: NavigationItem[] = [
     icon: ClipboardCheck,
     permissions: ['join_requests:read'],
     badgeKey: 'pending_join_requests',
+  },
+  {
+    label: '审批规则与证据',
+    to: '/join-request-rules',
+    icon: DatabaseZap,
+    permissions: ['join_requests:read'],
   },
   {
     label: '自定义命令',

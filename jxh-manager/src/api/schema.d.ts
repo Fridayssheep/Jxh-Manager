@@ -481,6 +481,110 @@ export interface paths {
         patch: operations["updateStudentIdRule"];
         trace?: never;
     };
+    "/join-request-evidence/major-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询专业代码证据汇总 */
+        get: operations["listJoinMajorCodeEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/join-request-evidence/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询专业代码证据样本 */
+        get: operations["listJoinMajorCodeEvidenceSamples"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/join-request-evidence/samples/{sample_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 修订专业代码证据样本 */
+        patch: operations["updateJoinMajorCodeEvidenceSample"];
+        trace?: never;
+    };
+    "/join-request-evidence/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 从已确认通过的申请重建专业代码证据 */
+        post: operations["rebuildJoinMajorCodeEvidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admission-roster/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询当前录取名单状态 */
+        get: operations["getAdmissionRosterStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admission-roster/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 导入并原子启用录取名单 */
+        post: operations["importAdmissionRoster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/groups/{group_id}/join-request-policy": {
         parameters: {
             query?: never;
@@ -1281,6 +1385,119 @@ export interface components {
             major_matches: boolean | null;
             warnings: components["schemas"]["StudentIdWarning"][];
         };
+        AutomaticStudentIdCheck: {
+            /** @constant */
+            expected_length: 12;
+            actual_length: number;
+            length_valid: boolean;
+            numeric: boolean;
+            enrollment_year: string;
+            expected_year: string;
+            year_valid: boolean;
+            major_code: string;
+        };
+        MajorCount: {
+            major: string;
+            count: number;
+        };
+        MajorCodeEvidence: {
+            enrollment_year: string;
+            major_code: string;
+            total_samples: number;
+            major_counts: components["schemas"]["MajorCount"][];
+            version: number;
+        };
+        MajorCodeJudgement: {
+            /** @enum {string} */
+            decision: "match" | "mismatch" | "uncertain";
+            /** @enum {string} */
+            confidence: "high" | "medium" | "low";
+            reason: string;
+        };
+        RosterAssessment: {
+            /** @enum {string} */
+            status: "not_configured" | "matched" | "not_found" | "major_mismatch" | "unavailable";
+            dataset_version?: string;
+        };
+        AutomaticReview: {
+            /** @constant */
+            rule_version: 2;
+            /** @enum {string} */
+            outcome: "passed" | "rejected" | "dependency_pending";
+            student_id: components["schemas"]["AutomaticStudentIdCheck"];
+            roster: components["schemas"]["RosterAssessment"];
+            evidence?: components["schemas"]["MajorCodeEvidence"];
+            judgement?: components["schemas"]["MajorCodeJudgement"];
+            reason_code: string;
+            reason: string;
+            reviewed_at: components["schemas"]["Timestamp"];
+        };
+        JoinApprovalRuleState: {
+            /** @constant */
+            rule_version: 2;
+            /** @enum {string} */
+            status: "building" | "ready" | "failed";
+            evidence_version: number;
+            activated_at: components["schemas"]["Timestamp"] | null;
+            rebuilt_at: components["schemas"]["Timestamp"] | null;
+            version: number;
+        };
+        MajorCodeEvidenceSummary: {
+            enrollment_year: string;
+            major_code: string;
+            total_samples: number;
+            major_counts: components["schemas"]["MajorCount"][];
+        };
+        MajorCodeEvidenceIndex: {
+            rule_state: components["schemas"]["JoinApprovalRuleState"];
+            rule: components["schemas"]["AutomaticRuleConfiguration"];
+            items: components["schemas"]["MajorCodeEvidenceSummary"][];
+        };
+        AutomaticRuleConfiguration: {
+            /** @constant */
+            student_id_length: 12;
+            /** @constant */
+            enrollment_year_offset: 2;
+            /** @constant */
+            enrollment_year_length: 4;
+            /** @constant */
+            major_code_offset: 6;
+            /** @constant */
+            major_code_length: 3;
+            current_year: string;
+            minimum_samples: number;
+        };
+        MajorCodeEvidenceSample: {
+            sample_id: number;
+            enrollment_year: string;
+            major_code: string;
+            major: string;
+            approval_source: components["schemas"]["JoinDecisionSource"];
+            source_group_id: components["schemas"]["Identifier"];
+            active: boolean;
+            version: number;
+            updated_at: components["schemas"]["Timestamp"];
+        };
+        MajorCodeEvidenceSamplePatch: {
+            major?: string;
+            active?: boolean;
+        };
+        MajorCodeEvidenceSampleList: {
+            items: components["schemas"]["MajorCodeEvidenceSample"][];
+            has_more: boolean;
+            total_count: number;
+        };
+        MajorCodeEvidenceRebuildResult: {
+            rule_state: components["schemas"]["JoinApprovalRuleState"];
+            sample_count: number;
+        };
+        AdmissionRosterStatus: {
+            configured: boolean;
+            dataset_version: string | null;
+            file_name: string | null;
+            row_count: number;
+            activated_at: components["schemas"]["Timestamp"] | null;
+        };
         JoinRequestSummary: {
             request_id: components["schemas"]["JoinRequestIdentifier"];
             group: components["schemas"]["GroupReference"];
@@ -1298,6 +1515,7 @@ export interface components {
             decision_source: components["schemas"]["JoinDecisionSource"] | null;
             ai_parse: components["schemas"]["AIParseResult"];
             student_id_assessment: components["schemas"]["StudentIdAssessment"];
+            automatic_review: components["schemas"]["AutomaticReview"] | null;
             requested_at: components["schemas"]["Timestamp"];
             overdue: boolean;
             version: number;
@@ -1324,6 +1542,7 @@ export interface components {
             reason: string | null;
             rule_version: number | null;
             field_snapshot: components["schemas"]["AIApplicantFields"] | null;
+            review_snapshot: components["schemas"]["AutomaticReview"] | null;
             started_at: components["schemas"]["Timestamp"];
             completed_at: components["schemas"]["Timestamp"] | null;
             error_code: string | null;
@@ -3231,6 +3450,178 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             428: components["responses"]["PreconditionRequired"];
+        };
+    };
+    listJoinMajorCodeEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前证据版本及按入学年份、专业代码聚合的样本 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MajorCodeEvidenceIndex"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listJoinMajorCodeEvidenceSamples: {
+        parameters: {
+            query?: {
+                enrollment_year?: string;
+                major_code?: string;
+                active?: boolean;
+                /** @description 从 1 开始的页码；大于 1 时不得与 cursor 同时传入 */
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 证据样本分页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MajorCodeEvidenceSampleList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateJoinMajorCodeEvidenceSample: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 资源 version 的带双引号十进制表示，例如 "7" */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                sample_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MajorCodeEvidenceSamplePatch"];
+            };
+        };
+        responses: {
+            /** @description 修订后的样本 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MajorCodeEvidenceSample"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            428: components["responses"]["PreconditionRequired"];
+        };
+    };
+    rebuildJoinMajorCodeEvidence: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 同一操作者和 operation 下用于副作用去重的客户端生成键 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 重建结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MajorCodeEvidenceRebuildResult"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getAdmissionRosterStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前活动名单或未配置状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionRosterStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    importAdmissionRoster: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 同一操作者和 operation 下用于副作用去重的客户端生成键 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description CSV 或 XLSX；表头至少包含“学号”或 student_id。
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已启用的新名单版本 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionRosterStatus"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
         };
     };
     getJoinRequestPolicy: {

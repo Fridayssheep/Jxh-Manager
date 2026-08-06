@@ -7,6 +7,7 @@ import GroupsView from '@/views/groups/GroupsView.vue'
 import GroupDetailView from '@/views/groups/GroupDetailView.vue'
 import GlobalSettingsView from '@/views/settings/GlobalSettingsView.vue'
 import JoinRequestsView from '@/views/join-requests/JoinRequestsView.vue'
+import ApprovalRulesView from '@/views/join-requests/ApprovalRulesView.vue'
 import CommandsView from '@/views/commands/CommandsView.vue'
 import CommandEditorView from '@/views/commands/CommandEditorView.vue'
 import ScheduledJobsView from '@/views/scheduled-jobs/ScheduledJobsView.vue'
@@ -56,6 +57,12 @@ const router = createRouter({
       name: 'join-requests',
       component: JoinRequestsView,
       meta: { permission: 'join_requests:read', title: '入群审批' },
+    },
+    {
+      path: '/join-request-rules',
+      name: 'join-request-rules',
+      component: ApprovalRulesView,
+      meta: { permission: 'join_requests:read', title: '审批规则与证据' },
     },
     {
       path: '/commands',

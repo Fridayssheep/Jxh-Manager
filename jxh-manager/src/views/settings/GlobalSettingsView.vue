@@ -165,7 +165,7 @@ onMounted(load)
           <header>
             <div>
               <h3>入群申请</h3>
-              <p>AI 自动拒绝消息</p>
+              <p>旧版拒绝消息兼容设置</p>
             </div>
             <span class="scope-label">全局</span>
           </header>
@@ -182,7 +182,7 @@ onMounted(load)
           </label>
           <div class="field-meta">
             <span v-if="autoRejectReasonError" class="field-error" role="alert">{{ autoRejectReasonError }}</span>
-            <span v-else>通过 NapCat 发送给申请人</span>
+            <span v-else>自动审批 v2 不会向申请人发送此内容</span>
             <span class="mono">{{ autoRejectReasonLength }}/500</span>
           </div>
         </section>

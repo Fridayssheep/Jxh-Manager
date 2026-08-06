@@ -48,7 +48,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        channel: 'chrome',
+        channel: process.env.PLAYWRIGHT_CHANNEL,
         viewport: { width: 1440, height: 1024 },
       },
     },
@@ -57,7 +57,7 @@ export default defineConfig({
       grepInvert: /@desktop/,
       use: {
         ...devices['Desktop Chrome'],
-        channel: 'chrome',
+        channel: process.env.PLAYWRIGHT_CHANNEL,
         viewport: { width: 1024, height: 768 },
       },
     },
@@ -66,7 +66,7 @@ export default defineConfig({
       grepInvert: /@desktop/,
       use: {
         ...devices['Desktop Chrome'],
-        channel: 'chrome',
+        channel: process.env.PLAYWRIGHT_CHANNEL,
         viewport: { width: 390, height: 844 },
         hasTouch: true,
         isMobile: true,

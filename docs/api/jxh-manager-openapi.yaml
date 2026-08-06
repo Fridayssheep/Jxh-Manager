@@ -1037,6 +1037,188 @@ paths:
           $ref: '#/components/responses/Conflict'
         '428':
           $ref: '#/components/responses/PreconditionRequired'
+  /join-request-evidence/major-codes:
+    get:
+      tags: [Join Requests]
+      summary: 查询专业代码证据汇总
+      operationId: listJoinMajorCodeEvidence
+      x-stage: phase_2
+      x-status: implemented
+      responses:
+        '200':
+          description: 当前证据版本及按入学年份、专业代码聚合的样本
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MajorCodeEvidenceIndex'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /join-request-evidence/samples:
+    get:
+      tags: [Join Requests]
+      summary: 查询专业代码证据样本
+      operationId: listJoinMajorCodeEvidenceSamples
+      x-stage: phase_2
+      x-status: implemented
+      parameters:
+        - name: enrollment_year
+          in: query
+          schema:
+            type: string
+            pattern: '^[0-9]{4}$'
+        - name: major_code
+          in: query
+          schema:
+            type: string
+            pattern: '^[0-9]{3}$'
+        - name: active
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 证据样本分页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MajorCodeEvidenceSampleList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /join-request-evidence/samples/{sample_id}:
+    parameters:
+      - name: sample_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    patch:
+      tags: [Join Requests]
+      summary: 修订专业代码证据样本
+      operationId: updateJoinMajorCodeEvidenceSample
+      x-stage: phase_2
+      x-status: implemented
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MajorCodeEvidenceSamplePatch'
+      responses:
+        '200':
+          description: 修订后的样本
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MajorCodeEvidenceSample'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /join-request-evidence/rebuild:
+    post:
+      tags: [Join Requests]
+      summary: 从已确认通过的申请重建专业代码证据
+      operationId: rebuildJoinMajorCodeEvidence
+      x-stage: phase_2
+      x-status: implemented
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 重建结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MajorCodeEvidenceRebuildResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admission-roster/status:
+    get:
+      tags: [Join Requests]
+      summary: 查询当前录取名单状态
+      operationId: getAdmissionRosterStatus
+      x-stage: phase_2
+      x-status: implemented
+      responses:
+        '200':
+          description: 当前活动名单或未配置状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdmissionRosterStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admission-roster/import:
+    post:
+      tags: [Join Requests]
+      summary: 导入并原子启用录取名单
+      operationId: importAdmissionRoster
+      x-stage: phase_2
+      x-status: implemented
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV 或 XLSX；表头至少包含“学号”或 student_id。
+      responses:
+        '200':
+          description: 已启用的新名单版本
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdmissionRosterStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /groups/{group_id}/join-request-policy:
     parameters:
       - $ref: '#/components/parameters/GroupId'
@@ -3437,6 +3619,281 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/StudentIdWarning'
+    AutomaticStudentIdCheck:
+      type: object
+      additionalProperties: false
+      required: [expected_length, actual_length, length_valid, numeric, enrollment_year, expected_year, year_valid, major_code]
+      properties:
+        expected_length:
+          type: integer
+          const: 12
+        actual_length:
+          type: integer
+          minimum: 0
+        length_valid:
+          type: boolean
+        numeric:
+          type: boolean
+        enrollment_year:
+          type: string
+          maxLength: 4
+        expected_year:
+          type: string
+          pattern: '^[0-9]{4}$'
+        year_valid:
+          type: boolean
+        major_code:
+          type: string
+          maxLength: 3
+    MajorCount:
+      type: object
+      additionalProperties: false
+      required: [major, count]
+      properties:
+        major:
+          type: string
+          minLength: 1
+          maxLength: 128
+        count:
+          type: integer
+          minimum: 1
+    MajorCodeEvidence:
+      type: object
+      additionalProperties: false
+      required: [enrollment_year, major_code, total_samples, major_counts, version]
+      properties:
+        enrollment_year:
+          type: string
+          pattern: '^[0-9]{4}$'
+        major_code:
+          type: string
+          pattern: '^[0-9]{3}$'
+        total_samples:
+          type: integer
+          minimum: 0
+        major_counts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MajorCount'
+        version:
+          type: integer
+          minimum: 1
+    MajorCodeJudgement:
+      type: object
+      additionalProperties: false
+      required: [decision, confidence, reason]
+      properties:
+        decision:
+          type: string
+          enum: [match, mismatch, uncertain]
+        confidence:
+          type: string
+          enum: [high, medium, low]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    RosterAssessment:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [not_configured, matched, not_found, major_mismatch, unavailable]
+        dataset_version:
+          type: string
+    AutomaticReview:
+      type: object
+      additionalProperties: false
+      required: [rule_version, outcome, student_id, roster, reason_code, reason, reviewed_at]
+      properties:
+        rule_version:
+          type: integer
+          const: 2
+        outcome:
+          type: string
+          enum: [passed, rejected, dependency_pending]
+        student_id:
+          $ref: '#/components/schemas/AutomaticStudentIdCheck'
+        roster:
+          $ref: '#/components/schemas/RosterAssessment'
+        evidence:
+          $ref: '#/components/schemas/MajorCodeEvidence'
+        judgement:
+          $ref: '#/components/schemas/MajorCodeJudgement'
+        reason_code:
+          type: string
+          maxLength: 100
+        reason:
+          type: string
+          maxLength: 500
+        reviewed_at:
+          $ref: '#/components/schemas/Timestamp'
+    JoinApprovalRuleState:
+      type: object
+      additionalProperties: false
+      required: [rule_version, status, evidence_version, activated_at, rebuilt_at, version]
+      properties:
+        rule_version:
+          type: integer
+          const: 2
+        status:
+          type: string
+          enum: [building, ready, failed]
+        evidence_version:
+          type: integer
+          minimum: 0
+        activated_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        rebuilt_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        version:
+          type: integer
+          minimum: 1
+    MajorCodeEvidenceSummary:
+      type: object
+      additionalProperties: false
+      required: [enrollment_year, major_code, total_samples, major_counts]
+      properties:
+        enrollment_year:
+          type: string
+          pattern: '^[0-9]{4}$'
+        major_code:
+          type: string
+          pattern: '^[0-9]{3}$'
+        total_samples:
+          type: integer
+          minimum: 0
+        major_counts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MajorCount'
+    MajorCodeEvidenceIndex:
+      type: object
+      additionalProperties: false
+      required: [rule_state, rule, items]
+      properties:
+        rule_state:
+          $ref: '#/components/schemas/JoinApprovalRuleState'
+        rule:
+          $ref: '#/components/schemas/AutomaticRuleConfiguration'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MajorCodeEvidenceSummary'
+    AutomaticRuleConfiguration:
+      type: object
+      additionalProperties: false
+      required: [student_id_length, enrollment_year_offset, enrollment_year_length, major_code_offset, major_code_length, current_year, minimum_samples]
+      properties:
+        student_id_length:
+          type: integer
+          const: 12
+        enrollment_year_offset:
+          type: integer
+          const: 2
+        enrollment_year_length:
+          type: integer
+          const: 4
+        major_code_offset:
+          type: integer
+          const: 6
+        major_code_length:
+          type: integer
+          const: 3
+        current_year:
+          type: string
+          pattern: '^[0-9]{4}$'
+        minimum_samples:
+          type: integer
+          minimum: 1
+    MajorCodeEvidenceSample:
+      type: object
+      additionalProperties: false
+      required: [sample_id, enrollment_year, major_code, major, approval_source, source_group_id, active, version, updated_at]
+      properties:
+        sample_id:
+          type: integer
+          minimum: 1
+        enrollment_year:
+          type: string
+          pattern: '^[0-9]{4}$'
+        major_code:
+          type: string
+          pattern: '^[0-9]{3}$'
+        major:
+          type: string
+          minLength: 1
+          maxLength: 128
+        approval_source:
+          $ref: '#/components/schemas/JoinDecisionSource'
+        source_group_id:
+          $ref: '#/components/schemas/Identifier'
+        active:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+    MajorCodeEvidenceSamplePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        major:
+          type: string
+          minLength: 1
+          maxLength: 128
+        active:
+          type: boolean
+    MajorCodeEvidenceSampleList:
+      type: object
+      additionalProperties: false
+      required: [items, has_more, total_count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MajorCodeEvidenceSample'
+        has_more:
+          type: boolean
+        total_count:
+          type: integer
+          minimum: 0
+    MajorCodeEvidenceRebuildResult:
+      type: object
+      additionalProperties: false
+      required: [rule_state, sample_count]
+      properties:
+        rule_state:
+          $ref: '#/components/schemas/JoinApprovalRuleState'
+        sample_count:
+          type: integer
+          minimum: 0
+    AdmissionRosterStatus:
+      type: object
+      additionalProperties: false
+      required: [configured, dataset_version, file_name, row_count, activated_at]
+      properties:
+        configured:
+          type: boolean
+        dataset_version:
+          type: [string, 'null']
+        file_name:
+          type: [string, 'null']
+        row_count:
+          type: integer
+          minimum: 0
+        activated_at:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
     JoinRequestSummary:
       type: object
       additionalProperties: false
@@ -3453,6 +3910,7 @@ components:
         - decision_source
         - ai_parse
         - student_id_assessment
+        - automatic_review
         - requested_at
         - overdue
         - version
@@ -3492,6 +3950,10 @@ components:
           $ref: '#/components/schemas/AIParseResult'
         student_id_assessment:
           $ref: '#/components/schemas/StudentIdAssessment'
+        automatic_review:
+          oneOf:
+            - $ref: '#/components/schemas/AutomaticReview'
+            - type: 'null'
         requested_at:
           $ref: '#/components/schemas/Timestamp'
         overdue:
@@ -3544,6 +4006,7 @@ components:
         - reason
         - rule_version
         - field_snapshot
+        - review_snapshot
         - started_at
         - completed_at
         - error_code
@@ -3572,6 +4035,10 @@ components:
         field_snapshot:
           oneOf:
             - $ref: '#/components/schemas/AIApplicantFields'
+            - type: 'null'
+        review_snapshot:
+          oneOf:
+            - $ref: '#/components/schemas/AutomaticReview'
             - type: 'null'
         started_at:
           $ref: '#/components/schemas/Timestamp'
