@@ -6,7 +6,6 @@ import {
   ChevronRight,
   CircleHelp,
   FilterX,
-  LockKeyhole,
   Search,
   ShieldCheck,
   X,

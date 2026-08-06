@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { Bot, CheckCircle2, CircleHelp, LoaderCircle, Power, RefreshCw, ShieldCheck } from '@lucide/vue'
+import { CircleHelp, LoaderCircle, Power, RefreshCw, ShieldCheck } from '@lucide/vue'
 
 import { AdminApiError } from '@/api/client'
 import { authApi } from '@/api/auth'

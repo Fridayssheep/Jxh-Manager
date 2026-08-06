@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { LoaderCircle, Power, ShieldAlert, X } from '@lucide/vue'
+import { LoaderCircle, ShieldAlert, X } from '@lucide/vue'
 
 import AppOverlayTransition from '@/components/motion/AppOverlayTransition.vue'
 
