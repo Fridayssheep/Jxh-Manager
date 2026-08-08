@@ -402,6 +402,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/groups/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 批量发布群公告
+         * @description 仅对精小弘当前为群主或管理员的目标群发布公告，返回逐群执行结果。
+         */
+        post: operations["publishGroupNotices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/groups/{group_id}": {
         parameters: {
             query?: never;
@@ -1061,7 +1081,7 @@ export interface components {
         /** @enum {string} */
         AdminRole: "super_admin" | "maintainer" | "observer";
         /** @enum {string} */
-        Permission: "overview:read" | "groups:read" | "groups:sync" | "settings:read" | "settings:write" | "join_requests:read" | "join_requests:decide" | "join_policies:write" | "commands:read" | "commands:write" | "scheduled_jobs:read" | "scheduled_jobs:write" | "knowledge:read" | "knowledge:reload" | "analytics:read" | "analytics:export" | "audit:read" | "users:manage" | "sessions:manage" | "system:read" | "config:write" | "bot:restart" | "napcat:restart" | "events:read";
+        Permission: "overview:read" | "groups:read" | "groups:sync" | "group_notices:write" | "settings:read" | "settings:write" | "join_requests:read" | "join_requests:decide" | "join_policies:write" | "commands:read" | "commands:write" | "scheduled_jobs:read" | "scheduled_jobs:write" | "knowledge:read" | "knowledge:reload" | "analytics:read" | "analytics:export" | "audit:read" | "users:manage" | "sessions:manage" | "system:read" | "config:write" | "bot:restart" | "napcat:restart" | "events:read";
         Username: string;
         /** Format: password */
         Password: string;
@@ -1183,6 +1203,31 @@ export interface components {
             updated_count: number;
             removed_count: number;
             total_count: number;
+        };
+        GroupNoticePublishRequest: {
+            group_ids: components["schemas"]["Identifier"][];
+            content: string;
+        };
+        /** @enum {string} */
+        GroupNoticePublishStatus: "success" | "partial" | "failed" | "unknown";
+        /** @enum {string} */
+        GroupNoticePublishItemStatus: "success" | "denied" | "failed" | "unknown";
+        GroupNoticePublishItem: {
+            group: components["schemas"]["GroupReference"];
+            bot_role: components["schemas"]["GroupRole"];
+            status: components["schemas"]["GroupNoticePublishItemStatus"];
+            error_code?: string;
+        };
+        GroupNoticePublishResult: {
+            publication_id: components["schemas"]["Identifier"];
+            status: components["schemas"]["GroupNoticePublishStatus"];
+            requested_count: number;
+            published_count: number;
+            denied_count: number;
+            failed_count: number;
+            unknown_count: number;
+            items: components["schemas"]["GroupNoticePublishItem"][];
+            completed_at: components["schemas"]["Timestamp"];
         };
         BasicFeatureSettings: {
             enabled: boolean;
@@ -3223,6 +3268,39 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    publishGroupNotices: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 同一操作者和 operation 下用于副作用去重的客户端生成键 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupNoticePublishRequest"];
+            };
+        };
+        responses: {
+            /** @description 批量发布完成或得到部分、失败、未知结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupNoticePublishResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             503: components["responses"]["ServiceUnavailable"];
         };

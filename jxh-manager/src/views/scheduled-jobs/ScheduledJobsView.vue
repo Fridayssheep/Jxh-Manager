@@ -122,7 +122,7 @@ async function load(reset = true): Promise<void> {
 
 async function loadGroups(): Promise<void> {
   try {
-    const page = await groupsApi.list({ query: '', botRole: '', snapshotState: '', featureKey: '', featureEnabled: null, cursor: null, limit: 100 })
+    const page = await groupsApi.list({ query: '', botRole: '', featureKey: '', featureEnabled: null, cursor: null, limit: 100 })
     groups.value = page.items
   } catch {
     groups.value = []

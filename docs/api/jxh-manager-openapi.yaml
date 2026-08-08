@@ -816,6 +816,44 @@ paths:
           $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /groups/notices:
+    post:
+      tags: [Groups]
+      summary: 批量发布群公告
+      description: 仅对精小弘当前为群主或管理员的目标群发布公告，返回逐群执行结果。
+      operationId: publishGroupNotices
+      x-stage: phase_1
+      x-status: implemented
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupNoticePublishRequest'
+      responses:
+        '200':
+          description: 批量发布完成或得到部分、失败、未知结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupNoticePublishResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /groups/{group_id}:
     parameters:
       - $ref: '#/components/parameters/GroupId'
@@ -2749,6 +2787,7 @@ components:
         - overview:read
         - groups:read
         - groups:sync
+        - group_notices:write
         - settings:read
         - settings:write
         - join_requests:read
@@ -3096,6 +3135,84 @@ components:
         total_count:
           type: integer
           minimum: 0
+    GroupNoticePublishRequest:
+      type: object
+      additionalProperties: false
+      required: [group_ids, content]
+      properties:
+        group_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Identifier'
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+    GroupNoticePublishStatus:
+      type: string
+      enum: [success, partial, failed, unknown]
+    GroupNoticePublishItemStatus:
+      type: string
+      enum: [success, denied, failed, unknown]
+    GroupNoticePublishItem:
+      type: object
+      additionalProperties: false
+      required: [group, bot_role, status]
+      properties:
+        group:
+          $ref: '#/components/schemas/GroupReference'
+        bot_role:
+          $ref: '#/components/schemas/GroupRole'
+        status:
+          $ref: '#/components/schemas/GroupNoticePublishItemStatus'
+        error_code:
+          type: string
+          maxLength: 100
+    GroupNoticePublishResult:
+      type: object
+      additionalProperties: false
+      required:
+        - publication_id
+        - status
+        - requested_count
+        - published_count
+        - denied_count
+        - failed_count
+        - unknown_count
+        - items
+        - completed_at
+      properties:
+        publication_id:
+          $ref: '#/components/schemas/Identifier'
+        status:
+          $ref: '#/components/schemas/GroupNoticePublishStatus'
+        requested_count:
+          type: integer
+          minimum: 1
+          maximum: 50
+        published_count:
+          type: integer
+          minimum: 0
+        denied_count:
+          type: integer
+          minimum: 0
+        failed_count:
+          type: integer
+          minimum: 0
+        unknown_count:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/GroupNoticePublishItem'
+        completed_at:
+          $ref: '#/components/schemas/Timestamp'
     BasicFeatureSettings:
       type: object
       additionalProperties: false

@@ -149,7 +149,6 @@ async function loadGroups(): Promise<void> {
     const result = await groupsApi.list({
       query: '',
       botRole: '',
-      snapshotState: '',
       featureKey: '',
       featureEnabled: null,
       cursor: null,

@@ -1,10 +1,17 @@
 import { api, createIdempotencyKey, unwrap } from './client'
-import type { FeatureKey, Group, GroupList, GroupRole, GroupSyncResult } from './types'
+import type {
+  FeatureKey,
+  Group,
+  GroupList,
+  GroupNoticePublishRequest,
+  GroupNoticePublishResult,
+  GroupRole,
+  GroupSyncResult,
+} from './types'
 
 export type GroupListQuery = {
   query: string
   botRole: GroupRole | ''
-  snapshotState: 'fresh' | 'stale' | ''
   featureKey: FeatureKey | ''
   featureEnabled: boolean | null
   cursor: string | null
@@ -19,7 +26,6 @@ export const groupsApi = {
           query: {
             query: query.query || undefined,
             bot_role: query.botRole || undefined,
-            snapshot_state: query.snapshotState || undefined,
             feature_key: query.featureKey || undefined,
             feature_enabled: query.featureEnabled ?? undefined,
             cursor: query.cursor ?? undefined,
@@ -42,6 +48,18 @@ export const groupsApi = {
     return unwrap(
       await api.POST('/groups/sync', {
         params: { header: { 'Idempotency-Key': createIdempotencyKey() } },
+      }),
+    )
+  },
+
+  async publishNotices(
+    input: GroupNoticePublishRequest,
+    idempotencyKey = createIdempotencyKey(),
+  ): Promise<GroupNoticePublishResult> {
+    return unwrap(
+      await api.POST('/groups/notices', {
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
+        body: input,
       }),
     )
   },

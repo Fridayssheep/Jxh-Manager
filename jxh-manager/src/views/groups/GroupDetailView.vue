@@ -45,12 +45,6 @@ const overrideCount = computed(() =>
 )
 
 const roleLabels = { owner: '群主', admin: '管理员', member: '普通成员', unknown: '未知角色' }
-const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 
 function acceptSettings(value: GroupSettings): void {
   resource.value = value
@@ -139,7 +133,7 @@ onMounted(load)
       v-if="loading && !resource"
       state="loading"
       title="正在读取群详情"
-      description="同时读取群快照和有效功能设置。"
+      description="同时读取群信息和有效功能设置。"
     />
     <ResourceState
       v-else-if="error && !resource"
@@ -161,13 +155,8 @@ onMounted(load)
         <div class="group-facts">
           <div><span>成员</span><strong class="mono">{{ group.member_count }} / {{ group.max_member_count }}</strong></div>
           <div><span>Bot 角色</span><strong>{{ roleLabels[group.bot_role] }}</strong></div>
-          <div><span>快照</span><strong :class="group.snapshot_state === 'stale' ? 'warning' : 'success'">{{ group.snapshot_state === 'stale' ? '陈旧' : '最新' }}</strong></div>
         </div>
       </header>
-
-      <div v-if="group.snapshot_state === 'stale'" class="stale-warning" role="status">
-        当前展示最后一次成功快照，成功同步时间为 {{ timeFormatter.format(new Date(group.last_synced_at)) }}。
-      </div>
 
       <VersionConflict
         v-if="conflict"
@@ -202,7 +191,7 @@ onMounted(load)
             <span v-if="saved" class="save-success" role="status"><Check :size="15" aria-hidden="true" />设置已更新</span>
             <span v-else-if="saveError" class="save-error" role="alert">{{ saveError }}</span>
             <span v-else-if="unknownVariables.length" class="save-error" role="alert">修正未知模板变量后才能保存。</span>
-            <span v-else-if="dirty" class="save-hint">保存将更新 {{ group.name }} 的运行时快照。</span>
+            <span v-else-if="dirty" class="save-hint">保存将更新 {{ group.name }} 的运行时配置。</span>
             <span v-else class="save-hint">当前没有未保存修改。</span>
           </div>
           <div v-if="auth.hasPermission('settings:write')" class="save-actions">
@@ -307,17 +296,6 @@ onMounted(load)
 
 .group-facts strong {
   font-size: 13px;
-}
-
-.success { color: var(--color-success); }
-.warning { color: var(--color-warning); }
-
-.stale-warning {
-  padding: 9px 12px;
-  color: var(--color-warning);
-  font-size: 12px;
-  background: var(--color-warning-surface);
-  border-left: 3px solid var(--color-warning);
 }
 
 .settings-workspace {

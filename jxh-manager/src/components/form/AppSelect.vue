@@ -282,7 +282,7 @@ watch(
       :aria-label="accessibleName"
       aria-haspopup="listbox"
       :aria-expanded="open"
-      :aria-controls="instanceId"
+      :aria-controls="open ? instanceId : undefined"
       :disabled="disabled"
       @click="toggleMenu"
       @keydown="onTriggerKeydown"
