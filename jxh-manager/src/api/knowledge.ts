@@ -3,19 +3,12 @@ import type {
   KnowledgeConflictList,
   KnowledgeEntry,
   KnowledgeEntryList,
-  KnowledgeEntryType,
   KnowledgeReloadOperation,
   KnowledgeStatus,
 } from './types'
 
 export type KnowledgeEntryListQuery = {
   query: string
-  category: string
-  entryType: KnowledgeEntryType | ''
-  enabled: boolean | null
-  exactReply: boolean | null
-  aiEnabled: boolean | null
-  hasConflict: boolean | null
   page: number
   cursor: string | null
   limit?: number
@@ -43,12 +36,6 @@ export const knowledgeApi = {
   async listEntries(query: KnowledgeEntryListQuery): Promise<KnowledgeEntryList> {
     return unwrap(await api.GET('/knowledge/entries', { params: { query: {
       query: query.query || undefined,
-      category: query.category || undefined,
-      entry_type: query.entryType || undefined,
-      enabled: query.enabled ?? undefined,
-      exact_reply: query.exactReply ?? undefined,
-      ai_enabled: query.aiEnabled ?? undefined,
-      has_conflict: query.hasConflict ?? undefined,
       page: query.page,
       cursor: query.cursor ?? undefined,
       limit: query.limit ?? 30,
