@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRight, KeyRound, LoaderCircle, UserRound, WifiOff } from '@lucide/vue'
+import { ArrowRight, Check, KeyRound, LoaderCircle, UserRound, WifiOff } from '@lucide/vue'
 
 import { getLoginErrorMessage } from '@/api/auth'
+import { playLoginTransition } from '@/app/login-transition'
 import loginArtwork from '@/assets/login.webp'
 import logoAvatar from '@/assets/logo-avatar.webp'
 import { useAuthStore } from '@/stores/auth'
@@ -14,6 +15,17 @@ const router = useRouter()
 const form = reactive({ username: '', password: '' })
 const errors = reactive({ username: '', password: '', form: '' })
 const submitting = ref(false)
+const authFeedback = ref<'idle' | 'success' | 'error'>('idle')
+
+function reducedMotionPreferred(): boolean {
+  return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+}
+
+function waitForFieldFeedback(): Promise<void> {
+  return new Promise((resolve) =>
+    globalThis.setTimeout(resolve, reducedMotionPreferred() ? 20 : 500),
+  )
+}
 
 function validate(): boolean {
   errors.username = form.username.trim() ? '' : '请输入账号'
@@ -25,17 +37,36 @@ function validate(): boolean {
 async function submit(): Promise<void> {
   if (!validate()) return
 
+  authFeedback.value = 'idle'
+  await nextTick()
   submitting.value = true
   try {
     await auth.login(form.username.trim(), form.password)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
-    await router.replace(redirect.startsWith('/') ? redirect : '/')
   } catch (error) {
+    authFeedback.value = 'error'
     errors.form = getLoginErrorMessage(error)
+    submitting.value = false
+    return
+  }
+
+  authFeedback.value = 'success'
+  try {
+    await waitForFieldFeedback()
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+    await playLoginTransition(() => router.replace(redirect.startsWith('/') ? redirect : '/'))
   } finally {
     submitting.value = false
   }
 }
+
+watch(
+  () => [form.username, form.password],
+  () => {
+    if (submitting.value || authFeedback.value === 'idle') return
+    authFeedback.value = 'idle'
+    errors.form = ''
+  },
+)
 </script>
 
 <template>
@@ -72,9 +103,21 @@ async function submit(): Promise<void> {
             </div>
           </div>
 
-          <form novalidate @submit.prevent="submit">
+          <form
+            novalidate
+            :aria-busy="submitting"
+            :data-auth-feedback="authFeedback"
+            @submit.prevent="submit"
+          >
             <label for="username">账号</label>
-            <div class="input-wrap" :class="{ 'input-wrap--error': errors.username }">
+            <div
+              class="input-wrap"
+              :class="{
+                'input-wrap--error': errors.username,
+                'input-wrap--auth-success': authFeedback === 'success',
+                'input-wrap--auth-error': authFeedback === 'error',
+              }"
+            >
               <UserRound :size="18" aria-hidden="true" />
               <input
                 id="username"
@@ -84,13 +127,24 @@ async function submit(): Promise<void> {
                 autocomplete="username"
                 autocapitalize="none"
                 spellcheck="false"
+                :disabled="submitting"
+                :aria-invalid="Boolean(errors.username) || authFeedback === 'error'"
                 aria-describedby="username-error"
               />
             </div>
-            <span id="username-error" class="field-error" aria-live="polite">{{ errors.username }}</span>
+            <span id="username-error" class="field-error" aria-live="polite">{{
+              errors.username
+            }}</span>
 
             <label for="password">密码</label>
-            <div class="input-wrap" :class="{ 'input-wrap--error': errors.password }">
+            <div
+              class="input-wrap"
+              :class="{
+                'input-wrap--error': errors.password,
+                'input-wrap--auth-success': authFeedback === 'success',
+                'input-wrap--auth-error': authFeedback === 'error',
+              }"
+            >
               <KeyRound :size="18" aria-hidden="true" />
               <input
                 id="password"
@@ -98,17 +152,24 @@ async function submit(): Promise<void> {
                 name="password"
                 type="password"
                 autocomplete="current-password"
+                :disabled="submitting"
+                :aria-invalid="Boolean(errors.password) || authFeedback === 'error'"
                 aria-describedby="password-error"
               />
             </div>
-            <span id="password-error" class="field-error" aria-live="polite">{{ errors.password }}</span>
+            <span id="password-error" class="field-error" aria-live="polite">{{
+              errors.password
+            }}</span>
 
             <div v-if="errors.form" class="form-error" role="alert">{{ errors.form }}</div>
 
             <button class="login-button" type="submit" :disabled="submitting">
-              <LoaderCircle v-if="submitting" class="spin" :size="18" aria-hidden="true" />
+              <Check v-if="authFeedback === 'success'" :size="18" aria-hidden="true" />
+              <LoaderCircle v-else-if="submitting" class="spin" :size="18" aria-hidden="true" />
               <ArrowRight v-else :size="18" aria-hidden="true" />
-              <span>{{ submitting ? '正在验证' : '登录' }}</span>
+              <span>{{
+                authFeedback === 'success' ? '验证通过' : submitting ? '正在验证' : '登录'
+              }}</span>
             </button>
           </form>
         </div>
@@ -269,6 +330,7 @@ label {
 }
 
 .input-wrap {
+  position: relative;
   display: grid;
   height: 42px;
   grid-template-columns: 18px minmax(0, 1fr);
@@ -279,6 +341,26 @@ label {
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
+  overflow: hidden;
+  transition:
+    color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.input-wrap::before {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: transparent;
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.input-wrap > * {
+  position: relative;
+  z-index: 1;
 }
 
 .input-wrap:focus-within {
@@ -289,6 +371,42 @@ label {
 
 .input-wrap--error {
   border-color: var(--color-danger);
+}
+
+.input-wrap--auth-success {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.input-wrap--auth-success:focus-within {
+  color: var(--color-success);
+  border-color: var(--color-success);
+  box-shadow:
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px rgb(18 111 75 / 42%);
+}
+
+.input-wrap--auth-success::before {
+  background: rgb(18 111 75 / 18%);
+  animation: login-field-fill 460ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.input-wrap--auth-error {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.input-wrap--auth-error:focus-within {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  box-shadow:
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px rgb(159 37 37 / 36%);
+}
+
+.input-wrap--auth-error::before {
+  background: rgb(159 37 37 / 18%);
+  animation: login-field-fill 460ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 input {
@@ -366,6 +484,16 @@ input {
   }
 }
 
+@keyframes login-field-fill {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @media (max-width: 820px) {
   .login-page {
     padding: 20px;
@@ -434,6 +562,13 @@ input {
 
   .login-form-wrap header {
     margin-bottom: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input-wrap--auth-success::before,
+  .input-wrap--auth-error::before {
+    animation-duration: 0.01ms;
   }
 }
 </style>
