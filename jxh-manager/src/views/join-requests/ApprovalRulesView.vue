@@ -39,9 +39,9 @@ const selectedTitle = computed(() =>
 )
 
 function failureMessage(reason: unknown, fallback: string): string {
-	if (!(reason instanceof AdminApiError)) return fallback
-	const details = Object.values(reason.fields).flat().filter(Boolean)
-	return details.length ? `${reason.message}：${details.join('；')}` : reason.message
+  if (!(reason instanceof AdminApiError)) return fallback
+  const details = Object.values(reason.fields).flat().filter(Boolean)
+  return details.length ? `${reason.message}：${details.join('；')}` : reason.message
 }
 
 async function load(): Promise<void> {

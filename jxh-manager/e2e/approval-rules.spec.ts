@@ -28,7 +28,18 @@ test('审批规则页展示证据、名单和响应式布局', async ({ page }) 
   }))
   await page.route('**/api/admin/v1/events**', (route) => route.abort())
 
-  await page.goto('/join-request-rules')
+  // Reach the page the way a user does, so a missing or misgated sidebar entry fails here
+  // rather than staying invisible behind a direct URL visit.
+  await page.goto('/')
+  // On mobile viewports the nav is collapsed into a drawer, so open it first.
+  const navToggle = page.getByRole('button', { name: '打开导航' })
+  if (await navToggle.isVisible()) {
+    await navToggle.click()
+  }
+  const navigationLink = page.getByRole('link', { name: '审批规则与证据' })
+  await expect(navigationLink).toBeVisible()
+  await navigationLink.click()
+  await expect(page).toHaveURL(/\/join-request-rules$/)
   await expect(page.getByRole('heading', { name: '审批规则与证据' })).toBeVisible()
   await expect(page.getByText('12 位数字')).toBeVisible()
   await expect(page.getByText('计算机类 4')).toBeVisible()
