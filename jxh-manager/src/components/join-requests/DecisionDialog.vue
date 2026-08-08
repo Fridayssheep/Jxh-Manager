@@ -69,7 +69,7 @@ function confirm(): void {
           v-model="reason"
           data-test="decision-reason"
           rows="3"
-          :placeholder="action === 'reject' ? '填写发送给申请人的拒绝原因' : '用于审计记录，不会发送给申请人'"
+          :placeholder="action === 'reject' ? '填写发送给申请人的拒绝消息' : '可选备注'"
           :disabled="busy"
           :required="action === 'reject'"
           :aria-invalid="Boolean(reasonError)"
@@ -79,7 +79,7 @@ function confirm(): void {
           id="decision-reason-hint"
           class="reason-hint reason-guidance"
         >
-          <span>{{ action === 'reject' ? '将通过 NapCat 发送给申请人' : '仅写入决策审计记录' }}</span>
+          <span v-if="action === 'reject'">将通过 NapCat 发送给申请人</span>
           <span class="mono">{{ normalizedReasonLength }}/500</span>
         </span>
         <span

@@ -51,7 +51,6 @@ function confirm(): void {
             <p>
               当前配置版本
               <span class="mono">{{ configurationVersion ?? '未知' }}</span>
-              将作为本次受控重启的版本校验。
             </p>
           </div>
           <button class="dialog-close" type="button" aria-label="关闭" :disabled="busy" @click="emit('cancel')">
@@ -66,7 +65,7 @@ function confirm(): void {
         <label class="confirm-field">
           <span>
             确认文本
-            <small>必须输入小写 ASCII `restart`</small>
+            <small>输入"restart"确认</small>
           </span>
           <input
             v-model="confirmation"

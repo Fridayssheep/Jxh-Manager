@@ -1,6 +1,16 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 const now = '2026-08-07T00:00:00Z'
+
+// Narrow viewports collapse the sidebar into a drawer, so the nav link only exists after the
+// toggle is pressed. Kept out of the test body so the branch is layout plumbing, not assertion
+// logic that could silently skip the checks below.
+async function revealNavigation(page: Page): Promise<void> {
+  const navToggle = page.getByRole('button', { name: '打开导航' })
+  if (await navToggle.isVisible()) {
+    await navToggle.click()
+  }
+}
 
 test('审批规则页展示证据、名单和响应式布局', async ({ page }) => {
   let sampleQuery = ''
@@ -31,11 +41,7 @@ test('审批规则页展示证据、名单和响应式布局', async ({ page }) 
   // Reach the page the way a user does, so a missing or misgated sidebar entry fails here
   // rather than staying invisible behind a direct URL visit.
   await page.goto('/')
-  // On mobile viewports the nav is collapsed into a drawer, so open it first.
-  const navToggle = page.getByRole('button', { name: '打开导航' })
-  if (await navToggle.isVisible()) {
-    await navToggle.click()
-  }
+  await revealNavigation(page)
   const navigationLink = page.getByRole('link', { name: '审批规则与证据' })
   await expect(navigationLink).toBeVisible()
   await navigationLink.click()

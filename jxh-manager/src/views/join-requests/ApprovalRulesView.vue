@@ -76,7 +76,7 @@ async function loadSamples(page = 1): Promise<void> {
     for (const sample of result.items) draftMajors[sample.sample_id] = sample.major
   } catch (reason) {
     notice.tone = 'danger'
-    notice.message = failureMessage(reason, '证据样本读取失败。')
+    notice.message = failureMessage(reason, '数据样本读取失败。')
   } finally {
     samplesLoading.value = false
   }
@@ -100,11 +100,11 @@ async function saveSample(sample: MajorCodeEvidenceSample, active = sample.activ
     if (index >= 0) samples.value.splice(index, 1, updated)
     draftMajors[updated.sample_id] = updated.major
     notice.tone = 'success'
-    notice.message = '证据样本已更新，新的证据版本将在后续判断中生效。'
+    notice.message = '数据样本已更新'
     await load()
   } catch (reason) {
     notice.tone = reason instanceof AdminApiError && reason.status === 409 ? 'warning' : 'danger'
-    notice.message = failureMessage(reason, '证据样本更新失败。')
+    notice.message = failureMessage(reason, '数据样本更新失败。')
   } finally {
     busy.value = false
   }
@@ -116,11 +116,11 @@ async function rebuild(): Promise<void> {
   try {
     const result = await joinRequestsApi.rebuildEvidence()
     notice.tone = 'success'
-    notice.message = `证据重建完成，当前有 ${result.sample_count} 条有效样本。`
+    notice.message = `数据重建完成，共有 ${result.sample_count} 条`
     await Promise.all([load(), loadSamples(samplePage.value)])
   } catch (reason) {
     notice.tone = 'danger'
-    notice.message = failureMessage(reason, '证据重建失败。')
+    notice.message = failureMessage(reason, '数据重建失败。')
   } finally {
     busy.value = false
   }
@@ -155,7 +155,6 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <h1>审批规则与证据</h1>
-        <p>自动审批 v2 · 仅处理规则激活后的新申请</p>
       </div>
       <button class="icon-command" type="button" title="刷新" :disabled="loading" @click="load">
         <RefreshCw :size="17" :class="{ spin: loading }" aria-hidden="true" />
@@ -173,7 +172,7 @@ onMounted(async () => {
     <section class="rule-band" aria-labelledby="rule-title">
       <div class="section-heading">
         <ShieldCheck :size="18" aria-hidden="true" />
-        <div><h2 id="rule-title">固定校验</h2><p>格式与年份由后端确定性判断，不交给模型推测。</p></div>
+        <div><h2 id="rule-title">固定校验</h2></div>
         <span :class="['state', evidence?.rule_state.status ?? 'building']">{{ evidence?.rule_state.status === 'ready' ? '已就绪' : '准备中' }}</span>
       </div>
       <dl v-if="evidence" class="rule-metrics">
@@ -188,7 +187,7 @@ onMounted(async () => {
       <div class="workspace-section evidence-section">
         <div class="section-heading">
           <Database :size="18" aria-hidden="true" />
-          <div><h2>专业代码证据</h2><p>按入学年份和代码跨群聚合，模型只接收下列计数。</p></div>
+          <div><h2>专业代码证据</h2></div>
           <button v-if="canWrite" class="secondary-command" type="button" :disabled="busy" @click="rebuild">
             <RotateCcw :size="15" aria-hidden="true" />重建
           </button>
@@ -208,7 +207,7 @@ onMounted(async () => {
                 <td>{{ item.enrollment_year }}</td><td><code>{{ item.major_code }}</code></td><td>{{ item.total_samples }}</td>
                 <td><span v-for="major in item.major_counts" :key="major.major" class="distribution">{{ major.major }} {{ major.count }}</span></td>
               </tr>
-              <tr v-if="!loading && !(evidence?.items.length)"><td colspan="4" class="empty">尚无有效批准样本</td></tr>
+              <tr v-if="!loading && !(evidence?.items.length)"><td colspan="4" class="empty">无有效批准数据</td></tr>
             </tbody>
           </table>
         </div>
@@ -217,7 +216,7 @@ onMounted(async () => {
       <div class="workspace-section roster-section">
         <div class="section-heading">
           <FileUp :size="18" aria-hidden="true" />
-          <div><h2>录取名单</h2><p>导入后以完整学号精确检索；未配置时继续使用历史证据。</p></div>
+          <div><h2>录取名单</h2></div>
         </div>
         <dl class="roster-status">
           <div><dt>状态</dt><dd>{{ roster?.configured ? '已启用' : '未配置' }}</dd></div>
@@ -235,7 +234,7 @@ onMounted(async () => {
     <section class="workspace-section samples-section">
       <div class="section-heading">
         <Database :size="18" aria-hidden="true" />
-        <div><h2>{{ selectedTitle }}</h2><p>可更正专业名称或停用异常样本，来源年份和代码不可修改。</p></div>
+        <div><h2>{{ selectedTitle }}</h2></div>
         <button v-if="selectedKey" class="secondary-command" type="button" @click="selectedKey = null; loadSamples()">查看全部</button>
       </div>
       <div class="table-scroll">
@@ -250,7 +249,7 @@ onMounted(async () => {
               <td><label class="sample-toggle"><input type="checkbox" :checked="sample.active" :disabled="!canWrite || busy" @change="saveSample(sample, ($event.target as HTMLInputElement).checked)" /><span>{{ sample.active ? '有效' : '已停用' }}</span></label></td>
               <td><button v-if="canWrite" class="save-command" type="button" title="保存专业名称" :disabled="busy || !draftMajors[sample.sample_id]?.trim()" @click="saveSample(sample)"><Save :size="15" aria-hidden="true" /></button></td>
             </tr>
-            <tr v-if="!samplesLoading && !samples.length"><td colspan="6" class="empty">当前筛选没有证据样本</td></tr>
+            <tr v-if="!samplesLoading && !samples.length"><td colspan="6" class="empty">当前筛选没有数据样本</td></tr>
           </tbody>
         </table>
       </div>

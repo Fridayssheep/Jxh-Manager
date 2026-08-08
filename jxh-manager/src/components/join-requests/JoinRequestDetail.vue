@@ -71,12 +71,10 @@ const canAct = computed(
       v-if="loading"
       state="loading"
       title="正在读取申请详情"
-      description="同时读取 AI 解析结果与决策时间线。"
     />
     <div v-else-if="!request" class="detail-placeholder">
       <UserRound :size="24" aria-hidden="true" />
       <strong>选择一条申请查看详情</strong>
-      <span>验证消息、AI 提取字段和处理记录会显示在这里。</span>
     </div>
 
     <template v-else>
@@ -153,7 +151,6 @@ const canAct = computed(
           <label class="policy-row">
             <span class="policy-copy">
               <strong>自动批准</strong>
-              <small>固定校验、名单和专业代码 AI 判断全部通过时批准。</small>
             </span>
             <span class="policy-switch">
               <input
@@ -171,7 +168,6 @@ const canAct = computed(
           <label class="policy-row">
             <span class="policy-copy">
               <strong>自动拒绝</strong>
-              <small>校验失败时拒绝，详细原因只对管理员可见。</small>
             </span>
             <span class="policy-switch">
               <input
@@ -191,7 +187,7 @@ const canAct = computed(
 
       <section class="detail-section timeline-section">
         <header>
-          <div class="section-title"><History :size="17" aria-hidden="true" /><h3>决策时间线</h3></div>
+          <div class="section-title"><History :size="17" aria-hidden="true" /><h3>历史记录</h3></div>
           <span>{{ decisions.length }} 条记录</span>
         </header>
         <div v-if="decisions.length" class="timeline">
@@ -208,7 +204,7 @@ const canAct = computed(
             <time class="mono">{{ timeFormatter.format(new Date(decision.started_at)) }}</time>
           </article>
         </div>
-        <p v-else class="timeline-empty">尚无决策记录。</p>
+        <p v-else class="timeline-empty">没有历史记录</p>
       </section>
 
       <footer v-if="canDecide" class="decision-actions">

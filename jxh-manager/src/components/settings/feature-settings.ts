@@ -32,12 +32,12 @@ export const FEATURE_KEYS: FeatureKey[] = [
 ]
 
 export const FEATURE_META: Record<FeatureKey, { label: string; description: string }> = {
-  keyword_reply: { label: '关键词回复', description: '根据知识库中的精确关键词回复消息。' },
-  ai_qa: { label: 'AI 问答', description: '允许群成员使用 /ai 检索知识库。' },
-  quote: { label: '引用图', description: '允许使用 /q 生成消息引用图。' },
-  link_cleaner: { label: '链接净化', description: '自动处理受支持平台的分享链接。' },
-  welcome: { label: '欢迎语', description: '新成员入群后发送受控模板消息。' },
-  custom_commands: { label: '自定义命令', description: '执行管理端创建的受控命令。' },
+  keyword_reply: { label: '关键词回复', description: '根据知识库中的精确关键词回复消息' },
+  ai_qa: { label: 'AI 问答', description: '允许群成员使用 /ai 检索知识库' },
+  quote: { label: '引用图', description: '允许使用 /q 生成消息引用图' },
+  link_cleaner: { label: '链接净化', description: '自动处理受支持平台的分享链接' },
+  welcome: { label: '欢迎语', description: '新成员入群后发送消息' },
+  custom_commands: { label: '自定义命令', description: '执行管理端创建的命令' },
 }
 
 const ALLOWED_TEMPLATE_VARIABLES = new Set(['member_qq', 'member_name', 'group_name'])

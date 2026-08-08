@@ -19,7 +19,7 @@ vi.mock('@/api/join-requests', () => ({ joinRequestsApi: mocks }))
 
 describe('ApprovalRulesView', () => {
   beforeEach(() => {
-	vi.clearAllMocks()
+    vi.clearAllMocks()
     setActivePinia(createPinia())
     const auth = useAuthStore()
     auth.permissions = ['join_requests:read', 'join_policies:write']
@@ -76,45 +76,45 @@ describe('ApprovalRulesView', () => {
   })
 
   it('updates evidence and shows structured roster validation reports', async () => {
-	const sample = {
-		sample_id: 1,
-		enrollment_year: '2026',
-		major_code: '315',
-		major: '计算机类',
-		approval_source: 'manual' as const,
-		source_group_id: '10001',
-		active: true,
-		version: 1,
-		updated_at: '2026-08-07T00:00:00Z',
-	}
-	mocks.listEvidenceSamples.mockResolvedValue({ items: [sample], has_more: false, total_count: 1 })
-	mocks.updateEvidenceSample.mockResolvedValue({ ...sample, major: '计算机科学与技术', version: 2 })
-	mocks.importAdmissionRoster.mockRejectedValue(new AdminApiError(400, {
-		code: 'bad_request',
-		message: '录取名单文件校验失败',
-		request_id: 'req-test',
-		fields: { student_id: ['第 3 行：学号在文件中重复'] },
-		retryable: false,
-	}))
+    const sample = {
+      sample_id: 1,
+      enrollment_year: '2026',
+      major_code: '315',
+      major: '计算机类',
+      approval_source: 'manual' as const,
+      source_group_id: '10001',
+      active: true,
+      version: 1,
+      updated_at: '2026-08-07T00:00:00Z',
+    }
+    mocks.listEvidenceSamples.mockResolvedValue({ items: [sample], has_more: false, total_count: 1 })
+    mocks.updateEvidenceSample.mockResolvedValue({ ...sample, major: '计算机科学与技术', version: 2 })
+    mocks.importAdmissionRoster.mockRejectedValue(new AdminApiError(400, {
+      code: 'bad_request',
+      message: '录取名单文件校验失败',
+      request_id: 'req-test',
+      fields: { student_id: ['第 3 行：学号在文件中重复'] },
+      retryable: false,
+    }))
 
-	const wrapper = mount(ApprovalRulesView)
-	await flushPromises()
-	const majorInput = wrapper.get('input[aria-label="样本 1 专业"]')
-	await majorInput.setValue('计算机科学与技术')
-	await wrapper.get('button[title="保存专业名称"]').trigger('click')
-	await flushPromises()
-	expect(mocks.updateEvidenceSample).toHaveBeenCalledWith(1, {
-		major: '计算机科学与技术',
-		active: true,
-	}, 1)
+    const wrapper = mount(ApprovalRulesView)
+    await flushPromises()
+    const majorInput = wrapper.get('input[aria-label="样本 1 专业"]')
+    await majorInput.setValue('计算机科学与技术')
+    await wrapper.get('button[title="保存专业名称"]').trigger('click')
+    await flushPromises()
+    expect(mocks.updateEvidenceSample).toHaveBeenCalledWith(1, {
+      major: '计算机科学与技术',
+      active: true,
+    }, 1)
 
-	const rosterInput = wrapper.get('input[type="file"]')
-	Object.defineProperty(rosterInput.element, 'files', {
-		configurable: true,
-		value: [new File(['学号,专业\n302026315326,计算机类\n'], 'roster.csv', { type: 'text/csv' })],
-	})
-	await rosterInput.trigger('change')
-	await flushPromises()
-	expect(wrapper.text()).toContain('第 3 行：学号在文件中重复')
+    const rosterInput = wrapper.get('input[type="file"]')
+    Object.defineProperty(rosterInput.element, 'files', {
+      configurable: true,
+      value: [new File(['学号,专业\n302026315326,计算机类\n'], 'roster.csv', { type: 'text/csv' })],
+    })
+    await rosterInput.trigger('change')
+    await flushPromises()
+    expect(wrapper.text()).toContain('第 3 行：学号在文件中重复')
   })
 })

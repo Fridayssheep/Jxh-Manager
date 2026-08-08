@@ -147,7 +147,6 @@ onMounted(() => { void load() })
     <header class="configuration-header">
       <div>
         <h2 id="system-config-title"><Settings2 :size="18" aria-hidden="true" />系统设置</h2>
-        <p>按分类修改配置文件中的可运行设置；环境变量托管字段只读。</p>
       </div>
       <div v-if="resource" class="configuration-meta">
         <span data-test="config-version" class="mono">版本 {{ resource.version }}</span>
@@ -190,7 +189,7 @@ onMounted(() => { void load() })
             <Database :size="18" aria-hidden="true" />
             <div>
               <h3>WPS</h3>
-              <p>知识表来源和 WPS 请求超时。</p>
+              <p>知识表来源和 WPS </p>
             </div>
           </header>
           <div class="field-grid">
@@ -434,11 +433,11 @@ onMounted(() => { void load() })
             <AlertTriangle :size="15" aria-hidden="true" />{{ saveError }}
           </span>
           <span v-else-if="hasIssues" class="save-error" role="alert">
-            <AlertTriangle :size="15" aria-hidden="true" />修正字段校验错误后再保存。
+            <AlertTriangle :size="15" aria-hidden="true" />请修正字段校验错误后再保存。
           </span>
-          <span v-else-if="!canWrite" class="save-hint">当前账号只读，不能修改系统设置。</span>
+          <span v-else-if="!canWrite" class="save-hint">你没有权限修改修改系统设置。</span>
           <span v-else-if="dirty" class="save-hint">有未保存修改。</span>
-          <span v-else class="save-hint">设置已与服务器版本一致。</span>
+          <span v-else class="save-hint">设置已同步</span>
         </div>
         <button
           v-if="canWrite"

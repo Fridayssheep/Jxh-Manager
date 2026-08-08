@@ -165,7 +165,7 @@ onMounted(load)
           <header>
             <div>
               <h3>入群申请</h3>
-              <p>旧版拒绝消息兼容设置</p>
+              <p>拒绝消息设置</p>
             </div>
             <span class="scope-label">全局</span>
           </header>
@@ -182,7 +182,7 @@ onMounted(load)
           </label>
           <div class="field-meta">
             <span v-if="autoRejectReasonError" class="field-error" role="alert">{{ autoRejectReasonError }}</span>
-            <span v-else>自动审批 v2 不会向申请人发送此内容</span>
+            <span v-else>设置拒绝消息，申请人将收到此消息。</span>
             <span class="mono">{{ autoRejectReasonLength }}/500</span>
           </div>
         </section>
@@ -191,9 +191,9 @@ onMounted(load)
           <div>
             <span v-if="saved" class="save-success" role="status"><Check :size="15" aria-hidden="true" />设置已保存</span>
             <span v-else-if="saveError" class="save-error" role="alert">{{ saveError }}</span>
-            <span v-else-if="unknownVariables.length" class="save-error" role="alert">修正未知模板变量后才能保存。</span>
+            <span v-else-if="unknownVariables.length" class="save-error" role="alert">你还有未处理的项目</span>
             <span v-else-if="autoRejectReasonError" class="save-error" role="alert">{{ autoRejectReasonError }}</span>
-            <span v-else class="save-hint">保存后会生成新的运行时设置快照。</span>
+            <span v-else class="save-hint">保存并生效</span>
           </div>
           <button
             v-if="auth.hasPermission('settings:write')"
